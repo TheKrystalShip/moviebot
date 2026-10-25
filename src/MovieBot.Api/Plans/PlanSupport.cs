@@ -1,7 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Notifications;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -26,12 +26,10 @@ public sealed class PlanOptions
 }
 
 /// <summary>A plan's title as a person says it.</summary>
-public sealed class PlanTitles(FilmStore films, ShowStore shows)
+public sealed class PlanTitles(CatalogueTitles catalogue)
 {
-    /// <summary>The title's name, or its IMDb id while the film database has not described it.</summary>
-    public string Name(string imdbId, string kind) => (kind == Wants.WantKinds.Show
-        ? shows.Held(imdbId)?.Details?.Title
-        : films.Held(imdbId)?.Details?.Title) ?? imdbId;
+    /// <summary>The title's name, or its IMDb id for a title the catalogue does not list.</summary>
+    public string Name(string imdbId, string kind) => catalogue.Card(imdbId)?.Title ?? imdbId;
 }
 
 /// <summary>

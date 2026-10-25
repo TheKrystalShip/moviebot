@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Dialog, Drawer, Icon, IconButton, Meter, Notice, OptionList, Select, toast, usePhone } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { libraryApi, meApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { languageName, languageOptions } from "../languages.js";
@@ -339,10 +339,10 @@ function WantSheet({ head, target, eyebrow = "Download", onClose }) {
   const sub = session && session.user.id;
   const online = useOnline();
   const narrow = usePhone();
-  const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
+  const preferences = useLoad(() => meApi.preferences().catch(() => keptPreferences(sub)), [sub]);
   const season = target.episodes ? target.episodes[0].season : null;
   const numbers = target.episodes ? target.episodes.map((e) => e.episode) : null;
-  const estimate = useLoad(() => api.offlineEstimate(target.imdbId, season, numbers).catch(() => null),
+  const estimate = useLoad(() => libraryApi.offlineEstimate(target.imdbId, season, numbers).catch(() => null),
     [target.imdbId, season, numbers && numbers.join()]);
   const room = useSpace();
   const [picked, setPicked] = React.useState(null);
@@ -539,8 +539,8 @@ function PickSheet({ titleId, head, onClose }) {
   const sub = session && session.user.id;
   const online = useOnline();
   const narrow = usePhone();
-  const offer = useLoad(() => api.offlineOffer(titleId), [titleId]);
-  const preferences = useLoad(() => api.preferences().catch(() => keptPreferences(sub)), [sub]);
+  const offer = useLoad(() => libraryApi.offlineOffer(titleId), [titleId]);
+  const preferences = useLoad(() => meApi.preferences().catch(() => keptPreferences(sub)), [sub]);
   const room = useSpace();
   const [picked, setPicked] = React.useState(null);
   const [featured, setFeatured] = React.useState(null);

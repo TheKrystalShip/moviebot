@@ -98,7 +98,7 @@ const wanted = await api("/api/me/wants");
 if (!films[0].film || !wanted.some((w) => w.imdbId === films[0].film.imdbId)) {
   console.error("The scratch library is not staged: the viewer does not want the first film. Run\n"
     + "`node verify/mobile/run.mjs` once after scratch.sh starts, which needs scratch.sh started with\n"
-    + "MOVIEBOT_VERIFY_TMDB_TOKEN_FILE, since wanting a title asks the film database about it.");
+    + "MOVIEBOT_VERIFY_CATALOGUE, since a title can be wanted only when the catalogue lists it.");
   process.exit(2);
 }
 /** A film the scratch library holds video for, which the player checks play. */

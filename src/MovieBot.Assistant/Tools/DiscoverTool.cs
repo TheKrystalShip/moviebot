@@ -37,44 +37,82 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
         [property: Description("Default popular.")] DiscoverSort? Sort = null,
         [property: Description("Only anime. Default false.")] bool? Anime = null);
 
+    /// <summary>What a well-rated title is: rated this or better, on this many votes or more.</summary>
+    internal const double GoodRating = 6.5;
+    internal const int GoodVotes = 200;
+
+    /// <summary>The genres a genre search leaves out unless the person asked for them.</summary>
+    internal static readonly string[] FamilyGenres = ["Animation", "Family"];
+
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
+        var database = api.As(call.Principal.AccessToken);
+        CancellationToken ct = call.CancellationToken;
+
         string kind = args.Kind.Wire() ?? "film";
+        bool anime = args.Anime ?? false;
+        bool goodOnly = args.GoodOnly ?? true;
+        IReadOnlyList<string> genreWords = args.Genre ?? [];
+        IReadOnlyList<string> excludeWords = args.Exclude ?? [];
         IReadOnlyList<string> with = args.With ?? [];
+        IReadOnlyList<string> about = args.About ?? [];
 
-        // The database cannot filter shows by people, so the request is not sent to be refused.
-        if (kind == "show" && with.Count > 0)
-            throw new ToolRefusal(
-                "Shows cannot be filtered by people here. Call person_credits for each person with kind show, "
-                + "or discover without with.");
+        Vocabulary? vocabulary = genreWords.Count > 0 || excludeWords.Count > 0 || args.Language is not null
+            ? await Vocabulary.ReadAsync(database, ct)
+            : null;
+        List<string> genres = vocabulary?.GenresOf(genreWords) ?? [];
+        List<string> excluded = vocabulary?.GenresOf(excludeWords) ?? [];
+        if (genres.Count > 0 && args.IncludeFamily != true && !anime)
+            excluded.AddRange(FamilyGenres.Where(g => !genres.Contains(g) && !excluded.Contains(g)));
+        (string Code, string Name)? language = args.Language is { } said ? vocabulary!.Language(said) : null;
 
-        var query = new DiscoverQuery
+        var people = new List<PersonCreditsTool.PersonMatch>();
+        foreach (string name in with)
+        {
+            (PersonCreditsTool.PersonMatch? person, _) = await PersonCreditsTool.FindAsync(database, name, null, null, ct);
+            people.Add(person ?? throw new ToolRefusal($"The film database has nobody named '{name}'."));
+        }
+
+        var keywords = new List<Term>();
+        foreach (string word in about)
+            keywords.Add(await Vocabulary.KeywordAsync(database, word, ct)
+                ?? throw new ToolRefusal($"The film database has no keyword '{word}'. Call discover again without it, or with other words."));
+
+        CatalogueCard? like = null;
+        if (args.Like is { } likeSaid)
+            like = await Vocabulary.TitleAsync(database, likeSaid, ct)
+                ?? throw new ToolRefusal($"The film database has no title named '{likeSaid}'. Find it with search_titles first.");
+
+        var filter = new TitleFilter
         {
             Kind = kind,
-            Genre = args.Genre ?? [],
-            Exclude = args.Exclude ?? [],
-            IncludeFamily = args.IncludeFamily ?? false,
+            Category = anime ? "anime" : null,
+            Genres = genres,
+            NotGenres = excluded,
             From = args.From,
             To = args.To,
-            With = with,
-            About = args.About ?? [],
-            Language = args.Language,
-            Like = args.Like,
-            GoodOnly = args.GoodOnly ?? true,
+            Languages = language is { } l ? [l.Code] : [],
+            People = [.. people.Select(p => p.Id)],
+            Keywords = [.. keywords.Select(k => k.Value)],
+            SimilarTo = like?.Id,
+            MinRating = goodOnly ? GoodRating : null,
+            MinVotes = goodOnly ? GoodVotes : null,
             Sort = args.Sort.Wire(),
-            Anime = args.Anime ?? false,
         };
 
-        DiscoverResult found = await api.As(call.Principal.AccessToken).DiscoverAsync(query, call.CancellationToken);
-        string matched = Matched(found.Resolved);
+        CardPage found = await database.TitlesAsync(filter, ct);
+        string order = args.Sort.Wire() ?? (like is not null ? "similarity" : "popular");
+        string matched = Matched(filter, people, keywords, language?.Name, like);
+        string what = (anime ? "anime " : "") + kind;
 
         if (found.Titles.Count == 0)
             return ToolResult.Ok(
-                $"The film database has no {(query.Anime ? "anime " : "")}{kind} that fits all of that. {matched} {Loosen(query)} "
+                $"The film database has no {what} that fits all of that. {matched} {Loosen(filter, goodOnly, keywords)} "
                 + "A title no tool returned is not to be named.");
 
+        string count = found.Total > found.Titles.Count ? $"{found.Titles.Count} of {TitleText.Count(found.Total)}" : $"{found.Titles.Count}";
         return ToolResult.Ok(
-            $"{found.Titles.Count} {(query.Anime ? "anime " : "")}{kind}{(found.Titles.Count == 1 ? "" : "s")}, in the database's {found.Resolved.Sort} order. {matched}\n"
+            $"{count} {what}{(found.Total == 1 ? "" : "s")}, in the database's {order} order. {matched}\n"
             + TitleText.Lines(found.Titles),
             TitleCards.Of(found.Titles));
     }
@@ -83,36 +121,36 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
     /// What to take away from a request that found nothing, narrowest filter first: every filter narrows
     /// the rest, and a keyword narrows the most.
     /// </summary>
-    private static string Loosen(DiscoverQuery q)
+    private static string Loosen(TitleFilter q, bool goodOnly, List<Term> keywords)
     {
-        if (q.About.Count > 0)
-            return $"Every filter narrows the rest, and a keyword the most: call discover again without about ({string.Join(", ", q.About)}).";
-        if (q.Genre.Count > 1)
+        if (q.Keywords.Count > 0)
+            return $"Every filter narrows the rest, and a keyword the most: call discover again without about ({string.Join(", ", keywords.Select(k => k.Name))}).";
+        if (q.Genres.Count > 1)
             return "Every filter narrows the rest: call discover again with only one of the genres.";
-        if (q.With.Count > 0 || q.Like is not null || q.Language is not null)
+        if (q.People.Count > 0 || q.SimilarTo is not null || q.Languages.Count > 0)
             return "Every filter narrows the rest: call discover again without the people, the language or the similar title.";
         if (q.From is not null || q.To is not null)
             return "Call discover again with wider years.";
-        if (q.GoodOnly)
+        if (goodOnly)
             return "Call discover again with good_only false.";
         return "Nothing more can be taken away.";
     }
 
     /// <summary>What each word of the request was taken to mean, so the model can say what was actually searched.</summary>
-    private static string Matched(DiscoverResolved r)
+    private static string Matched(
+        TitleFilter f, List<PersonCreditsTool.PersonMatch> people, List<Term> keywords, string? language, CatalogueCard? like)
     {
         var parts = new List<string>();
-        if (r.Genres.Count > 0) parts.Add("genres " + string.Join(", ", r.Genres));
-        if (r.Excluded.Count > 0) parts.Add("leaving out " + string.Join(", ", r.Excluded));
-        if (r.People.Count > 0) parts.Add("people " + string.Join(", ", r.People.Select(p => p.Name)));
-        if (r.Keywords.Count > 0) parts.Add("keywords " + string.Join(", ", r.Keywords));
-        if (r.Language is { Length: > 0 } language) parts.Add("original language " + language);
-        if (r.Like is { Length: > 0 } like) parts.Add("similar to " + like);
-        if (r.MinRating is { } rating)
+        if (f.Category is { } category) parts.Add("only " + category);
+        if (f.Genres.Count > 0) parts.Add("genres " + string.Join(", ", f.Genres));
+        if (f.NotGenres.Count > 0) parts.Add("leaving out " + string.Join(", ", f.NotGenres));
+        if (people.Count > 0) parts.Add("people " + string.Join(", ", people.Select(p => p.Name)));
+        if (keywords.Count > 0) parts.Add("keywords " + string.Join(", ", keywords.Select(k => k.Name)));
+        if (language is not null) parts.Add("original language " + language);
+        if (like is not null) parts.Add("similar to " + TitleText.Named(like.Title, like.Year));
+        if (f.MinRating is { } rating)
             parts.Add($"rated at least {rating.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)}"
-                + (r.MinVotes is { } votes ? $" on at least {TitleText.Count(votes)} votes" : ""));
-        else if (r.MinVotes is { } onlyVotes)
-            parts.Add($"at least {TitleText.Count(onlyVotes)} votes");
+                + (f.MinVotes is { } votes ? $" on at least {TitleText.Count(votes)} votes" : ""));
 
         return parts.Count == 0 ? "Matched: no filter." : "Matched: " + string.Join("; ", parts) + ".";
     }

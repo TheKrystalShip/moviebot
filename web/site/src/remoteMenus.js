@@ -10,7 +10,7 @@
 
 import React from "react";
 import { toast } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { libraryApi } from "./api/index.js";
 import { qualityLevelsOf } from "./player/engine/media/ladder.ts";
 import { startingTracks } from "./player/engine/media/tracks.ts";
 import { refreshRemoteFilm, useRemoteFilm } from "./remoteFilm.js";
@@ -63,10 +63,10 @@ export function useTvRoom(manifest) {
       // This person's language first, and English beside it, as the player asks.
       searchSubtitles: () => {
         const wanted = subtitleLanguage();
-        return api.searchSubtitles(film, wanted ? [wanted, "en"] : ["en"]);
+        return libraryApi.searchSubtitles(film, wanted ? [wanted, "en"] : ["en"]);
       },
       fetchSubtitle: async (fileId) => {
-        const reply = await api.addSubtitle(film, fileId);
+        const reply = await libraryApi.addSubtitle(film, fileId);
         await refreshRemoteFilm();
         return reply.track;
       },

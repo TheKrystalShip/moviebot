@@ -127,20 +127,6 @@ public sealed partial class EpisodeNumbering
         };
     }
 
-    /// <summary>
-    /// The film database's still file for an episode named as its release numbers it, <c>s02e07.jpg</c>,
-    /// or the name unchanged when it is no still or the numberings agree.
-    /// </summary>
-    public string StillFile(string showImdbId, StoredShow? stored, string file)
-    {
-        if (stored is null || Work(showImdbId, stored) is not { } worked) return file;
-        if (EpisodeMarker.Read(Path.GetFileNameWithoutExtension(file)) is not { IsSeasonPack: false } marker
-            || !file.StartsWith('s')) return file;
-        return ToDatabase(worked.Anchors, marker.Season, marker.Episodes[0]) is { } number
-            ? ShowStore.Still(marker.Season, number)
-            : file;
-    }
-
     /// <summary>Every season's anchors, where a release's episode name is the database's episode of the same name.</summary>
     private static Dictionary<int, List<Anchor>> Anchors(StoredShow stored, Evidence evidence)
     {

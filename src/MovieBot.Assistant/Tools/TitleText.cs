@@ -14,8 +14,16 @@ internal static class TitleText
 
     public static string Count(int n) => n.ToString("N0", Invariant);
 
-    public static string Rating(double? rating, int votes) =>
-        rating is { } r ? $"Rated {r.ToString("0.0", Invariant)} on {Count(votes)} votes." : "";
+    /// <summary>"Rated 7.5 on 61,000 votes at IMDb.", or nothing when the card shows no rating.</summary>
+    public static string Rating(CardRating? rating) =>
+        rating is { Value: { } r } ? $"Rated {r.ToString("0.0", Invariant)} on {Count(rating.Votes)} votes at {Source(rating.By)}." : "";
+
+    private static string Source(string by) => by switch
+    {
+        "imdb" => "IMDb",
+        "tmdb" => "TMDB",
+        _ => by,
+    };
 
     public static string KindWord(string kind) => kind == "show" ? "show" : "film";
 
@@ -33,28 +41,28 @@ internal static class TitleText
     }
 
     /// <summary>The line a search, a discovery or a list of the week gives a title.</summary>
-    public static string Line(TitleHit hit, bool withDate = false)
+    public static string Line(CatalogueCard card, bool withDate = false)
     {
-        var text = new StringBuilder("- ").Append(Named(hit.Title, hit.Year)).Append(", ").Append(KindWord(hit.Kind, hit.Category)).Append('.');
-        if (withDate && hit.ReleaseDate is { Length: > 0 } date)
+        var text = new StringBuilder("- ").Append(Named(card.Title, card.Year)).Append(", ").Append(KindWord(card.Kind, card.Category)).Append('.');
+        if (withDate && card.Released is { Length: > 0 } date)
             text.Append(" Release date ").Append(date).Append('.');
-        if (hit.MadeBy.Count > 0)
-            text.Append(hit.Kind == "show" ? " Created by " : " Directed by ").Append(string.Join(", ", hit.MadeBy)).Append('.');
-        if (hit.Starring.Count > 0)
-            text.Append(" With ").Append(string.Join(", ", hit.Starring)).Append('.');
-        if (hit.Genres.Count > 0)
-            text.Append(' ').Append(string.Join(", ", hit.Genres)).Append('.');
-        if (hit.Rating is not null)
-            text.Append(' ').Append(Rating(hit.Rating, hit.Votes));
-        text.Append(' ').Append(Library(hit.InLibrary, hit.Watched, hit.Kind));
-        text.Append(hit.ImdbId is { Length: > 0 } id ? $" id {id}." : " No IMDb id: it has no page here.");
-        if (hit.Plot is { Length: > 0 } plot)
+        if (card.MadeBy.Count > 0)
+            text.Append(card.Kind == "show" ? " Created by " : " Directed by ").Append(string.Join(", ", card.MadeBy)).Append('.');
+        if (card.Starring.Count > 0)
+            text.Append(" With ").Append(string.Join(", ", card.Starring)).Append('.');
+        if (card.Genres.Count > 0)
+            text.Append(' ').Append(string.Join(", ", card.Genres)).Append('.');
+        if (Rating(card.Rating) is { Length: > 0 } rated)
+            text.Append(' ').Append(rated);
+        text.Append(' ').Append(Library(card.InLibrary, card.Watched, card.Kind));
+        text.Append(" id ").Append(card.Id).Append('.');
+        if (card.Plot is { Length: > 0 } plot)
             text.Append("\n  ").Append(plot);
         return text.ToString();
     }
 
-    public static string Lines(IEnumerable<TitleHit> hits, bool withDate = false) =>
-        string.Join('\n', hits.Select(h => Line(h, withDate)));
+    public static string Lines(IEnumerable<CatalogueCard> cards, bool withDate = false) =>
+        string.Join('\n', cards.Select(c => Line(c, withDate)));
 
     /// <summary>The name a title is matched by: letters and digits only, in lower case.</summary>
     public static string Normal(string title)
@@ -69,7 +77,20 @@ internal static class TitleText
         return text.ToString();
     }
 
-    /// <summary>The words of a status the API gave a credit, as the model should say them.</summary>
+    /// <summary>
+    /// Whether a title is out on <paramref name="today"/>: <c>released</c> on or before it, <c>upcoming</c>
+    /// when dated after it, and <c>announced</c> when it has no date. A title dated only by a year before
+    /// this one is released; one dated only by this year or a later one is announced, since its day is not
+    /// known.
+    /// </summary>
+    public static string Status(CatalogueCard card, DateOnly today)
+    {
+        if (DateOnly.TryParseExact(card.Released, "yyyy-MM-dd", Invariant, DateTimeStyles.None, out DateOnly day))
+            return day > today ? "upcoming" : "released";
+        return card.Year is { } year && year < today.Year ? "released" : "announced";
+    }
+
+    /// <summary>The words of a status, as the model should say them.</summary>
     public static string Status(string status) => status switch
     {
         "released" => "released",

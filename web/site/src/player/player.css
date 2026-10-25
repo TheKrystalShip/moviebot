@@ -364,8 +364,8 @@
 :root[data-tv] .mp-episodes .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
 :is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes .kc-episode__still,
 :root[data-tv] .mp-episodes .kc-episode__still { width: 96px; }
-:is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes :is(.kc-episode__score, .kc-episode__runtime),
-:root[data-tv] .mp-episodes :is(.kc-episode__score, .kc-episode__runtime) { display: none; }
+:is(.mp-frame:not(.mp-frame--wide), .mp-aimed) .mp-episodes .kc-episode__runtime,
+:root[data-tv] .mp-episodes .kc-episode__runtime { display: none; }
 /* The style editor's drawer leaves room above it for the sample line it is styling. */
 .mp-menu.is-styling { max-height: 45%; }
 .mp-menu__list { padding: 6px; display: flex; flex-direction: column; gap: 2px; }

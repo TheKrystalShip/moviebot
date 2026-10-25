@@ -9,12 +9,13 @@ import { clock } from "../time.js";
 export const PauseCardMs = 4000;
 
 /**
- * What the player tells about what the room holds: the film database's description through the API
- * when it answers, else what the manifest carries. Every manifest names the film or show, its year and
- * its stars; a saved copy's also keeps the description's facts and the episode's own name and story. A
- * guest's link opens the room's film and nothing else, so a guest is told what the manifest says.
+ * What the player tells about what the room holds: the title's catalogue page through the API when it
+ * answers, else what the manifest carries. Every manifest names the film or show, its year and its
+ * stars; a saved copy's also keeps the title's card and the episode's own name and story. A guest's
+ * link opens the room's film and nothing else, so a guest is told what the manifest says.
  *
- * A show is read once for all its episodes; the episode is found in it by its place.
+ * A show's page and what the person has of it are read once for all its episodes; the episode is found
+ * in the second by its place.
  */
 export function useAbout(view) {
   const manifest = view.manifest;
@@ -25,10 +26,11 @@ export function useAbout(view) {
   React.useEffect(() => {
     if (!asks) return undefined;
     let live = true;
-    (show ? api.show(imdbId) : api.film(imdbId)).then((d) => { if (live) setRead({ imdbId, d }); }, () => {});
+    Promise.all([api.title(imdbId), show ? api.show(imdbId).catch(() => null) : null])
+      .then(([page, mine]) => { if (live) setRead({ imdbId, page, mine }); }, () => {});
     return () => { live = false; };
   }, [asks, imdbId, show]);
-  const described = asks && read && read.imdbId === imdbId ? read.d : null;
+  const described = asks && read && read.imdbId === imdbId ? read : null;
   return React.useMemo(() => (manifest ? aboutOf(manifest, described) : null), [manifest, described]);
 }
 
@@ -36,64 +38,65 @@ export function useAbout(view) {
 const served = (path) => (path ? environment().apiUrl(path) : null);
 
 /** In the player a name leads nowhere: following it would leave the room. */
-const unlinked = (cast) => cast.map(({ personId: _, ...person }) => person);
+const unlinked = (people) => people.map((person) => ({ ...person, personId: null }));
 
-function aboutOf(manifest, d) {
+/** The certificate for the viewer's own country, read from the browser's languages; none when it names none. */
+function certificateOf(page) {
+  const languages = navigator.languages || [navigator.language];
+  const region = languages.map((l) => (l || "").split("-")[1]).find((r) => r && r.length === 2);
+  return region && page.certificates ? page.certificates[region.toUpperCase()] || null : null;
+}
+
+function aboutOf(manifest, read) {
   const film = manifest.film || {};
-  const facts = manifest.details || null;
+  const d = read ? read.page : null;
+  const card = d || manifest.card || null;
   const place = manifest.episode || null;
   const show = Boolean(place);
-  const listed = (d && d.seasons ? d.seasons.flatMap((s) => s.episodes) : [])
+  const listed = (read && read.mine ? read.mine.seasons.flatMap((s) => s.episodes) : [])
     .find((e) => place && e.season === place.season && e.number === place.number) || null;
   const stars = d && d.cast.length > 0 ? d.cast.slice(0, 3).map((c) => c.name)
-    : film.starring ? film.starring.split(", ") : [];
-  const years = show
-    ? (d && d.firstYear ? `${d.firstYear}–${d.inProduction ? "" : d.lastYear || ""}` : film.year || null)
-    : film.year || (d && d.year) || null;
+    : card && card.starring.length > 0 ? card.starring.slice(0, 3)
+      : film.starring ? film.starring.split(", ") : [];
+  const year = (card && card.year) || film.year || null;
+  const years = show && card && card.year ? `${card.year}–${card.endYear && card.endYear !== card.year ? card.endYear : ""}` : year;
+  const rating = card && card.rating && card.rating.value ? card.rating : null;
 
   return {
     show,
     described: Boolean(d),
-    name: (d && d.title) || film.name || manifest.title,
+    name: (card && card.title) || film.name || manifest.title,
     years,
-    certification: (d && d.certification) || (facts && facts.certification) || null,
-    rating: (d && d.rating) || (facts && facts.rating) || null,
-    votes: (d && d.votes) || (facts && facts.votes) || 0,
-    ratedBy: (d && d.rating && d.ratedBy) || (facts && facts.ratedBy) || null,
-    genres: (d && d.genres) || (facts && facts.genres) || [],
+    certification: d ? certificateOf(d) : null,
+    rating: rating && rating.value,
+    votes: rating ? rating.votes : 0,
+    ratedBy: rating && rating.by,
+    genres: (card && card.genres) || [],
     tagline: (d && d.tagline) || null,
-    overview: (d && d.overview) || (facts && facts.overview) || null,
+    overview: (d && d.overview) || (card && card.plot) || null,
     stars,
     credits: d
-      ? { creators: d.creators, directors: d.directors, writers: d.writers, cast: unlinked(d.cast) }
-      : { directors: (facts && facts.directors) || [], cast: stars.map((name) => ({ name })) },
+      ? { crew: unlinked(d.crew), cast: unlinked(d.cast) }
+      : { crew: ((card && card.madeBy) || []).map((name) => ({ name, job: show ? "Creator" : "Director" })), cast: stars.map((name) => ({ name })) },
     cast: d ? unlinked(d.cast) : [],
-    backdrop: served((d && (d.backdropUrl || d.posterUrl)) || (facts && (facts.backdropUrl || facts.posterUrl))),
+    backdrop: served(card && (card.backdrop || card.poster)),
     length: clock(manifest.durationSeconds),
     episode: place && {
       code: `S${place.season} · E${place.number}`,
       name: (listed && listed.name) || place.name || null,
       overview: (listed && listed.overview) || place.overview || null,
       airDate: (listed && listed.airDate) || null,
-      rating: (listed && listed.rating) || null,
-      still: served(listed && listed.stillUrl),
+      still: served(listed && listed.still),
     },
-    facts: d ? (show
-      ? [
-        ["Original title", originalTitle(d.title, d.originalTitle)],
-        ["Status", d.status],
-        ["Network", d.networks.join(", ") || null],
-        ["Language", d.languages.join(", ") || null],
-        ["Country", d.countries.join(", ") || null],
-        ["IMDb", d.imdbId, true],
-      ]
-      : [
-        ["Original title", originalTitle(d.title, d.originalTitle)],
-        ["Released", d.releaseDate ? new Date(d.releaseDate).getFullYear() : d.year],
-        ["Language", d.languages.join(", ") || null],
-        ["Country", d.countries.join(", ") || null],
-        ["IMDb", d.imdbId, true],
-      ]) : [],
+    facts: d ? [
+      ["Original title", originalTitle(d.title, d.originalTitle)],
+      ...(show
+        ? [["Status", d.status], ["Network", d.networks.map((n) => n.name).join(", ") || null]]
+        : [["Released", d.released ? new Date(d.released).getFullYear() : d.year]]),
+      ["Language", d.languages.join(", ") || null],
+      ["Country", d.countries.join(", ") || null],
+      ["IMDb", d.id, true],
+    ] : [],
   };
 }
 
@@ -147,7 +150,6 @@ function AboutBody({ about: a }) {
           <div className="kc-tt__meta">
             {e.airDate && <span>{new Date(e.airDate).getFullYear()}</span>}
             <span>{a.length}</span>
-            {e.rating && <FilmScore rating={e.rating} compact />}
           </div>
           {e.overview && <p className="mp-about__overview">{e.overview}</p>}
         </section>
@@ -182,7 +184,12 @@ function AboutBody({ about: a }) {
           <FactGrid facts={a.facts} />
         </section>
       )}
-      {a.described && <p className="kc-attribution-note">{a.show ? "Show" : "Film"} details and artwork from TMDB.</p>}
+      {a.described && (
+        <p className="kc-attribution-note">
+          Details and artwork from TMDB, IMDb and Wikidata. This product uses TMDB and the TMDB APIs but is not
+          endorsed, certified, or otherwise approved by TMDB.
+        </p>
+      )}
     </div>
   );
 }
@@ -205,7 +212,7 @@ export function PauseCard({ about }) {
           {!e && about.years && <span>{about.years}</span>}
           {about.certification && <span className="kc-cert">{about.certification}</span>}
           <span>{about.length}</span>
-          {(e ? e.rating : about.rating) && <FilmScore rating={e ? e.rating : about.rating} by={e ? null : about.ratedBy} compact />}
+          {!e && about.rating && <FilmScore rating={about.rating} by={about.ratedBy} compact />}
         </div>
         {story && <p className="mp-pausecard__story">{story}</p>}
         {about.stars.length > 0 && <span className="mp-pausecard__stars">Starring {about.stars.join(", ")}</span>}

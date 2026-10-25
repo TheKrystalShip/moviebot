@@ -1,6 +1,6 @@
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Api.Acquisition;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -15,9 +15,7 @@ namespace TheKrystalShip.MovieBot.Api.Plans;
 /// tracker offered nothing for.
 /// </summary>
 public sealed class PlanPresenter(
-    FilmStore films,
-    ShowStore shows,
-    TitleGlances glances,
+    CatalogueTitles catalogue,
     LibraryListing library,
     PersonDirectory people,
     AcquisitionService acquisition,
@@ -37,8 +35,7 @@ public sealed class PlanPresenter(
 
     private PlanView View(StoredPlan plan, string viewer, IReadOnlyList<TitleSummary> titles, List<DownloadStatus> arriving)
     {
-        var isShow = plan.Kind == WantKinds.Show;
-        var name = isShow ? shows.Held(plan.ImdbId)?.Details?.Title : films.Held(plan.ImdbId)?.Details?.Title;
+        var card = catalogue.Card(plan.ImdbId);
         var libraryId = PlanRules.LibraryId(titles, plan);
 
         var (readiness, progress) = PlanRules.Readiness(
@@ -46,9 +43,7 @@ public sealed class PlanPresenter(
 
         return new PlanView
         {
-            Id = plan.Id, ImdbId = plan.ImdbId, Kind = plan.Kind, Title = name ?? plan.ImdbId,
-            Year = isShow ? shows.Held(plan.ImdbId)?.Details?.FirstYear : films.Held(plan.ImdbId)?.Details?.Year,
-            PosterUrl = Poster(plan),
+            Id = plan.Id, ImdbId = plan.ImdbId, Kind = plan.Kind, Title = card?.Title ?? plan.ImdbId, Card = card,
             Season = plan.Season, Number = plan.Number, State = plan.State,
             MadeBy = Person(plan, plan.MadeBy), MadeAt = plan.MadeAt, Mine = plan.MadeBy == viewer,
             FixedTime = plan.FixedTime,
@@ -71,10 +66,6 @@ public sealed class PlanPresenter(
 
     private PlanPersonView Person(StoredPlan plan, string userId) =>
         new() { UserId = userId, Name = people.NameOf(userId), Maker = userId == plan.MadeBy };
-
-    private string? Poster(StoredPlan plan) => plan.Kind == WantKinds.Show
-        ? shows.HasImage(plan.ImdbId, ShowStore.Poster) ? ShowViews.ImageUrl(plan.ImdbId, ShowStore.Poster) : null
-        : films.HasImage(plan.ImdbId, FilmStore.Poster) ? FilmViews.ImageUrl(plan.ImdbId, FilmStore.Poster) : glances.PosterUrl(plan.ImdbId);
 
     /// <summary>The torrent client's downloads, or none when it cannot be asked: a state that cannot be measured is left out.</summary>
     private async Task<List<DownloadStatus>> DownloadsAsync(CancellationToken ct)

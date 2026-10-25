@@ -1,7 +1,7 @@
 import React from "react";
 import { Icon, Shelf } from "@thekrystalship/krystal";
 import { POSTERS, WIDE } from "../railDensity.js";
-import { api, filmName } from "../api.js";
+import { filmName, libraryApi, meApi, roomsApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { ANIME, isAnime, libraryPath, plansPath, wantsPath } from "../paths.js";
 import { counted } from "../counts.js";
@@ -104,21 +104,21 @@ function DeviceHome() {
 }
 
 function ServerHome() {
-  const titles = useLoad(() => api.titles(), []);
+  const titles = useLoad(() => libraryApi.titles(), []);
   // In the Discord Activity everything is watched in the call's room, which the call bar shows, so
   // other rooms are not offered.
-  const rooms = useLoad(() => (inActivity ? Promise.resolve([]) : api.rooms()), [], { every: 15000 });
+  const rooms = useLoad(() => (inActivity ? Promise.resolve([]) : roomsApi.list()), [], { every: 15000 });
   const marks = useDownloadMarks();
   // While the phone drives a television, carrying on with something puts it on the television.
   const driving = useDriving();
-  const progress = useLoad(() => api.progress().catch(() => []), []);
-  const showList = useLoad(() => api.shows().catch(() => []), []);
+  const progress = useLoad(() => meApi.progress().catch(() => []), []);
+  const showList = useLoad(() => libraryApi.shows().catch(() => []), []);
   const wanted = useWantList().list;
-  const together = useLoad(() => api.together().catch(() => []), []).data || [];
-  const planned = (useLoad(() => api.plans().catch(() => []), []).data || [])
+  const together = useLoad(() => meApi.together().catch(() => []), []).data || [];
+  const planned = (useLoad(() => meApi.plans().catch(() => []), []).data || [])
     .filter((p) => p.state === "proposed" || p.state === "fixed" || p.state === "open");
   const canWish = useCan("cinema:wish");
-  const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
+  const anticipated = useLoad(() => (canWish ? libraryApi.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const waitedOn = anticipated.data || [];
   // The Movies, TV Shows and Anime rows are dealt in a new order on every visit, and keep it while the
   // page is open, so a read answered again never moves a poster out from under somebody.

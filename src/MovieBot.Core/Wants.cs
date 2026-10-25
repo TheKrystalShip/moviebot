@@ -55,7 +55,7 @@ public sealed record WantWish
     public ReleaseOffer? Release { get; init; }
 }
 
-/// <summary>One title a person wants to watch, with what the film database, the library and the watch record say about it.</summary>
+/// <summary>One title a person wants to watch: its catalogue card, and what the library and the watch record say about it.</summary>
 public sealed record WantView
 {
     public required string ImdbId { get; init; }
@@ -63,24 +63,11 @@ public sealed record WantView
     /// <summary><c>film</c> or <c>show</c>.</summary>
     public required string Kind { get; init; }
 
-    /// <summary>The title's name, or its IMDb id while the film database has not described it.</summary>
+    /// <summary>The title's name: its card's, else its IMDb id.</summary>
     public required string Title { get; init; }
 
-    public int? Year { get; init; }
-
-    public string? PosterUrl { get; init; }
-
-    public double? Rating { get; init; }
-
-    public int? RuntimeMinutes { get; init; }
-
-    public List<string> Genres { get; init; } = [];
-
-    /// <summary>The language it was made in, an ISO 639-1 code; absent while the film database has not described it.</summary>
-    public string? OriginalLanguage { get; init; }
-
-    /// <summary>The shelf it is on beyond its kind, <c>anime</c> or <c>general</c>; absent while nothing says.</summary>
-    public string? Category { get; init; }
+    /// <summary>The title's card; absent for a title the catalogue does not list.</summary>
+    public Catalogue.TitleCard? Card { get; init; }
 
     /// <summary>Whether the want is named to everybody signed in.</summary>
     public required bool Visible { get; init; }

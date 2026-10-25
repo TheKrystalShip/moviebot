@@ -17,7 +17,7 @@
  */
 
 import { createStore, useStore } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { meApi } from "./api/index.js";
 import { holdPersonConnection } from "./personConnection.js";
 import { holdRemoteRoom, releaseRemoteRoom } from "./remoteRoom.js";
 
@@ -154,7 +154,7 @@ function release() {
  * when somebody is signed in and the server can be reached; `forgetPairings` lets go on signing out.
  */
 export async function followPairings() {
-  const screens = await api.screens();
+  const screens = await meApi.screens();
   pairedStore.setState(screens);
   if (screens.length > 0) hold();
   else release();
@@ -168,7 +168,7 @@ export function forgetPairings() {
 
 /** Pairs this session with the screen whose code it scanned, and answers that screen. Remote mode turns on. */
 export async function pair(code) {
-  const screen = await api.pairScreen(code);
+  const screen = await meApi.pairScreen(code);
   put(screen);
   hold();
   setRemoteMode(true);
@@ -178,7 +178,7 @@ export async function pair(code) {
 
 /** Ends this session's pairing with a screen. Remote mode turns off once nothing is paired. */
 export async function unpair(id) {
-  await api.unpairScreen(id);
+  await meApi.unpairScreen(id);
   pairedStore.setState((screens) => (screens || []).filter((s) => s.id !== id));
   if ((pairedStore.getState() || []).length === 0) {
     release();

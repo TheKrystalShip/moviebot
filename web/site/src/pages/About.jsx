@@ -31,9 +31,17 @@ export function About({ head = true }) {
             </a>
           )}
         <p>
-          Credits, certificates, genres, overviews and artwork come from The Movie Database (TMDB), and so do
-          the ratings of titles IMDb does not rate. This product uses the TMDB API but is not endorsed or
-          certified by TMDB.
+          Credits, certificates, overviews and artwork come from The Movie Database (TMDB), and so do the
+          ratings of titles IMDb does not rate. This product uses TMDB and the TMDB APIs but is not endorsed,
+          certified, or otherwise approved by TMDB.
+        </p>
+      </section>
+
+      <section className="kc-about__block">
+        <h2>Awards, adaptations and places</h2>
+        <p>
+          What a title won, what it is based on and where it is set and filmed come from Wikidata
+          ({onTv ? "wikidata.org" : <a href="https://www.wikidata.org" target="_blank" rel="noreferrer">wikidata.org</a>}).
         </p>
       </section>
 

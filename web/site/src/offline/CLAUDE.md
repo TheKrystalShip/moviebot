@@ -36,10 +36,9 @@ worker that writes a save names every file the way the page reads it. Nothing el
   "imdbId": "tt2866360",             // the film's, or the episode's show's; or null
   "show": { "imdbId": "tt…", "name": "…" },                  // an episode's show; null for a film
   "episode": { "season": 2, "number": 4, "name": "…" },     // null for a film
-  "overview": "…",                   // the episode's own for an episode, the film's otherwise
-  "genres": ["Drama"],
-  "rating": 7.2,                     // the film's, or an episode's show's; or null
-  "category": "anime",               // the package's: "anime" or "general", the shelf it is on; or null
+  "overview": "…",                   // the episode's own for an episode, the card's plot otherwise
+  "category": "anime",               // the card's: "anime" or "general", the shelf it is on; or null
+  "card": { },                       // the package's catalogue card, the film's or an episode's show's; or null
   "durationSeconds": 5340,
   "quality": { "rendition": "v1", "width": 1280, "height": 546, "label": "546p" },
   "files": [                         // every file the save holds, each written under its `name`
@@ -112,26 +111,30 @@ with artwork as object URLs it revokes once the page lets go or a newer set is m
 |---|---|
 | `useDeviceLibrary(enabled)` | `{ films, shows, titles, continuing }`: the films as `GET /api/titles` lists them, the shows with a downloaded episode as `GET /api/shows` does (one each, `downloaded` how many), every downloaded title by id, and `GET /api/me/progress`'s entries for those this person is part way through, the newest first |
 | `useLibrary(kind, fromDevice)` | `useLoad`'s `{ data, error, loading, reload }` for the library's films or shows: the API's, or with `fromDevice` the device's |
-| `useDeviceTitle(titleId, enabled)` | a downloaded title as `GET /api/titles/{id}` (`manifest`), its `GET /api/films/{imdbId}` (`details`) and its listing entry (`summary`); `manifest.data` null when it is not downloaded |
-| `useKeptShow(imdbId, enabled)` | `GET /api/shows/{imdbId}` from the kept show, its artwork the device's, nothing leading to the catalogue, and `resume` only when that episode is downloaded; from the downloaded episodes alone when no show is kept; null when neither is here |
+| `useDeviceTitle(titleId, enabled)` | a downloaded title as `GET /api/titles/{id}` (`manifest`), its catalogue page as far as its card tells it (`page`, `pageOf`) and its listing entry (`summary`); `manifest.data` null when it is not downloaded |
+| `useKeptShow(imdbId, enabled)` | `{ page, mine }`, its catalogue page and `GET /api/me/shows/{imdbId}`, from the kept show, its artwork the device's, nothing leading to the catalogue, and `resume` only when that episode is downloaded; from the downloaded episodes alone when no show is kept; null when neither is here |
 
-What the device does not hold is not made up: a film's cast and the server's own facts
-are absent from a page drawn from here, and a section with nothing in it is not drawn.
+Each title is drawn from the card its save keeps (`meta.card`), and a save with no card from what the
+save names. What the device does not hold is not made up: a film's cast, keywords, franchises and the
+server's own facts are absent from a page drawn from here, and a section with nothing in it is not
+drawn.
 
 ## Shows kept on the device (`shows.js`)
 
 A show's page with no connection draws every season and episode, so a show is kept beside its
-downloaded episodes: `show.json` is `{ imdbId, keptAt, show, files }`, `show` the
-`GET /api/shows/{imdbId}` answer whole, and `files` its artwork, `[{ name, url, type }]` — `poster`,
+downloaded episodes: `show.json` is `{ imdbId, keptAt, show, files }`, `show` its two answers whole,
+`{ page, mine }` (its `GET /api/catalogue/titles/{imdbId}` page and `GET /api/me/shows/{imdbId}`, which
+`showAnswers` reads together), and `files` its artwork, `[{ name, url, type }]` — `poster`,
 `backdrop` and each episode's still as `s<season>e<number>`, fetched from the open artwork routes. The
 artwork is written first and `show.json` last, so a reader never meets a listing of a file not yet
-there. `keepShow(sub, imdbId, answered)` writes it, fetching the answer when not handed one and only
+there. `keepShow(sub, imdbId, answered)` writes it, fetching the answers when not handed them and only
 the artwork whose address changed; writes of one show run one after another. It is called when an
 episode's download starts (`startSave`), again by the show's page whenever it reads the show from the
 API while it is kept (`refreshShow`), and by `sync.js` for any downloaded episode whose show is not
 kept (`keepMissingShows`). `writeShow` posts the files to `show.worker.js`, which writes them through
 sync access handles, as the saver's worker does, so every browser with the file system keeps a show.
-A show's page drawn from here with no show kept shows its downloaded episodes alone.
+A show's page drawn from here with no show kept, or with one kept without both answers, shows its
+downloaded episodes alone.
 
 ## Writing: the saver (`saver.js`, `saver.worker.js`)
 
@@ -301,7 +304,7 @@ starts when nothing names a position: the newer of the log and `GET /api/me/prog
 while the server can be reached), or the beginning once nine tenths of it was watched.
 
 Every `GET /api/me/progress` answer is also kept per account (`cinema.progress.kept.<sub>`) by
-`api.js`. `progressOnDevice(sub, durationOf)` is where the person got to in each title as this device
+`api/me.js`. `progressOnDevice(sub, durationOf)` is where the person got to in each title as this device
 knows it, the newer of that answer and the log, leaving out what was watched past nine tenths; it is
 what a page drawn from here resumes from and lists under Continue watching. Signing out with the
 saves removed forgets the kept answer, and the log stays until the API has it.
@@ -309,7 +312,7 @@ saves removed forgets the kept answer, and the log stays until the API has it.
 ## Preferences on the device (`preferences.js`)
 
 Every answer of `GET` and `PUT /api/me/preferences` is kept per account in localStorage
-(`cinema.preferences.<sub>`) by `api.js`. With no connection `keptPreferences(sub)` is how the person
+(`cinema.preferences.<sub>`) by `api/me.js`. With no connection `keptPreferences(sub)` is how the person
 watches: Profile's Playback and Subtitles show it, and the player starts by it. It is the API's answer
 as it was; nothing writes it but an answer.
 

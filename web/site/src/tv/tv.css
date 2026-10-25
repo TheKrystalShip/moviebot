@@ -56,7 +56,7 @@
 .kc-tv-pad { padding: var(--tv-margin-y) var(--tv-margin-x); }
 .kc-tv-strong { color: var(--fg-1); }
 
-/* ── Cast, details and the film database's credit, under a film's or a show's head ── */
+/* ── Cast, details and the sources' credit, under a film's or a show's head ── */
 
 .kc-tv-cast { position: relative; z-index: 1; }
 .kc-tv-cast__track { gap: 14px; align-items: flex-start; }

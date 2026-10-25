@@ -11,7 +11,8 @@ const TRACK_ROLES = new Set(["video", "audio"]);
  * under way, or a track on the device is not the length the package says. Each track is the file as it
  * stands now, which reads by slices without loading it; the subtitles and the preview sheet are read
  * when asked for, by the manifest-relative path each stands for. A track the phone app holds is read
- * from the app, and only once the app holds it whole.
+ * from the app, and only once the app holds it whole. The manifest carries the save's card, which is
+ * what the player tells about the title with no connection.
  */
 export async function deviceCopy(sub, titleId) {
   const save = await readSave(sub, titleId);
@@ -47,7 +48,7 @@ export async function deviceCopy(sub, titleId) {
   const poster = posterEntry ? await saveFile(sub, titleId, posterEntry.name) : null;
 
   return {
-    manifest,
+    manifest: saved.card ? { ...manifest, card: saved.card } : manifest,
     tracks,
     file: (relative) => (named.has(relative) ? saveFile(sub, titleId, named.get(relative)) : Promise.resolve(null)),
     poster: poster && poster.size > 0 ? poster : null,

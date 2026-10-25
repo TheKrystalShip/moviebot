@@ -72,7 +72,7 @@ export function TvWants() {
           <section key={r.id}>
             <TvRow icon={r.icon} title={r.title} count={rows.length}>
               {rows.map((w) => (
-                <TvCard key={w.imdbId} art={w.posterUrl} label={w.title} data-tv-initial={w === first ? "" : undefined}
+                <TvCard key={w.imdbId} art={w.card && w.card.poster} label={w.title} data-tv-initial={w === first ? "" : undefined}
                   progress={w.state === "fetching" ? w.progress || 0 : undefined}
                   {...linkProps(wantHref(w))} onFocus={() => setFocused(w)} />
               ))}

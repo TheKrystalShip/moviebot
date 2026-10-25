@@ -62,10 +62,6 @@ public sealed class EpisodeNumberingTests
 
         // A season nothing is known of keeps the database's numbering.
         Assert.Equal("Magazine Profile", numbered.Seasons.Single(s => s.Number == 1).Episodes.Single(e => e.Number == 2).Name);
-
-        // A still is asked for by the release's numbering and is the database's still for that episode.
-        Assert.Equal("s02e08.jpg", numbering.StillFile(Show, Described(), "s02e07.jpg"));
-        Assert.Equal("poster.jpg", numbering.StillFile(Show, Described(), "poster.jpg"));
     }
 
     [Fact]

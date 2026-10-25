@@ -21,14 +21,14 @@ public sealed class ShowWantTests(FollowFixture fixture) : IClassFixture<FollowF
     private string Day(int fromToday) =>
         DateOnly.FromDateTime(fixture.Clock.GetUtcNow().UtcDateTime).AddDays(fromToday).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    /// <summary>A show the film database knows, with its episodes at days from today.</summary>
+    /// <summary>A show the catalogue lists, with its episodes at days from today.</summary>
     private string Show(params (int Number, int Days)[] episodes)
     {
         var n = Interlocked.Increment(ref s_next);
         var imdb = $"tt92{n:00000}";
-        var show = new ShowDatabaseStub.FakeShow { TmdbId = 9500 + n };
+        var show = new KeptShows.FakeShow { TmdbId = 9500 + n };
         foreach (var (number, days) in episodes) show.Episodes.Add((1, number, Day(days)));
-        fixture.Database.Shows[imdb] = show;
+        fixture.Shows[imdb] = show;
         return imdb;
     }
 

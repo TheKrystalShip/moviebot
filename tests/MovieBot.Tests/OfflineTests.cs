@@ -500,8 +500,6 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     public async Task A_download_not_in_the_library_is_estimated_from_its_runtime_and_what_the_library_takes()
     {
         var client = fixture.CreatePersonClient("o16");
-        using var described = await client.GetAsync("/api/films/tt0113277");
-        described.EnsureSuccessStatusCode();
         var estimates = fixture.Services.GetRequiredService<OfflineEstimates>();
 
         var before = (await client.GetFromJsonAsync<OfflineEstimate>("/api/offline/estimate?imdbId=tt0113277", Json))!;
@@ -544,8 +542,6 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
     public async Task A_want_carries_the_name_of_the_film_as_described_here()
     {
         var client = fixture.CreatePersonClient("o15");
-        using var described = await client.GetAsync("/api/films/tt0113277");
-        described.EnsureSuccessStatusCode();
 
         using var asked = await client.PostAsJsonAsync("/api/me/offline/wants",
             new { imdbId = "tt0113277", device = "Pixel", audioLanguage = "es", subtitleLanguage = "en" });

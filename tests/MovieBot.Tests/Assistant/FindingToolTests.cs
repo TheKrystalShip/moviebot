@@ -21,7 +21,7 @@ public sealed class FindingToolTests
         Assert.Contains("- Night Harbor (1995), film.", result.Text);
         Assert.Contains("Directed by Vera Lund.", result.Text);
         Assert.Contains("With Ada Calloway, Theo Marsh.", result.Text);
-        Assert.Contains("In the library. The person has watched it. id tt1000001.", result.Text);
+        Assert.Contains("Rated 8.3 on 700,000 votes at IMDb. In the library. The person has watched it. id tt1000001.", result.Text);
         Assert.Contains("- Night Harbor (2012), show.", result.Text);
         Assert.Contains("Created by Imre Voss.", result.Text);
         Assert.Contains("Not in the library. id tt1000002.", result.Text);
@@ -34,7 +34,7 @@ public sealed class FindingToolTests
         await _rig.RunAsync(_rig.Search, new { query = "Night Harbor", year = 1995 });
 
         Assert.Equal(
-            ["GET /api/catalogue/search?kind=film&q=night harbor", "GET /api/catalogue/search?q=night harbor&year=1995"],
+            ["GET /api/catalogue/titles?kind=film&q=night harbor&size=10", "GET /api/catalogue/titles?from=1994&q=night harbor&size=10&to=1996"],
             _rig.World.Asked);
         Assert.All(_rig.World.Tokens, t => Assert.Equal(CinemaWorld.Token, t));
     }
@@ -49,28 +49,9 @@ public sealed class FindingToolTests
         Assert.Equal("titles", result.Card.Value.GetProperty("kind").GetString());
         Assert.Equal("Night Harbor", first.GetProperty("title").GetString());
         Assert.Equal(1995, first.GetProperty("year").GetInt32());
-        Assert.Equal("/glances/tt1000001/poster.jpg", first.GetProperty("posterUrl").GetString());
+        Assert.Equal("/images/w500/tt1000001.jpg", first.GetProperty("posterUrl").GetString());
         Assert.True(first.GetProperty("inLibrary").GetBoolean());
         Assert.True(first.GetProperty("watched").GetBoolean());
-    }
-
-    [Fact]
-    public async Task A_title_with_no_imdb_id_is_named_without_a_card()
-    {
-        ToolOutcome result = await _rig.RunAsync(_rig.Search, new { query = "harbour" });
-
-        Assert.Contains("Untitled Harbour Project (2027)", result.Text);
-        Assert.Contains("No IMDb id: it has no page here.", result.Text);
-        Assert.Equal(["tt1000001"], ToolRig.CardIds(result));
-    }
-
-    [Fact]
-    public async Task A_search_with_only_unpaged_titles_carries_no_card()
-    {
-        ToolOutcome result = await _rig.RunAsync(_rig.Search, new { query = "unborn harbour" });
-
-        Assert.False(result.IsError);
-        Assert.Null(result.Card);
     }
 
     [Fact]
@@ -102,12 +83,13 @@ public sealed class FindingToolTests
 
         Assert.False(result.IsError);
         Assert.Equal(
-            ["GET /api/catalogue/search?q=the lantern keeper&year=2019", "GET /api/films/tt1000003"], _rig.World.Asked);
+            ["GET /api/catalogue/titles?from=2018&q=the lantern keeper&size=10&to=2020", "GET /api/catalogue/titles/tt1000003"], _rig.World.Asked);
         Assert.Contains("The Lantern Keeper (2019), film. id tt1000003.", result.Text);
         Assert.Contains("Release date: 2019-10-18.", result.Text);
         Assert.Contains("Runtime: 109 minutes.", result.Text);
         Assert.Contains("Genres: Drama, Mystery.", result.Text);
-        Assert.Contains("Rated 7.5 on 61,000 votes.", result.Text);
+        Assert.Contains("Rated 7.5 on 61,000 votes at IMDb.", result.Text);
+        Assert.Contains("Certificates: R (US).", result.Text);
         Assert.Contains("Directed by: Rowan Pike.", result.Text);
         Assert.Contains("Written by: Rowan Pike, Sol Pike.", result.Text);
         Assert.Contains("Main cast: Julian Rook (Thomas), Willa Dane (Ephraim).", result.Text);
@@ -122,16 +104,16 @@ public sealed class FindingToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000004" });
 
-        Assert.Equal(["GET /api/films/tt1000004"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles/tt1000004"], _rig.World.Asked);
         Assert.Contains("In the library. The person has watched it.", result.Text);
     }
 
     [Fact]
-    public async Task An_id_that_is_a_show_is_read_as_a_show_after_the_film_route_says_no()
+    public async Task An_id_that_is_a_show_is_read_as_a_show_with_what_the_person_has_of_it()
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000006" });
 
-        Assert.Equal(["GET /api/films/tt1000006", "GET /api/shows/tt1000006"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles/tt1000006", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
         Assert.Contains("The Salt Line (2020), show. id tt1000006.", result.Text);
         Assert.Contains("Ran from 2020 to 2022.", result.Text);
         Assert.Contains("Status: Ended.", result.Text);
@@ -143,12 +125,12 @@ public sealed class FindingToolTests
     }
 
     [Fact]
-    public async Task A_title_a_search_finds_as_a_show_is_read_as_a_show_without_trying_films()
+    public async Task A_title_a_search_finds_as_a_show_is_read_by_its_id()
     {
         await _rig.RunAsync(_rig.Details, new { title = "The Salt Line" });
 
         Assert.Equal(
-            ["GET /api/catalogue/search?q=the salt line", "GET /api/shows/tt1000006"], _rig.World.Asked);
+            ["GET /api/catalogue/titles?q=the salt line&size=10", "GET /api/catalogue/titles/tt1000006", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
     }
 
     [Fact]
@@ -160,7 +142,7 @@ public sealed class FindingToolTests
         Assert.Contains("More than one title is named 'Night Harbor'.", result.Text);
         Assert.Contains("id tt1000001", result.Text);
         Assert.Contains("id tt1000002", result.Text);
-        Assert.DoesNotContain(_rig.World.Asked, a => a.StartsWith("GET /api/films", StringComparison.Ordinal));
+        Assert.DoesNotContain(_rig.World.Asked, a => a.StartsWith("GET /api/catalogue/titles/", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -195,7 +177,7 @@ public sealed class FindingToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000005" });
 
         Assert.DoesNotContain("Runtime", result.Text);
-        Assert.DoesNotContain("Certification", result.Text);
+        Assert.DoesNotContain("Certificates", result.Text);
         Assert.DoesNotContain("Main cast", result.Text);
     }
 
@@ -209,43 +191,37 @@ public sealed class FindingToolTests
 
         Assert.False(result.IsError);
         Assert.Contains("Several people are named Ada Calloway.", result.Text);
-        Assert.Contains("Credits of Ada Calloway (known for Acting), acting, films and shows, in 2026, as of 2026-10-09.", result.Text);
+        Assert.Contains("Credits of Ada Calloway (known for Acting), acting, films and shows, in 2026.", result.Text);
         Assert.Contains("7 credits, oldest first.", result.Text);
 
         string[] lines = [.. result.Text.Split('\n').Where(l => l.StartsWith("- ", StringComparison.Ordinal))];
         Assert.Equal(7, lines.Length);
-        Assert.StartsWith("- 2026-04-16 | released | Mother Tongue (2026), film. Role: Anna.", lines[0]);
+        Assert.StartsWith("- 2026-04-16 | released | Mother Tongue (2026), film. Role: Anna. Rated 6.8 on 1,200 votes at IMDb.", lines[0]);
         Assert.Contains("id tt1000030.", lines[0]);
         Assert.StartsWith("- 2026-04-29 | released | The Wedding Party 2 (2026)", lines[1]);
         Assert.Contains("The person has watched it.", lines[2]);
         Assert.StartsWith("- 2026-12-18 | upcoming (dated in the future) | Winter Street (2026)", lines[3]);
         Assert.StartsWith("- no date | announced (no release date, or only planned) | Salt Marsh, film.", lines[4]);
-        Assert.Contains("- no date | announced (no release date, or only planned) | Fear Not, show.", lines[6]);
+        Assert.StartsWith("- no date | announced (no release date, or only planned) | Fear Not, show.", lines[6]);
     }
 
     /// <summary>A person with many credits: thirty released parts of rising renown, four minor ones that are the most voted, and two dated ahead.</summary>
     private ToolRig LongFilmography()
     {
         ReplayHandler world = CinemaWorld.Build();
-        List<Credit> credits = [];
+        List<CatalogueCard> credits = [];
         for (int n = 1; n <= 30; n++)
-            credits.Add(CinemaWorld.Credit($"tt20000{n:00}", $"Part {n:00}", $"{1990 + n}-06-{n:00}", "released", role: $"Role {n}") with { Votes = 100 * n });
-        credits.Add(CinemaWorld.Credit("tt2000101", "Late Night Chat", "2015-01-01", "released", kind: "show", role: "Self") with { Votes = 99000 });
-        credits.Add(CinemaWorld.Credit("tt2000102", "Morning Show", "2016-01-01", "released", kind: "show") with { Votes = 50000 });
-        credits.Add(CinemaWorld.Credit("tt2000103", "Big Picture", "2017-01-01", "released", role: "Waiter (uncredited)") with { Votes = 80000 });
-        credits.Add(CinemaWorld.Credit("tt2000104", "Old Reel", "2018-01-01", "released", role: "Archive footage") with { Votes = 70000 });
-        credits.Add(CinemaWorld.Credit("tt2000105", "Next Part", "2027-02-02", "upcoming", role: "Lead"));
-        credits.Add(CinemaWorld.Credit(null, "Untitled", null, "announced"));
-        credits = [.. credits.OrderBy(c => c.ReleaseDate is null).ThenBy(c => c.ReleaseDate, StringComparer.Ordinal)];
+            credits.Add(CinemaWorld.Credit($"tt20000{n:00}", $"Part {n:00}", $"{1990 + n}-06-{n:00}", role: $"Role {n}", votes: 100 * n));
+        credits.Add(CinemaWorld.Credit("tt2000101", "Late Night Chat", "2015-01-01", kind: "show", role: "Self", votes: 99000));
+        credits.Add(CinemaWorld.Credit("tt2000102", "Morning Show", "2016-01-01", kind: "show", votes: 50000));
+        credits.Add(CinemaWorld.Credit("tt2000103", "Big Picture", "2017-01-01", role: "Waiter (uncredited)", votes: 80000));
+        credits.Add(CinemaWorld.Credit("tt2000104", "Old Reel", "2018-01-01", role: "Archive footage", votes: 70000));
+        credits.Add(CinemaWorld.Credit("tt2000105", "Next Part", "2027-02-02", role: "Lead"));
+        credits.Add(CinemaWorld.Credit("tt2000106", "Untitled", null));
+        credits = [.. credits.OrderBy(c => c.Released is null).ThenBy(c => c.Released, StringComparer.Ordinal)];
 
-        world.Answer("/api/catalogue/people?q=mara vance", new PeopleResult
-        {
-            People = [new() { PersonId = 701, Name = "Mara Vance", KnownFor = "Acting", KnownForTitles = [] }],
-        });
-        world.Answer("/api/catalogue/people/701/credits", new PersonCredits
-        {
-            PersonId = 701, Name = "Mara Vance", KnownFor = "Acting", AsOf = CinemaWorld.Today, Total = credits.Count, Credits = credits,
-        });
+        world.Answer("/api/catalogue/terms?q=mara vance", new List<Term> { new("person", "701", "Mara Vance", "Acting") });
+        world.Answer("/api/catalogue/titles?person=701&sort=oldest&size=100", CinemaWorld.Page([.. credits]));
         return new ToolRig(world);
     }
 
@@ -285,19 +261,13 @@ public sealed class FindingToolTests
         await _rig.RunAsync(_rig.Credits, new { person = "Ada Calloway", from = 2026, to = 2026, role = "acting" });
 
         Assert.Equal(
-            ["GET /api/catalogue/people?q=ada calloway", "GET /api/catalogue/people/501/credits?from=2026&role=acting&to=2026"],
-            _rig.World.Asked);
-    }
-
-    [Fact]
-    public async Task An_announced_credit_without_an_imdb_id_is_named_and_has_no_card()
-    {
-        ToolOutcome result = await _rig.RunAsync(
-            _rig.Credits, new { person = "Ada Calloway", from = 2026, to = 2026, role = "acting" });
-
-        Assert.Contains("Untitled Harbour Sting, film. No IMDb id: it has no page here.", result.Text);
-        Assert.Equal(
-            ["tt1000030", "tt1000031", "tt1000032", "tt1000033", "tt1000034", "tt1000035"], ToolRig.CardIds(result));
+            [
+                "GET /api/catalogue/terms?q=ada calloway",
+                "GET /api/catalogue/titles?from=2026&person=501&role=cast&size=100&sort=oldest&to=2026",
+                "GET /api/catalogue/titles?person=501&size=3&sort=votes",
+                "GET /api/catalogue/titles?person=502&size=3&sort=votes",
+            ],
+            _rig.World.Asked.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -317,7 +287,8 @@ public sealed class FindingToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Credits, new { person = "Ada Calloway (Small Rooms)", role = "directing" });
 
         Assert.Contains("Credits of Ada Calloway (known for Directing)", result.Text);
-        Assert.Contains("people?q=ada calloway", _rig.World.Asked[0]);
+        Assert.Contains("GET /api/catalogue/titles?person=502&q=small rooms&size=1", _rig.World.Asked);
+        Assert.Contains("GET /api/catalogue/titles?person=502&role=directing&size=100&sort=oldest", _rig.World.Asked);
     }
 
     [Fact]
@@ -326,7 +297,7 @@ public sealed class FindingToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Credits, new { person = "Ada Calloway" });
 
         Assert.Contains("the one known for Night Harbor (1995), Coastal Hours (2021)", result.Text);
-        Assert.Contains("people/501/credits", _rig.World.Asked[1]);
+        Assert.Contains("GET /api/catalogue/titles?person=501&size=100&sort=oldest", _rig.World.Asked);
     }
 
     [Fact]
@@ -335,7 +306,7 @@ public sealed class FindingToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Credits, new { person = "Julian Rook" });
 
         Assert.DoesNotContain("Several people", result.Text);
-        Assert.StartsWith("Credits of Julian Rook (known for Acting), cast and crew, films and shows, as of 2026-10-09. 4 credits, oldest first.", result.Text);
+        Assert.StartsWith("Credits of Julian Rook (known for Acting), cast and crew, films and shows. 4 credits, oldest first.", result.Text);
         Assert.Contains("- no date | announced (no release date, or only planned) | Winter Quarters, film.", result.Text);
         Assert.Contains("- 2027-02-12 | upcoming (dated in the future) | Cinder (2027)", result.Text);
     }
@@ -373,15 +344,18 @@ public sealed class FindingToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Credits, new { person = "Ada Calloway" });
 
-        Assert.Contains("The database holds 120; these are the newest 1.", result.Text);
+        Assert.Contains("The database holds 120; these are the newest 100.", result.Text);
+        Assert.Contains("Late 120 (2020)", result.Text);
+        Assert.DoesNotContain("Early 020 ", result.Text);
     }
 
     [Fact]
-    public async Task Years_the_wrong_way_round_come_back_as_the_apis_sentence()
+    public async Task Years_the_wrong_way_round_are_refused_before_anything_is_asked()
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Credits, new { person = "Ada Calloway", from = 2027, to = 2026 });
 
         Assert.True(result.IsError);
         Assert.Equal("from is after to.", result.Text);
+        Assert.Empty(_rig.World.Asked);
     }
 }

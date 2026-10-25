@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, TvCard, TvRow } from "@thekrystalship/krystal";
-import { api, episodeCode } from "../../api.js";
+import { certificateOf, episodeCode, libraryApi, roomsApi } from "../../api/index.js";
+import { showAnswers } from "../../offline/shows.js";
 import { useLoad } from "../../data.js";
 import { showPath } from "../../paths.js";
 import { navigate } from "../../router.js";
@@ -12,7 +13,7 @@ import { WantButton } from "../../components/WantButton.jsx";
 import { episodeRelease, watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
 import { SpotFacts, SpotStage, useSpotlight } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
-import { TvAbout, TvGroup, TvNextEpisode, TvTitleHero } from "../TvHero.jsx";
+import { TvAbout, TvGroup, TvHonours, TvNextEpisode, TvTitleHero } from "../TvHero.jsx";
 import { TrailerButton } from "../../components/TitleHero.jsx";
 import { TvTitleShelves } from "./TvDiscoverShelves.jsx";
 
@@ -24,17 +25,17 @@ import { TvTitleShelves } from "./TvDiscoverShelves.jsx";
  * the details. The address says which season is open, as it does on every surface.
  */
 export function TvShow({ imdbId, season, inLibrary }) {
-  const show = useLoad(() => api.show(imdbId), [imdbId]);
-  const rooms = useLoad(() => api.rooms(), [imdbId]);
+  const show = useLoad(() => showAnswers(imdbId), [imdbId]);
+  const rooms = useLoad(() => roomsApi.list(), [imdbId]);
   const downloading = useCan("cinema:download");
-  const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
+  const offers = useLoad(() => (downloading ? libraryApi.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
   const { store, pageRef, regionRef, focusOn } = useSpotlight();
   const [starting, setStarting] = React.useState(false);
 
-  const seasonsHere = show.data ? show.data.seasons : null;
+  const seasonsHere = show.data ? show.data.mine.seasons : null;
   const episodesHere = seasonsHere ? seasonsHere.some((x) => x.episodes.some((e) => e.titleId)) : null;
   const hasSeason = seasonsHere ? seasonsHere.some((x) => x.number === season) : null;
-  const shelved = show.data ? show.data.category : null;
+  const shelved = show.data ? show.data.page.category : null;
   React.useEffect(() => {
     if (episodesHere === null) return;
     navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined, category: shelved }), { replace: true });
@@ -43,7 +44,9 @@ export function TvShow({ imdbId, season, inLibrary }) {
   if (!show.data && !show.error) return <div className="kc-tv-page" />;
   if (!show.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={show.error} onRetry={show.reload} /></div>;
 
-  const s = show.data;
+  // The show as one: its catalogue page, with what this person has of it over it.
+  const s = { ...show.data.page, ...show.data.mine };
+  const certificate = certificateOf(s);
   const seasons = s.seasons.filter((x) => x.number >= 1 || s.seasons.length === 1);
   const resume = s.resume;
   const held = (n) => seasons.find((x) => x.number === n)?.episodes.some((e) => e.titleId);
@@ -55,9 +58,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
   const play = resume || (first && { titleId: first.titleId, season: first.season, episode: first.number, positionSeconds: 0 });
   const room = play && (rooms.data || []).find((r) => r.titleId === play.titleId && r.participants > 0);
   const opening = openingEpisode(s);
-  const years = !s.firstYear ? null
-    : !s.inProduction && s.lastYear === s.firstYear ? String(s.firstYear)
-      : `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}`;
+  const years = !s.year ? null : s.endYear === s.year ? String(s.year) : `${s.year}–${s.endYear || ""}`;
   const nextEpisode = play && seasons.find((x) => x.number === play.season)?.episodes.find((e) => e.number === play.episode);
 
   const watchFirst = async () => {
@@ -68,13 +69,13 @@ export function TvShow({ imdbId, season, inLibrary }) {
 
   const episodeSpot = (e) => {
     const done = e.progress && e.progress.finished;
-    const length = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
+    const length = e.runtime ? `${e.runtime}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
     const fraction = done ? 1 : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
     return {
       key: `${e.season}:${e.number}`,
       eyebrow: `${s.title} · Season ${e.season} · Episode ${e.number}`,
       title: e.name || `Episode ${e.number}`,
-      facts: { length, year: e.airDate ? airDay(e.airDate) : null, cert: s.certification },
+      facts: { length, year: e.airDate ? airDay(e.airDate) : null, cert: certificate },
       overview: e.overview,
       progress: fraction > 0 && !done ? { fraction, left: timeLeft(e.durationSeconds - e.progress.positionSeconds) } : null,
     };
@@ -83,21 +84,21 @@ export function TvShow({ imdbId, season, inLibrary }) {
   const facts = [
     ["Aired", years],
     ["Status", s.status],
-    ["Network", s.networks.join(", ") || null],
+    ["Network", s.networks.map((n) => n.name).join(", ") || null],
     ["Language", s.languages.length ? s.languages.join(", ") : null],
     ["Country", s.countries.length ? s.countries.join(", ") : null],
-    ["Rating", s.rating ? `${s.rating.toFixed(1)} from ${s.votes.toLocaleString("en-GB")}` : null],
-    ["Created by", s.creators.join(", ")],
+    ["Rating", s.rating && s.rating.value ? `${s.rating.value.toFixed(1)} from ${s.rating.votes.toLocaleString("en-GB")}` : null],
+    ["Created by", [...new Set(s.crew.filter((c) => c.job === "Creator").map((c) => c.name))].join(", ") || null],
     ["IMDb", s.imdbId, true],
   ];
 
   return (
     <div className="kc-tv-page kc-tvs" ref={pageRef}>
-      <SpotStage store={store} art={s.backdropUrl || s.posterUrl} idleSize="page" />
+      <SpotStage store={store} art={s.backdrop || s.poster} idleSize="page" />
 
-      <TvTitleHero kind="tvs" eyebrow="TV series" title={s.title} trailer={s.trailers && s.trailers[0]}
+      <TvTitleHero kind="tvs" eyebrow="TV series" title={s.title} trailer={s.trailers[0]}
         facts={<SpotFacts facts={{
-          rating: s.rating, ratedBy: s.ratedBy, year: years, cert: s.certification,
+          rating: s.rating && s.rating.value, ratedBy: s.rating && s.rating.by, year: years, cert: certificate,
           length: `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`, genres: s.genres,
         }} />}>
         {play && nextEpisode && (
@@ -105,7 +106,8 @@ export function TvShow({ imdbId, season, inLibrary }) {
             label={`${resume && resume.positionSeconds > 0 ? "Continue" : "Up next"} · ${episodeCode({ season: play.season, number: play.episode })}`}
             meta={resume && resume.positionSeconds > 0 ? `${clock(resume.durationSeconds - resume.positionSeconds)} remaining` : null} />
         )}
-        <TvAbout overview={s.overview} credits={{ creators: s.creators, cast: s.cast }} />
+        <TvHonours facts={s.facts} />
+        <TvAbout overview={s.overview || s.plot} credits={s} />
         <TvGroup>
           <div className="k-tv-spot__actions">
             {play && (
@@ -149,7 +151,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
       )}
 
       <TvCast cast={s.cast} />
-      <TvTitleShelves kind="show" imdbId={s.imdbId} stars={s.cast.slice(0, 2)} />
+      <TvTitleShelves page={s} />
       <TvFacts facts={facts} />
       <TmdbCredit />
     </div>
@@ -168,7 +170,7 @@ function Episode({ episode: e, rooms, offers, showImdbId, focus }) {
   const room = e.titleId && rooms.find((r) => r.titleId === e.titleId && r.participants > 0);
   const here = !!e.titleId && e.status !== "failed";
   const offer = !e.titleId ? episodeRelease(offers, e.season, e.number) : null;
-  const length = e.runtimeMinutes ? `${e.runtimeMinutes}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
+  const length = e.runtime ? `${e.runtime}m` : e.durationSeconds ? clock(e.durationSeconds) : null;
   const name = e.name || `Episode ${e.number}`;
 
   const watch = async (event) => {
@@ -184,7 +186,7 @@ function Episode({ episode: e, rooms, offers, showImdbId, focus }) {
 
   return (
     <div className={"kc-tvs__episode" + (here || offer ? "" : " is-absent")}>
-      <TvCard shape="wide" art={e.stillUrl} label={`${e.number}. ${name}`} progress={fraction > 0 ? fraction : null}
+      <TvCard shape="wide" art={e.still} label={`${e.number}. ${name}`} progress={fraction > 0 ? fraction : null}
         {...link} {...(here || offer ? focus : {})} />
       <span className="kc-tvs__name">{e.number} · {name}</span>
       {length && <span className="kc-tvs__length kc-mono">{length}</span>}

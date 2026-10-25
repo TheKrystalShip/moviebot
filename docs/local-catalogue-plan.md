@@ -252,16 +252,16 @@ is the catalogue's person id. A franchise is `c<collection>` for a TMDB collecti
 | `credit` | on a list filtered by one person: their department and role in it |
 | `you` | the asking person's, joined by the API: `inLibrary`, `libraryId`, `watched`, `wanted` |
 
-**One title page**, `GET /api/titles/{id}`: the card, and `overview`, `tagline`, `status`, `logo`,
+**One title page**, `GET /api/catalogue/titles/{id}`: the card, and `overview`, `tagline`, `status`, `logo`,
 `ratings` (`imdb` and `tmdb` both), `certificates` (by country; the site shows the viewer's), `countries`,
 `languages`, `companies`, `networks`, `keywords`, `cast` (`personId`, `name`, `character`, `portrait`),
 `crew` (`personId`, `name`, `job`), `trailers`, `facts` (`setIn`, `filmedIn`, `basedOn` with authors,
 `awards`, `nominations`, `subjects`), `franchises` (with the title's place in each), `follows` and
 `followedBy` (cards), `budget` and `revenue`, a show's `seasons` (number, name, air date, poster,
 episode count) and `nextEpisode`, and `similar` (the first twenty cards). A season with its episodes is
-`GET /api/titles/{id}/seasons/{n}`. TMDB's reviews are not kept and not shown.
+`GET /api/catalogue/titles/{id}/seasons/{n}`. TMDB's reviews are not kept and not shown.
 
-**One list query**, `GET /api/titles`, answering every list: a page of cards, `{titles, total, next}`,
+**One list query**, `GET /api/catalogue/titles`, answering every list: a page of cards, `{titles, total, next}`,
 `page` and `size` (20, at most 100). Search, discover, a ranking, a franchise, a person's films, a genre,
 what is out or coming and what is like a title are all its filters, and they combine:
 
@@ -278,19 +278,20 @@ what is out or coming and what is like a title are all its filters, and they com
 - `sort`: `popular`, `rating` (IMDb's weighted by votes), `newest`, `oldest`, `title`, `votes`, or `order`
   (the ranking's, the franchise's or the recommendations' own).
 
-`GET /api/titles/facets` takes the same filters and answers every section's options with exact counts:
+`GET /api/catalogue/facets` takes the same filters and answers every section's options with exact counts:
 kind, genre, decade, length, rating, language.
 
 **Around it:**
-- `GET /api/terms?q` resolves words to the ids the filters take: genres, people, keywords, companies,
+- `GET /api/catalogue/terms?q` resolves words to the ids the filters take: genres, people, keywords, companies,
   Wikidata items, franchises.
-- `GET /api/ask?q` reads a question (`QuestionReader`) into the list query's filters, and answers them with
-  the parts read; the site asks `/api/titles` with them.
-- `GET /api/people/{id}`: name, portrait, department; their titles are `/api/titles?person={id}`.
-- `GET /api/franchises` (a page of franchises: name, poster, how many titles, the person's next one) and
-  `GET /api/franchises/{id}` (a universe's collections); their titles are `/api/titles?franchise={id}&sort=order`.
-- `GET /api/discover`: the Discover page's rows and shelves, each shelf a name and a list query, which the
-  site asks `/api/titles` for.
+- `GET /api/catalogue/ask?q` reads a question (`QuestionReader`) into the list query's filters, and answers them with
+  the parts read; the site asks `/api/catalogue/titles` with them.
+- `GET /api/catalogue/people/{id}`: name, portrait, department; their titles are `/api/catalogue/titles?person={id}`.
+- `GET /api/catalogue/franchises` (a page of franchises: name, poster, how many titles, the person's next one) and
+  `GET /api/catalogue/franchises/{id}` (a universe's collections); their titles are
+  `/api/catalogue/titles?franchise={id}&sort=order`.
+- `GET /api/catalogue/discover`: the Discover page's rows and shelves, each shelf a name and a list query, which the
+  site asks `/api/catalogue/titles` for.
 - `GET /images/{size}/{file}`: every image, by TMDB's file name and size. A file never changes under its
   name, so it is served immutable and cached for a year.
 
@@ -300,13 +301,33 @@ a 25,533-entry snapshot of hotbox's catalogue: a list page 1 to 115 ms, a title 
 facets 165 ms. Left of it, for 6·d: facets scan every title a query names without its drawer picks, which
 is the whole catalogue for a page with no other filter, a second or more at ~195k entries, so the API holds
 every entry's facet values in memory and counts from them; the person's joins (`you`, `unwatched`,
-`inLibrary`); `/api/ask` and `/api/discover` are the API's.
+`inLibrary`); `/api/catalogue/ask` and `/api/catalogue/discover` are the API's.
 
 ### 6·d The API and the site serve from it
 
-The routes of 6·c replace every route that serves catalogue data, and the site, the bot and the
-assistant move to them in the same pass. A title's episodes keep the releases' numbering (the API's
-`EpisodeNumbering`) wherever they meet the library.
+The catalogue's routes are under `/api/catalogue/` (`/api/titles` is the library's): `titles`,
+`titles/{id}`, `titles/{id}/seasons/{n}`, `facets`, `terms`, `ask`, `people/{id}`, `franchises`,
+`franchises/{id}` and `discover`, and every image is `/images/{size}/{file}`. Nothing is deployed until
+every surface is on them; then everything deploys together.
+
+1. **The routes**, with the person's joins (`you`, `unwatched`, `inLibrary`) from the library as listed,
+   the watch record and the wants, and facets counted from every entry's facet values held in memory.
+   The Discover shelves are list queries, by the same TMDB ids the curated shelves are made of.
+2. **Everything else the API serves about a title reads the catalogue**: the library's listings, a
+   show's episodes and their numbering, wants, follows and what a followed show airs next, plans,
+   offline saves, rooms, Watch now. A title's card is the catalogue's wherever it appears.
+3. **The old catalogue goes**: the film database, IMDb and Wikidata clients and stores in the API, their
+   warmers, tables, settings and tests. The API reaches no source.
+4. **The bot and the assistant** move to the routes.
+5. **The SPA**: a new API client, written fresh, and every page and hook moved to it.
+6. **Docs**: `docs/api-contract.md` takes §6·c; `web/site/README.md` and the `CLAUDE.md`s follow.
+
+State (2026-10-25): 1 to 6 are written and build; the SPA's new client is `web/site/src/api/`
+(`catalogue.js`, `library.js`, `rooms.js`, `me.js` over `http.js`). A title's artwork by its IMDb id,
+for what holds no card (the player's frame, a remote, a guest), is `/images/titles/{imdbId}/{name}`. A
+device keeps a save's card in `meta.json` and a kept show as its two answers (`{page, mine}`); saves and
+kept shows written before that are drawn from what they name. Left before the deploy: the API's tests,
+then a run of the site against a local API over a snapshot of hotbox's catalogue.
 
 ### 6·e The SPA checks
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using TheKrystalShip.Agent.Plugin;
 
 namespace TheKrystalShip.MovieBot.Assistant.Api;
@@ -13,63 +14,35 @@ namespace TheKrystalShip.MovieBot.Assistant.Api;
 /// </summary>
 public sealed class CinemaApi(HttpClient http)
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-
     /// <summary>The API as the person <paramref name="accessToken"/> names.</summary>
     public PersonApi As(string accessToken) => new(http, accessToken);
 
     /// <summary>The API's answer to a question as a person asks it, over one connection.</summary>
     public sealed class PersonApi(HttpClient http, string accessToken)
     {
-        public Task<SearchResult> SearchAsync(string query, string? kind, int? year, CancellationToken ct) =>
-            GetAsync<SearchResult>("api/catalogue/search", [("q", query), ("kind", kind), ("year", year)], ct);
+        /// <summary>A list of titles: every search, discovery, ranking, filmography and window of dates is one.</summary>
+        public Task<CardPage> TitlesAsync(TitleFilter filter, CancellationToken ct) =>
+            GetAsync<CardPage>("api/catalogue/titles", filter.Parameters(), ct);
 
-        public Task<PeopleResult> PeopleAsync(string name, CancellationToken ct) =>
-            GetAsync<PeopleResult>("api/catalogue/people", [("q", name)], ct);
+        /// <summary>A list the API may decline as unanswerable (not found, bad request): the answer, or why there is none.</summary>
+        public Task<Answer<CardPage>> TryTitlesAsync(TitleFilter filter, CancellationToken ct) =>
+            TryAsync<CardPage>("api/catalogue/titles", filter.Parameters(), ct);
 
-        public Task<PersonCredits> CreditsAsync(int personId, int? from, int? to, string? role, string? kind, CancellationToken ct) =>
-            GetAsync<PersonCredits>($"api/catalogue/people/{personId}/credits",
-                [("from", from), ("to", to), ("role", role), ("kind", kind)], ct);
+        /// <summary>A title's page, film or show.</summary>
+        public Task<TitlePage> TitleAsync(string imdbId, CancellationToken ct) =>
+            GetAsync<TitlePage>($"api/catalogue/titles/{Uri.EscapeDataString(imdbId)}", [], ct);
 
-        public Task<DiscoverResult> DiscoverAsync(DiscoverQuery query, CancellationToken ct) =>
-            GetAsync<DiscoverResult>("api/catalogue/discover", DiscoverParameters(query), ct);
+        /// <summary>Words resolved to what the list filters take: genres, people, keywords, companies, Wikidata items, franchises.</summary>
+        public Task<List<Term>> TermsAsync(string words, CancellationToken ct) =>
+            GetAsync<List<Term>>("api/catalogue/terms", [("q", words)], ct);
 
-        /// <summary>A discovery the API may decline as unanswerable (not found, bad request): the answer, or why there is none.</summary>
-        public Task<Answer<DiscoverResult>> TryDiscoverAsync(DiscoverQuery query, CancellationToken ct) =>
-            TryAsync<DiscoverResult>("api/catalogue/discover", DiscoverParameters(query), ct);
+        /// <summary>The catalogue's facets over every title, which name the genres and the original languages it holds.</summary>
+        public Task<Facets> FacetsAsync(CancellationToken ct) =>
+            GetAsync<Facets>("api/catalogue/facets", [], ct);
 
-        private static List<(string, object?)> DiscoverParameters(DiscoverQuery query)
-        {
-            var parameters = new List<(string, object?)> { ("kind", query.Kind) };
-            parameters.AddRange(query.Genre.Select(g => ("genre", (object?)g)));
-            parameters.AddRange(query.Exclude.Select(g => ("exclude", (object?)g)));
-            if (query.IncludeFamily) parameters.Add(("includeFamily", "true"));
-            parameters.Add(("from", query.From));
-            parameters.Add(("to", query.To));
-            parameters.AddRange(query.With.Select(w => ("with", (object?)w)));
-            parameters.AddRange(query.About.Select(a => ("about", (object?)a)));
-            parameters.Add(("language", query.Language));
-            parameters.Add(("like", query.Like));
-            parameters.Add(("goodOnly", query.GoodOnly ? "true" : "false"));
-            parameters.Add(("sort", query.Sort));
-            if (query.Anime) parameters.Add(("category", "anime"));
-            return parameters;
-        }
-
-        public Task<TitleList> ReleasedAsync(string kind, bool anime, CancellationToken ct) =>
-            GetAsync<TitleList>("api/catalogue/released", [("kind", kind), ("category", anime ? "anime" : null)], ct);
-
-        public Task<TitleList> UpcomingAsync(string kind, bool anime, CancellationToken ct) =>
-            GetAsync<TitleList>("api/catalogue/upcoming", [("kind", kind), ("category", anime ? "anime" : null)], ct);
-
-        /// <summary>The upcoming list, or why the API declined to give it (not found, bad request).</summary>
-        public Task<Answer<TitleList>> TryUpcomingAsync(string kind, CancellationToken ct) =>
-            TryAsync<TitleList>("api/catalogue/upcoming", [("kind", kind)], ct);
-
-        public Task<LibraryAdditions> AddedAsync(string? kind, bool anime, int limit, CancellationToken ct) =>
-            GetAsync<LibraryAdditions>("api/catalogue/added", [("kind", kind), ("category", anime ? "anime" : null), ("limit", limit)], ct);
-
-        public Task<Popular> PopularAsync(CancellationToken ct) => GetAsync<Popular>("api/popular", [], ct);
+        /// <summary>What the asking person has of a show: where they pick up and their follow.</summary>
+        public Task<PersonShow> PersonShowAsync(string imdbId, CancellationToken ct) =>
+            GetAsync<PersonShow>($"api/me/shows/{Uri.EscapeDataString(imdbId)}", [], ct);
 
         /// <summary>The films people are waiting on, most waiters first; a person without the right to wait on films is refused in words the model can read.</summary>
         public async Task<List<AnticipatedTitle>> AnticipatedAsync(CancellationToken ct)
@@ -80,20 +53,6 @@ public sealed class CinemaApi(HttpClient http)
                 ? "This account may not wait on films in Cinema, so the list of films people are waiting for is not open to the person."
                 : reply.Message);
         }
-
-        public Task<FilmDetails> FilmAsync(string imdbId, CancellationToken ct) =>
-            GetAsync<FilmDetails>($"api/films/{Uri.EscapeDataString(imdbId)}", [], ct);
-
-        /// <summary>The film's page, or null when the database holds no film under the id.</summary>
-        public async Task<FilmDetails?> FilmOrNullAsync(string imdbId, CancellationToken ct)
-        {
-            Reply<FilmDetails> reply = await SendAsync<FilmDetails>($"api/films/{Uri.EscapeDataString(imdbId)}", [], ct);
-            if (reply.Value is not null) return reply.Value;
-            return reply.Status == HttpStatusCode.NotFound ? null : throw new ToolRefusal(reply.Message);
-        }
-
-        public Task<ShowDetails> ShowAsync(string imdbId, CancellationToken ct) =>
-            GetAsync<ShowDetails>($"api/shows/{Uri.EscapeDataString(imdbId)}", [], ct);
 
         public Task<List<HistoryEntry>> HistoryAsync(CancellationToken ct) =>
             GetAsync<List<HistoryEntry>>("api/me/history", [], ct);
@@ -132,7 +91,7 @@ public sealed class CinemaApi(HttpClient http)
                 if (!response.IsSuccessStatusCode)
                     return await Refusal<T>(response, ct);
 
-                return await response.Content.ReadFromJsonAsync<T>(Json, ct) is { } value
+                return await response.Content.ReadFromJsonAsync((JsonTypeInfo<T>)ApiJson.Default.GetTypeInfo(typeof(T))!, ct) is { } value
                     ? new Reply<T>(value, response.StatusCode, "")
                     : new Reply<T>(null, HttpStatusCode.BadGateway, "Cinema answered with nothing.");
             }
@@ -184,8 +143,8 @@ public sealed class CinemaApi(HttpClient http)
             HttpStatusCode.Unauthorized => "Cinema did not accept this sign-in. The person has to sign in again.",
             HttpStatusCode.Forbidden => "This account does not let the person do that in Cinema.",
             HttpStatusCode.ServiceUnavailable => said is { Length: > 0 }
-                ? $"The film database could not be asked just now ({said}), and nothing is kept for this."
-                : "The film database could not be asked just now, and nothing is kept for this.",
+                ? $"The film database could not be read just now ({said}), so nothing is known about this."
+                : "The film database could not be read just now, so nothing is known about this.",
             _ => said is { Length: > 0 } ? said : $"Cinema answered {(int)response.StatusCode}.",
         });
     }

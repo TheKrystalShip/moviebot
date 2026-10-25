@@ -17,10 +17,12 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "horror" }, from = 2000, to = 2005 });
 
         Assert.False(result.IsError);
-        Assert.Equal(["GET /api/catalogue/discover?from=2000&genre=horror&goodonly=true&kind=film&to=2005"], _rig.World.Asked);
+        Assert.Equal(
+            ["GET /api/catalogue/facets", "GET /api/catalogue/titles?from=2000&genre=horror&kind=film&minrating=6.5&minvotes=200&notgenre=animation&notgenre=family&to=2005"],
+            _rig.World.Asked);
         Assert.Contains("3 films, in the database's popular order.", result.Text);
-        Assert.Contains("Matched: genres Horror; rated at least 6.5 on at least 200 votes.", result.Text);
-        Assert.Contains("- Hollow House (2002), film. Directed by Dara Quill. With Mina Ford, Cass Hale. Horror. Rated 7.2 on 410,000 votes.", result.Text);
+        Assert.Contains("Matched: genres Horror; leaving out Animation, Family; rated at least 6.5 on at least 200 votes.", result.Text);
+        Assert.Contains("- Hollow House (2002), film. Directed by Dara Quill. With Mina Ford, Cass Hale. Horror. Rated 7.2 on 410,000 votes at IMDb.", result.Text);
         Assert.Contains("  A family hears the walls breathe.", result.Text);
         Assert.Equal(["tt1000010", "tt1000011", "tt1000012"], ToolRig.CardIds(result));
     }
@@ -31,9 +33,9 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", anime = true });
 
         Assert.False(result.IsError);
-        Assert.Equal(["GET /api/catalogue/discover?category=anime&goodonly=true&kind=show"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles?category=anime&kind=show&minrating=6.5&minvotes=200"], _rig.World.Asked);
         Assert.Contains("1 anime show, in the database's popular order.", result.Text);
-        Assert.Contains("Matched: genres Animation; original language Japanese;", result.Text);
+        Assert.Contains("Matched: only anime; rated at least 6.5", result.Text);
         Assert.Contains("- Paper Lanterns (2019), anime show.", result.Text);
     }
 
@@ -42,7 +44,7 @@ public sealed class DiscoveryToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "library", kind = "show", anime = true });
 
-        Assert.Equal(["GET /api/catalogue/added?category=anime&kind=show&limit=20"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles?category=anime&here=ready&kind=show&size=20"], _rig.World.Asked);
         Assert.Equal("The library has no anime.", result.Text);
     }
 
@@ -62,7 +64,8 @@ public sealed class DiscoveryToolTests
             _rig.Discover, new { genre = new[] { "horror" }, exclude = new[] { "crime" }, include_family = true });
 
         Assert.False(result.IsError);
-        Assert.Equal(["GET /api/catalogue/discover?exclude=crime&genre=horror&goodonly=true&includefamily=true&kind=film"], _rig.World.Asked);
+        Assert.Equal(
+            ["GET /api/catalogue/facets", "GET /api/catalogue/titles?genre=horror&kind=film&minrating=6.5&minvotes=200&notgenre=crime"], _rig.World.Asked);
         Assert.Contains("Matched: genres Horror; leaving out Crime; rated at least 6.5", result.Text);
     }
 
@@ -82,7 +85,8 @@ public sealed class DiscoveryToolTests
         await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Horror", "Mystery" }, good_only = false, sort = "rating" });
 
         Assert.Equal(
-            ["GET /api/catalogue/discover?genre=horror&genre=mystery&goodonly=false&kind=film&sort=rating"], _rig.World.Asked);
+            ["GET /api/catalogue/facets", "GET /api/catalogue/titles?genre=horror&genre=mystery&kind=film&notgenre=animation&notgenre=family&sort=rating"],
+            _rig.World.Asked);
     }
 
     [Fact]
@@ -109,7 +113,7 @@ public sealed class DiscoveryToolTests
     {
         await _rig.RunAsync(_rig.Discover, new { genre = "Horror, Mystery", good_only = false, sort = "rating" });
 
-        Assert.Contains("genre=horror&genre=mystery", _rig.World.Asked.Single());
+        Assert.Contains("genre=horror&genre=mystery", _rig.World.Asked[^1]);
     }
 
     [Fact]
@@ -118,7 +122,7 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Horror" }, language = "Korean" });
 
         Assert.False(result.IsError);
-        Assert.StartsWith("The film database has no film that fits all of that. Matched: genres Horror; original language ko;", result.Text);
+        Assert.StartsWith("The film database has no film that fits all of that. Matched: genres Horror; leaving out Animation, Family; original language Korean;", result.Text);
         Assert.Contains("call discover again without the people, the language or the similar title.", result.Text);
         Assert.EndsWith("A title no tool returned is not to be named.", result.Text);
         Assert.Null(result.Card);
@@ -128,8 +132,8 @@ public sealed class DiscoveryToolTests
     public async Task An_empty_discovery_names_the_filter_to_take_away_keywords_first()
     {
         var world = CinemaWorld.Build().Answer(
-            "/api/catalogue/discover?kind=film&genre=Horror&about=ghost story&goodOnly=true",
-            new DiscoverResult { Resolved = new DiscoverResolved { Genres = ["Horror"], Keywords = ["ghost story"], Sort = "popular" } });
+            "/api/catalogue/titles?kind=film&genre=Horror&notGenre=Animation&notGenre=Family&keyword=k90&minRating=6.5&minVotes=200",
+            CinemaWorld.Page());
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.Discover, new { genre = new[] { "Horror" }, about = new[] { "ghost story" } });
@@ -143,17 +147,47 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { genre = new[] { "Spooky" } });
 
         Assert.True(result.IsError);
-        Assert.Contains("Its genres: Action, Comedy, Drama, Horror.", result.Text);
+        Assert.Contains("Its genres: Action, Animation, Comedy, Crime, Drama, Family, Horror, Mystery, Sci-Fi, Thriller.", result.Text);
     }
 
     [Fact]
-    public async Task Shows_cannot_be_filtered_by_people_and_the_request_is_not_sent()
+    public async Task Shows_are_filtered_by_the_people_in_them()
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", with = new[] { "Nell Aldous" } });
 
+        Assert.False(result.IsError);
+        Assert.Contains("Matched: people Nell Aldous;", result.Text);
+        Assert.Contains("Night Harbor (2012), show.", result.Text);
+    }
+
+    [Fact]
+    public async Task A_person_the_database_does_not_know_is_refused_by_name()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { with = new[] { "Nobody Here" } });
+
         Assert.True(result.IsError);
-        Assert.Contains("person_credits", result.Text);
-        Assert.Empty(_rig.World.Asked);
+        Assert.Equal("The film database has nobody named 'Nobody Here'.", result.Text);
+    }
+
+    [Fact]
+    public async Task A_keyword_the_database_does_not_hold_is_refused_by_name()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { about = new[] { "zzz" } });
+
+        Assert.True(result.IsError);
+        Assert.StartsWith("The film database has no keyword 'zzz'.", result.Text);
+    }
+
+    [Fact]
+    public async Task A_genre_said_in_words_is_the_catalogues_genre()
+    {
+        var world = CinemaWorld.Build().Answer(
+            "/api/catalogue/titles?kind=film&genre=Sci-Fi&notGenre=Animation&notGenre=Family&minRating=6.5&minVotes=200", CinemaWorld.Page(CinemaWorld.QuietRoom));
+        var rig = new ToolRig(world);
+
+        ToolOutcome result = await rig.RunAsync(rig.Discover, new { genre = new[] { "science fiction" } });
+
+        Assert.Contains("Matched: genres Sci-Fi;", result.Text);
     }
 
     [Fact]
@@ -172,9 +206,9 @@ public sealed class DiscoveryToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "trending" });
 
-        Assert.Contains("Trending this week, most watched first (as of 2026-10-09):", result.Text);
-        Assert.Contains("Films:\n- Rain Check (2026). Rated 7.0 on 9,000 votes. id tt1000060.", result.Text);
-        Assert.Contains("Shows:\n- Doorbell (2026). id tt1000061.", result.Text);
+        Assert.Contains("Trending this week, most watched first:", result.Text);
+        Assert.Contains("Films:\n- Rain Check (2026). Rated 7.0 on 9,000 votes at IMDb. Not in the library. id tt1000060.", result.Text);
+        Assert.Contains("Shows:\n- Doorbell (2026). Not in the library. id tt1000061.", result.Text);
         Assert.Equal(["tt1000060", "tt1000061"], ToolRig.CardIds(result));
     }
 
@@ -188,14 +222,16 @@ public sealed class DiscoveryToolTests
     }
 
     [Fact]
-    public async Task A_database_not_yet_asked_for_the_week_has_no_list_and_the_tool_does_not_invent_one()
+    public async Task An_empty_ranking_is_said_as_none_and_the_tool_does_not_invent_one()
     {
-        var world = CinemaWorld.Build().Answer("/api/popular", new Popular());
+        var world = CinemaWorld.Build()
+            .Answer("/api/catalogue/titles?ranking=trending-films&size=20", CinemaWorld.Page())
+            .Answer("/api/catalogue/titles?ranking=trending-shows&size=20", CinemaWorld.Page());
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.WhatsNew, new { which = "trending" });
 
-        Assert.Contains("has not been asked for this week's trending titles yet, so there is no list.", result.Text);
+        Assert.Contains("Films:\nNone listed.\nShows:\nNone listed.", result.Text);
         Assert.Null(result.Card);
     }
 
@@ -205,10 +241,15 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "released" });
 
         Assert.Contains("Films released from 2026-08-25 to 2026-10-09, newest first, the most looked at:", result.Text);
-        Assert.Contains("Late Bloom (2026), film. Release date 2026-03-05.", result.Text);
+        Assert.Contains("- Late Bloom (2026), film. Release date 2026-09-30.", result.Text);
+        Assert.True(result.Text.IndexOf("Late Bloom", StringComparison.Ordinal) < result.Text.IndexOf("Old Lamp", StringComparison.Ordinal));
         Assert.Contains("Shows released from 2026-08-25 to 2026-10-09, newest first, the most looked at:\nNone.", result.Text);
         Assert.Equal(
-            ["GET /api/catalogue/released?kind=film", "GET /api/catalogue/released?kind=show"], _rig.World.Asked.Order());
+            [
+                "GET /api/catalogue/titles?kind=film&released=2026-08-25&releasedbefore=2026-10-10&size=20&sort=popular",
+                "GET /api/catalogue/titles?kind=show&released=2026-08-25&releasedbefore=2026-10-10&size=20&sort=popular",
+            ],
+            _rig.World.Asked.Order(StringComparer.Ordinal));
     }
 
     [Fact]
@@ -216,7 +257,7 @@ public sealed class DiscoveryToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "upcoming", kind = "film" });
 
-        Assert.Equal(["GET /api/catalogue/upcoming?kind=film"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles?kind=film&released=2026-10-09&releasedbefore=2027-04-08&size=20&sort=popular"], _rig.World.Asked);
         Assert.Contains("Films with a release date from 2026-10-09 to 2027-04-07, soonest first, the most looked at:", result.Text);
     }
 
@@ -226,7 +267,8 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.WhatsNew, new { which = "library" });
 
         Assert.Contains("Newest in the library, newest first:", result.Text);
-        Assert.Contains("- Coastal Hours (2021), film. Added 2026-10-08. Drama. Rated 6.9. The person has watched it. id tt1000004.", result.Text);
+        Assert.Equal(["GET /api/catalogue/titles?here=ready&size=20"], _rig.World.Asked);
+        Assert.Contains("- Coastal Hours (2021), film. Drama. Rated 6.9 on 800 votes at IMDb. The person has watched it. id tt1000004.", result.Text);
         Assert.Equal(["tt1000004"], ToolRig.CardIds(result));
     }
 
@@ -250,10 +292,10 @@ public sealed class DiscoveryToolTests
         Assert.Contains("- Coastal Hours: stopped at 34%, last watched 2026-09-20.", result.Text);
         Assert.Contains("- The Salt Line S01E02: finished, last watched 2026-09-02.", result.Text);
         Assert.Contains("Wants to watch (newest first, 2 of 2):", result.Text);
-        Assert.Contains("- The Lantern Keeper (2019), film. Drama. Rated 7.5. Not out digitally yet. id tt1000003.", result.Text);
+        Assert.Contains("- The Lantern Keeper (2019), film. Drama, Mystery. Rated 7.5. Not out digitally yet. id tt1000003.", result.Text);
         Assert.Contains("- The Salt Line, show. In the library. Their next episode is season 1 episode 3. id tt1000006.", result.Text);
         Assert.Contains("Following (newest first, 1 of 1):", result.Text);
-        Assert.Contains("- The Salt Line: followed since 2026-01-04. Next episode season 3 episode 1, 2026-11-02. id tt1000006.", result.Text);
+        Assert.Contains("- The Salt Line (2020): followed since 2026-01-04. Next episode season 3 episode 1, 2026-11-02. id tt1000006.", result.Text);
         Assert.Equal(["tt1000003", "tt1000006"], ToolRig.CardIds(result));
     }
 
@@ -301,13 +343,13 @@ public sealed class DiscoveryToolTests
         ToolOutcome result = await _rig.RunAsync(_rig.Search, new { query = "down" });
 
         Assert.True(result.IsError);
-        Assert.Equal("The film database could not be asked just now (The film database could not be asked.), and nothing is kept for this.", result.Text);
+        Assert.Equal("The film database could not be read just now (The catalogue is being rebuilt.), so nothing is known about this.", result.Text);
     }
 
     [Fact]
     public async Task A_refused_sign_in_is_said_as_one()
     {
-        var world = CinemaWorld.Build().Answer("/api/catalogue/search?q=night harbor", "{}", 401);
+        var world = CinemaWorld.Build().Answer("/api/catalogue/titles?q=night harbor&size=10", "{}", 401);
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.Search, new { query = "Night Harbor" });

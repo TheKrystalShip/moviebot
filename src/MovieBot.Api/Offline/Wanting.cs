@@ -1,7 +1,7 @@
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Acquisition;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -26,8 +26,8 @@ public sealed class OfflineWanting(
     AcquisitionService acquisition,
     ShowOfferCache showOffers,
     OfferedReleases offered,
-    FilmStore films,
-    ShowStore shows,
+    CatalogueTitles films,
+    CatalogueTitles shows,
     TimeProvider clock,
     ILogger<OfflineWanting> logger)
 {
@@ -105,7 +105,7 @@ public sealed class OfflineWanting(
     private async Task FetchEpisodesAsync(Actor asker, string imdbId, List<StoredWant> wants, CancellationToken ct)
     {
         var offers = await showOffers.GetAsync(imdbId, ct);
-        var original = shows.Held(imdbId)?.Details?.OriginalLanguage;
+        var original = shows.Show(imdbId)?.Details?.OriginalLanguage;
         var picked = new List<(StoredWant Want, Release Release)>();
         foreach (var want in wants)
         {
@@ -168,7 +168,7 @@ public sealed class OfflineWanting(
         Dictionary<string, IReadOnlyList<(string Path, double Progress, IReadOnlyCollection<EpisodeNumber> Episodes)>> files,
         CancellationToken ct)
     {
-        var name = want.Episode is null ? films.Held(want.ImdbId)?.Details?.Title : shows.Held(want.ImdbId)?.Details?.Title;
+        var name = want.Episode is null ? films.Card(want.ImdbId)?.Title : shows.Show(want.ImdbId)?.Details?.Title;
         OfflineWant View(string stage, double? progress = null, string? problem = null, string? refusal = null, string? titleId = null) =>
             new(want.Id, want.ImdbId, name, want.Episode, want.Device, want.Height, want.AudioLanguage, want.SubtitleLanguage,
                 want.CreatedAt, stage, progress, problem, refusal, titleId);

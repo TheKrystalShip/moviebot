@@ -30,11 +30,21 @@ public sealed partial record TitleQuery
     public List<string> Languages { get; init; } = [];
     public List<string> Countries { get; init; } = [];
     public List<long> Keywords { get; init; } = [];
+
+    /// <summary>Keywords of which a title has any one, as <see cref="AnyGenres"/> is to genres.</summary>
+    public List<long> AnyKeywords { get; init; } = [];
     public List<long> Companies { get; init; } = [];
     public List<long> People { get; init; } = [];
     public string Role { get; init; } = "any";
     public double? MinRating { get; init; }
+    public double? MaxRating { get; init; }
     public int? MinVotes { get; init; }
+    public int? MaxVotes { get; init; }
+
+    /// <summary>A show's status as the film database names it (<c>Ended</c>, <c>Returning Series</c>).</summary>
+    public string? Status { get; init; }
+
+    public int? MaxSeasons { get; init; }
     public List<(string Property, string Item)> Facts { get; init; } = [];
     public string? Franchise { get; init; }
     public string? Ranking { get; init; }
@@ -47,18 +57,23 @@ public sealed partial record TitleQuery
     public IReadOnlyCollection<string>? Only { get; init; }
     public IReadOnlyCollection<string>? Except { get; init; }
 
+    /// <summary>Only these IMDb ids, in this order, which is the list's own (<c>sort=order</c>): a list the API orders, as what was watched most here.</summary>
+    public IReadOnlyList<string>? Ordered { get; init; }
+
     public static readonly string[] Kinds = ["film", "show"];
     public static readonly string[] CategoryNames = ["general", "anime"];
     public static readonly string[] LengthNames = ["short", "standard", "long"];
     public static readonly string[] RoleNames = ["any", "cast", "directing", "writing"];
-    public static readonly string[] Sorts = ["popular", "rating", "newest", "oldest", "title", "votes", "order"];
+    public static readonly string[] Sorts = ["popular", "rating", "lowest", "newest", "oldest", "title", "votes", "order"];
+    public static readonly string[] Statuses = ["Ended", "Returning Series", "Canceled", "In Production", "Released"];
 
     /// <summary>The query parameters this reads, so a caller can tell its own from an unknown one.</summary>
     public static readonly string[] Parameters =
     [
         "q", "kind", "category", "genre", "anyGenre", "notGenre", "from", "to", "decade", "released", "releasedBefore",
-        "length", "minRuntime", "maxRuntime", "language", "country", "keyword", "company", "person", "role",
-        "minRating", "minVotes", "fact", "franchise", "ranking", "similarTo", "sort", "page", "size",
+        "length", "minRuntime", "maxRuntime", "language", "country", "keyword", "anyKeyword", "company", "person", "role",
+        "minRating", "maxRating", "minVotes", "maxVotes", "status", "maxSeasons", "fact", "franchise", "ranking", "similarTo",
+        "sort", "page", "size",
     ];
 
     [GeneratedRegex("^P[0-9]{1,6}(/P[0-9]{1,6})?:Q[0-9]{1,12}$", RegexOptions.CultureInvariant)]
@@ -141,11 +156,12 @@ public sealed partial record TitleQuery
         var facts = new List<(string, string)>();
         foreach (var value in Matching("fact", FactPattern(), "a property and an item, as P840:Q90"))
             if (value.Split(':') is [var property, var item]) facts.Add((property, item));
-        double? minRating = null;
-        if (One("minRating") is { } rating)
+        double? RatingOf(string name)
         {
-            if (double.TryParse(rating, NumberStyles.Float, CultureInfo.InvariantCulture, out var r) && r is >= 0 and <= 10) minRating = r;
-            else Refuse("minRating is a rating from 0 to 10.");
+            if (One(name) is not { } rating) return null;
+            if (double.TryParse(rating, NumberStyles.Float, CultureInfo.InvariantCulture, out var r) && r is >= 0 and <= 10) return r;
+            Refuse($"{name} is a rating from 0 to 10.");
+            return null;
         }
         var franchise = One("franchise");
         if (franchise is not null && !FranchisePattern().IsMatch(franchise)) Refuse("franchise is a franchise id, as c9485 or Q642878.");
@@ -177,11 +193,16 @@ public sealed partial record TitleQuery
             Languages = Matching("language", LanguagePattern(), "ISO 639 language codes, as ja"),
             Countries = Matching("country", CountryPattern(), "ISO 3166 country codes, as JP"),
             Keywords = Ids("keyword", 'k'),
+            AnyKeywords = Ids("anyKeyword", 'k'),
             Companies = Ids("company", 's'),
             People = List("person").Select(p => long.TryParse(p, NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : -1).ToList(),
             Role = Choice("role", RoleNames) ?? "any",
-            MinRating = minRating,
+            MinRating = RatingOf("minRating"),
+            MaxRating = RatingOf("maxRating"),
             MinVotes = Int("minVotes", 0, int.MaxValue),
+            MaxVotes = Int("maxVotes", 0, int.MaxValue),
+            Status = Choice("status", Statuses),
+            MaxSeasons = Int("maxSeasons", 1, 1000),
             Facts = facts,
             Franchise = franchise,
             Ranking = ranking,
@@ -191,11 +212,23 @@ public sealed partial record TitleQuery
             Size = Int("size", 1, MostPerPage) ?? PageSize,
         };
         if (query.People.Contains(-1)) Refuse("person takes person ids.");
-        if (query.Sort == "order" && query.Ranking is null && query.Franchise is null && query.SimilarTo is null)
+        if (query.Sort == "order" && query.Ranking is null && query.Franchise is null && query.SimilarTo is null && query.Ordered is null)
             Refuse("sort=order is a ranking's, a franchise's or the similar titles' own order, and the query names none.");
         return error is null ? (query, null) : (null, error);
     }
 
+    /// <summary>
+    /// Whether the query narrows the titles by anything but the filter drawer's picks (kind, category,
+    /// any genre, decade, length, rating, language) and the person's: a query that does not names every
+    /// entry before its picks, so its facets count every entry's values.
+    /// </summary>
+    public bool Narrows =>
+        Words is not null || Genres.Count > 0 || NotGenres.Count > 0 || From is not null || To is not null
+        || Released is not null || ReleasedBefore is not null || MinRuntime is not null || MaxRuntime is not null
+        || Countries.Count > 0 || Keywords.Count > 0 || AnyKeywords.Count > 0 || Companies.Count > 0 || People.Count > 0 || MinVotes is not null
+        || MaxVotes is not null || MaxRating is not null || Status is not null || MaxSeasons is not null
+        || Facts.Count > 0 || Franchise is not null || Ranking is not null || SimilarTo is not null || Ordered is not null;
+
     /// <summary>The order a list is in when none is asked for: its own where it has one, the closest match for words, the most popular otherwise.</summary>
-    public string Order => Sort ?? (Ranking is not null || Franchise is not null || SimilarTo is not null ? "order" : Words is not null ? "match" : "popular");
+    public string Order => Sort ?? (Ranking is not null || Franchise is not null || SimilarTo is not null || Ordered is not null ? "order" : Words is not null ? "match" : "popular");
 }

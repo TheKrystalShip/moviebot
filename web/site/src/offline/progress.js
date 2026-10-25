@@ -9,7 +9,7 @@
 // last said (`resumeAt`). The API's last answer is kept beside the log, so a page drawn from the
 // device knows where the person got to (`progressOnDevice`).
 
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { isOnline } from "../connectivity.js";
 import { sessionStore } from "../session.js";
 
@@ -104,7 +104,7 @@ export function sendProgress() {
     const sub = session && session.user.id;
     const entries = loggedProgress(sub).slice(0, BATCH);
     if (!sub || entries.length === 0 || !isOnline()) return;
-    await api.sendProgress(entries.map(({ titleId, positionSeconds, watchedAt }) => ({ titleId, positionSeconds, watchedAt })));
+    await meApi.sendProgress(entries.map(({ titleId, positionSeconds, watchedAt }) => ({ titleId, positionSeconds, watchedAt })));
     const answered = new Map(entries.map((e) => [e.titleId, e.watchedAt]));
     write(sub, loggedProgress(sub).filter((e) => answered.get(e.titleId) !== e.watchedAt));
   })().catch(() => {}).finally(() => { sending = null; });
@@ -120,7 +120,7 @@ export async function resumeAt(sub, titleId, durationSeconds) {
   const local = loggedProgress(sub).find((e) => e.titleId === titleId) || null;
   let remote = null;
   if (isOnline()) {
-    const listed = await api.progress().catch(() => null);
+    const listed = await meApi.progress().catch(() => null);
     const entry = Array.isArray(listed) ? listed.find((p) => p.titleId === titleId) : null;
     if (entry) remote = { positionSeconds: entry.positionSeconds, watchedAt: entry.lastWatchedAt };
   }

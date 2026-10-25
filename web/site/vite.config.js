@@ -59,11 +59,7 @@ export default defineConfig({
     proxy: {
       "/api": api,
       "/media": api,
-      "/films": api,
-      "/shows": api,
-      "/popular": api,
-      "/glances": api,
-      "/catalogue": api,
+      "/images": api,
       "/hub": { target: api, ws: true },
       "/assistant": { target: assistant, rewrite: (path) => path.replace(/^\/assistant/, "") },
     },

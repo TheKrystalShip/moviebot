@@ -1,6 +1,6 @@
 import { Footer, GithubMark } from "@thekrystalship/krystal";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
-import { api } from "../api.js";
+import { roomsApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { inApp } from "../offline/shell.js";
 import { PLACES } from "../nav.js";
@@ -41,7 +41,7 @@ const offerApp = () => typeof navigator !== "undefined" && /Android/.test(naviga
  * artwork come from is credited on About.
  */
 export function SiteFooter() {
-  const rooms = useLoad(() => api.rooms().catch(() => null), [], { every: 30000 });
+  const rooms = useLoad(() => roomsApi.list().catch(() => null), [], { every: 30000 });
   const playing = (rooms.data || []).filter((r) => r.titleId && r.participants > 0).length;
 
   return (

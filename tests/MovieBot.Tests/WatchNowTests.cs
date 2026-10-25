@@ -53,19 +53,8 @@ public sealed class WatchNowFixture : SessionFixture
 
     public WatchNowFixture()
     {
-        // The film database has described the show: three episodes in its first season.
-        Api.Shows.ShowStore.Keep(new Api.Data.CinemaDatabase(Path.Combine(StateRoot, "moviebot.db")), Show, new Api.Shows.StoredShow
-        {
-            FetchedAt = DateTimeOffset.UtcNow,
-            Seasons =
-            [
-                new Acquire.Tmdb.SeasonDetails
-                {
-                    Number = 1,
-                    Episodes = [.. Enumerable.Range(1, 3).Select(n => new Acquire.Tmdb.EpisodeDetails { Season = 1, Number = n, Name = $"Episode {n}" })],
-                },
-            ],
-        });
+        // The catalogue lists the show: three episodes in its first season.
+        KeepShow(Show, 5875444, "Show", [.. Enumerable.Range(1, 3).Select(n => new ShowEpisode(1, n, $"Episode {n}", null))]);
     }
 
     protected override Dictionary<string, string?> MoreSettings() => new()

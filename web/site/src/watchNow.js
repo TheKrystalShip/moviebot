@@ -3,7 +3,7 @@
 // played goes to the room with the film in it.
 
 import { toast } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { libraryApi } from "./api/index.js";
 import { navigate } from "./router.js";
 import { activityRoom } from "./discord/launch.js";
 
@@ -14,7 +14,7 @@ import { activityRoom } from "./discord/launch.js";
  */
 export async function startWatching(request, { limit } = {}) {
   try {
-    const reply = await api.watchNow(activityRoom ? { ...request, room: activityRoom } : request);
+    const reply = await libraryApi.watchNow(activityRoom ? { ...request, room: activityRoom } : request);
     if (reply.outcome === "full") {
       toast.info(`The server is preparing ${limit ? `${limit} films` : "as many films as it can"} for people watching right now. Try again in a few minutes.`);
       return null;
@@ -44,7 +44,7 @@ export function defaultOffer(availability) {
 }
 
 /**
- * The release an episode plays from, out of a show's offers (`api.showReleases`): its season's pack at
+ * The release an episode plays from, out of a show's offers (`library.showReleases`): its season's pack at
  * `quality` where there is one, so a season stays one torrent, then the episode's own release at that
  * quality, then whatever else holds it. Null when nothing offered holds it.
  */
@@ -73,7 +73,7 @@ export async function openingRequest(show) {
   const opening = openingEpisode(show);
   if (!opening) return null;
   try {
-    const offers = await api.showReleases(show.imdbId);
+    const offers = await libraryApi.showReleases(show.imdbId);
     const picked = episodeRelease(offers, opening.season, opening.number);
     if (!picked) {
       toast.info(`The tracker has nothing of ${show.title} Season ${opening.season} to watch yet.`);

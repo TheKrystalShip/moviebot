@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
@@ -25,7 +26,7 @@ public sealed class WantHolds(
     Plans.PlanStore plans,
     LibraryListing listing,
     WatchRecord record,
-    ShowStore shows,
+    CatalogueTitles shows,
     IOptions<WantOptions> options,
     TimeProvider clock) : IWantHolds
 {
@@ -43,7 +44,7 @@ public sealed class WantHolds(
             foreach (var want in person)
             {
                 var watched = want.Kind == WantKinds.Show
-                    ? ShowProgress.FinishedAired(shows.Held(want.ImdbId), finished.GetValueOrDefault(want.ImdbId), today)
+                    ? ShowProgress.FinishedAired(shows.Show(want.ImdbId), finished.GetValueOrDefault(want.ImdbId), today)
                     : shelf.Saw(want.Kind, want.ImdbId);
                 if (!watched) held.Add(want.ImdbId);
             }

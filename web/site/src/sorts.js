@@ -7,7 +7,7 @@
 
 import React from "react";
 import { toast } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { meApi } from "./api/index.js";
 import { useOnline } from "./connectivity.js";
 import { useSession } from "./session.js";
 
@@ -70,7 +70,7 @@ export function useSort(surface, options) {
     const update = () => { if (!picked.current) setOrder(orderOf(kept(sub), surface, options)); };
     heard.add(update);
     update();
-    api.sorts().then((sorts) => keep(sub, sorts), () => {});
+    meApi.sorts().then((sorts) => keep(sub, sorts), () => {});
     return () => heard.delete(update);
     // The options are the page's own and do not change while it is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,7 +80,7 @@ export function useSort(surface, options) {
     picked.current = true;
     setOrder({ key, dir });
     if (!sub || !online) return;
-    api.setSort(surface, { key, direction: dir }).then(
+    meApi.setSort(surface, { key, direction: dir }).then(
       (sorts) => keep(sub, sorts),
       (error) => { if (error.status !== 0) toast.fromError(error, "Could not keep that order"); },
     );

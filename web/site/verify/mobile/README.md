@@ -14,7 +14,7 @@ user agent.
 Three terminals, from `web/site`:
 
 ```bash
-MOVIEBOT_VERIFY_TMDB_TOKEN_FILE=/path/to/token verify/mobile/scratch.sh   # the scratch site
+MOVIEBOT_VERIFY_CATALOGUE=/path/to/catalogue verify/mobile/scratch.sh       # the scratch site
 verify/mobile/webkit.sh                                                     # Safari's engine
 npm run verify:mobile                                                       # the run
 ```
@@ -49,12 +49,11 @@ The checkout's `media/` is hard-linked into a library of the harness's own, so n
 reaches a library people use: the first few films go on a cold root and the rest on the media root,
 the way a host with both disks holds them. A hard link costs nothing and the API replaces a manifest
 rather than editing it, so the source library is never written to; it does mean the harness directory
-and `media/` share a filesystem. The state directory is new on every start. The film database is asked
-through a token read from a file, and what it says is kept between runs. Its artwork comes through
-`artwork.mjs`, which fetches each image once into `~/.cache/moviebot-verify/artwork/` and serves those
-bytes on every start after: the database's image store can answer the same image with a JPEG half again
-as heavy from one day to the next, and `verify:tv-perf` counts what a page fetches. Deleting that
-directory fetches the artwork afresh, which moves the TV performance baseline's `kb` with it.
+and `media/` share a filesystem. The state directory is new on every start. What every title is comes
+from a catalogue directory (`catalogue.db` and `images/`, as `moviebot-catalogue` keeps it), copied from
+a host once and only read: its images are the same bytes on every start, which `verify:tv-perf` relies
+on, since it counts what a page fetches. A catalogue copied again can name other images, which moves the
+TV performance baseline's `kb` with it.
 
 `stage.mjs` then puts in what a person would see: the viewer partway through three films, two others
 watching in rooms of their own, four wants of the viewer's, one kept to the viewer, with Ana and Ben wanting some of the same. It does it through the API and the room hub, never by writing a file. The viewer is signed in with a member's

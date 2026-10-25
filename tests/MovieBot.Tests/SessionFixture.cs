@@ -6,11 +6,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Configuration;
 using TheKrystalShip.WebPush;
 using TheKrystalShip.MovieBot.Acquire.Imdb;
-using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Data.Sqlite;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using System.Net.Http.Json;
@@ -37,6 +36,19 @@ public class SessionFixture : WebApplicationFactory<Program>
     /// </summary>
     public string StateRoot { get; } = Path.Combine(
         Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "state");
+
+    /// <summary>
+    /// The catalogue the API reads: <see cref="TestCatalogue"/>, with its images, the two films the library
+    /// names, <see cref="NotOut"/> and <see cref="Quiet"/>.
+    /// </summary>
+    public string CatalogueRoot { get; } = Path.Combine(
+        Path.GetTempPath(), "moviebot-tests", Guid.NewGuid().ToString("n"), "catalogue");
+
+    /// <summary>A film the catalogue lists and the title index knows, that the tracker has no release of.</summary>
+    public const string NotOut = "tt0325980";
+
+    /// <summary>A film the catalogue lists that nothing else knows.</summary>
+    public const string Quiet = "tt9000004";
 
     /// <summary>A title still being written: the head sits here, seeks past it are refused.</summary>
     public const string TranscodingTitle = "still-cooking";
@@ -71,7 +83,26 @@ public class SessionFixture : WebApplicationFactory<Program>
         Directory.CreateDirectory(ColdRoot);
         File.WriteAllText(Path.Combine(ColdRoot, MediaRoots.ColdMarker), "");
         WriteManifest(ColdRoot, SettledTitle, TitleStatus.Ready, null);
+
+        Catalogue = TestCatalogue.Write(CatalogueRoot, TimeProvider.System);
+        TestCatalogue.WriteImages(CatalogueRoot);
+        TestCatalogue.KeepFilm(Catalogue, TimeProvider.System, "tt0113277", 949, "Heat", "1995-12-15", ["Action", "Crime", "Drama"],
+            "Michael Mann", ["Al Pacino", "Robert De Niro"], runtime: 170);
+        TestCatalogue.KeepFilm(Catalogue, TimeProvider.System, "tt0369339", 1538, "Collateral", "2004-08-05", ["Crime", "Thriller"],
+            "Michael Mann", ["Tom Cruise", "Jamie Foxx"]);
+        TestCatalogue.KeepFilm(Catalogue, TimeProvider.System, NotOut, 22, "Pirates of the Caribbean: The Curse of the Black Pearl", "2003-07-09",
+            ["Adventure", "Fantasy"], "Gore Verbinski", ["Johnny Depp", "Geoffrey Rush"]);
+        TestCatalogue.KeepFilm(Catalogue, TimeProvider.System, Quiet, 9000004, "Silver Harbour", $"{DateTime.UtcNow.Year}-01-01",
+            ["Drama"], "Jo Test", ["Ray Test"]);
     }
+
+    /// <summary>The catalogue the API reads, open for the test to write.</summary>
+    internal TheKrystalShip.MovieBot.Catalogue.Data.CatalogueDatabase Catalogue { get; }
+
+    /// <summary>Keeps a show in the catalogue, as <c>moviebot-catalogue</c> would once the film database described it.</summary>
+    internal void KeepShow(string imdbId, int tmdbId, string name, IReadOnlyList<ShowEpisode> episodes, string status = "Returning Series",
+        ShowEpisode? next = null) =>
+        TestCatalogue.KeepShow(Catalogue, TimeProvider.System, imdbId, tmdbId, name, status, episodes, next);
 
     protected override void Dispose(bool disposing)
     {
@@ -81,6 +112,8 @@ public class SessionFixture : WebApplicationFactory<Program>
         if (Directory.Exists(MediaRoot)) Directory.Delete(MediaRoot, recursive: true);
         if (Directory.Exists(ColdRoot)) Directory.Delete(ColdRoot, recursive: true);
         if (Directory.Exists(StateRoot)) Directory.Delete(StateRoot, recursive: true);
+        SqliteConnection.ClearAllPools();
+        if (Directory.Exists(CatalogueRoot)) Directory.Delete(CatalogueRoot, recursive: true);
     }
 
     /// <summary>The keys this service holds of its own: one for media tickets, one for machine work.</summary>
@@ -111,23 +144,8 @@ public class SessionFixture : WebApplicationFactory<Program>
                 ["Tracker:BaseUrl"] = "https://tracker.invalid/",
                 ["QBittorrent:BaseUrl"] = "http://127.0.0.1:1",
                 ["Download:Root"] = StateRoot,
-                // The film database, answered by the test.
-                ["Tmdb:ReadAccessToken"] = "a-test-token",
-                ["Tmdb:Directory"] = Path.Combine(StateRoot, "films"),
-                ["Tmdb:ShowsDirectory"] = Path.Combine(StateRoot, "shows"),
-                ["Tmdb:PopularDirectory"] = Path.Combine(StateRoot, "popular"),
-                ["Tmdb:GlancesDirectory"] = Path.Combine(StateRoot, "glances"),
-                ["Tmdb:CatalogueDirectory"] = Path.Combine(StateRoot, "catalogue"),
-                // A test asks for each shelf itself, and counts what the database was asked.
-                ["Tmdb:ShelvesWarmMinutes"] = "0",
-                // IMDb's datasets are never fetched; a test that wants them loads its own.
-                ["Imdb:Enabled"] = "false",
-                // Wikidata is never asked; a fixture that wants it turns it on and answers it with its own stub.
-                ["Wikidata:Enabled"] = "false",
-                ["Wikidata:WarmMinutes"] = "0",
-                // The franchises are the curated series; a fixture that scans turns it on and answers the list itself.
-                ["Franchises:Enabled"] = "false",
-                ["Franchises:WarmMinutes"] = "0",
+                // The catalogue moviebot-catalogue would write, built for the test.
+                ["Catalogue:Directory"] = CatalogueRoot,
             }));
         builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(MoreSettings()));
 
@@ -136,8 +154,6 @@ public class SessionFixture : WebApplicationFactory<Program>
             services.RemoveAll<IReleaseSearch>();
             services.AddSingleton<IReleaseSearch>(new ReleaseStubs.OneRelease());
             services.AddHttpClient<ImdbClient>().ConfigurePrimaryHttpMessageHandler(() => new ReleaseStubs.CatalogueStub());
-            services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => FilmDatabase);
-            services.AddHttpClient<WikidataClient>().ConfigurePrimaryHttpMessageHandler(() => Wikidata);
             services.AddHttpClient<WebPushSender>().ConfigurePrimaryHttpMessageHandler(() => PushService);
 
             // The provider's discovery, keys and token endpoint, answered by the test issuer.
@@ -166,12 +182,6 @@ public class SessionFixture : WebApplicationFactory<Program>
 
     /// <summary>The browsers' push services, as the tests answer them.</summary>
     public PushServiceStub PushService { get; } = new();
-
-    /// <summary>The film database, as the tests answer it; it counts what it was asked.</summary>
-    public FilmDatabaseStub FilmDatabase { get; } = new();
-
-    /// <summary>Wikidata, as the tests answer it; the fixture host does not ask it unless a fixture turns it on.</summary>
-    public WikidataStub Wikidata { get; } = new();
 
     /// <summary>Discord's token endpoint, as the tests answer it: a code redeems for <see cref="DiscordStub.AccessToken"/>.</summary>
     public DiscordStub Discord { get; } = new();

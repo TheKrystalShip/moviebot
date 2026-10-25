@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Subtitles;
@@ -35,8 +35,8 @@ public static class OfflineEndpoints
         }).RequireAction(CinemaActions.Offline);
 
         app.MapPost("/api/me/offline", async (OfflineSaveRequest body, HttpContext context, TitleLibrary library,
-            TrackIndexes indexes, SubtitleStore subtitles, SubtitleFetcher fetcher, OfflineSaves saves, FilmStore films,
-            ShowStore shows, TitleCategories categories, IOptions<AuthOptions> auth, TimeProvider clock, CancellationToken ct) =>
+            TrackIndexes indexes, SubtitleStore subtitles, SubtitleFetcher fetcher, OfflineSaves saves, CatalogueTitles films,
+            CatalogueTitles shows, IOptions<AuthOptions> auth, TimeProvider clock, CancellationToken ct) =>
         {
             if (CinemaPerson.Of(context) is not { } person) return NoPerson();
             if (string.IsNullOrEmpty(body.TitleId)) return Bad("Name the title to save.");
@@ -105,7 +105,7 @@ public static class OfflineEndpoints
             saves.Fulfilled(person.UserId, device, manifest.Film?.ImdbId,
                 manifest.Episode is { } place ? new EpisodePick(place.Season, place.Number) : null);
 
-            var details = manifest.Kind == TitleKind.Show ? shows.Facts(manifest.Film?.ImdbId) : films.Facts(manifest.Film?.ImdbId);
+            var card = films.Card(manifest.Film?.ImdbId);
             var grantEnds = stored.CreatedAt + saves.Hold;
             return Results.Ok(new OfflinePackage(
                 View(stored, saves, now),
@@ -113,11 +113,10 @@ public static class OfflineEndpoints
                 tracks.Sum(t => t.Bytes) + subtitleViews.Sum(s => s.Bytes),
                 tracks,
                 subtitleViews,
-                details,
+                card,
                 EpisodeOf(manifest, shows),
-                ArtworkOf(id, manifest, details, shows),
+                ArtworkOf(id, manifest, card, shows),
                 offer.Growing,
-                categories.Of(manifest.Kind, manifest.Film?.ImdbId),
                 new OfflineGrant(SaveGrant.Header, SaveGrant.Issue(stored.Id, person.UserId, id, grantEnds, auth.Value), grantEnds)));
         }).RequireAction(CinemaActions.Offline);
 
@@ -302,25 +301,24 @@ public static class OfflineEndpoints
         new(save.Id, save.TitleId, save.Rung, save.Audio, save.Subtitles, save.Device, save.CreatedAt, save.CompletedAt,
             saves.HoldsUntil(save, now), save.SubtitleLanguage);
 
-    private static OfflineEpisode? EpisodeOf(Manifest manifest, ShowStore shows)
+    private static OfflineEpisode? EpisodeOf(Manifest manifest, CatalogueTitles shows)
     {
         if (manifest.Episode is not { } place) return null;
         var described = manifest.Film?.ImdbId is { } imdb
-            ? shows.Held(imdb)?.Seasons.FirstOrDefault(s => s.Number == place.Season)?.Episodes.FirstOrDefault(e => e.Number == place.Number)
+            ? shows.Show(imdb)?.Seasons.FirstOrDefault(s => s.Number == place.Season)?.Episodes.FirstOrDefault(e => e.Number == place.Number)
             : null;
         return new OfflineEpisode(place.Season, place.Number, described?.Name, described?.Overview);
     }
 
-    private static OfflineArtwork ArtworkOf(string id, Manifest manifest, FilmFacts? details, ShowStore shows)
+    private static OfflineArtwork ArtworkOf(string id, Manifest manifest, TheKrystalShip.MovieBot.Catalogue.TitleCard? card, CatalogueTitles shows)
     {
-        string? still = null;
-        if (manifest.Episode is { } place && manifest.Film?.ImdbId is { } imdb
-            && shows.HasImage(imdb, ShowStore.Still(place.Season, place.Number)))
-            still = ShowViews.ImageUrl(imdb, ShowStore.Still(place.Season, place.Number));
+        var still = manifest.Episode is { } place && manifest.Film?.ImdbId is { } imdb
+            ? shows.Show(imdb)?.Seasons.FirstOrDefault(s => s.Number == place.Season)?.Episodes.FirstOrDefault(e => e.Number == place.Number)?.StillPath
+            : null;
 
         return new OfflineArtwork(
-            details?.PosterUrl ?? (manifest.Poster is { } poster ? $"/media/{id}/{poster}" : null),
-            details?.BackdropUrl,
+            card?.Poster ?? (manifest.Poster is { } poster ? $"/media/{id}/{poster}" : null),
+            card?.Backdrop,
             still,
             manifest.Thumbnails is { } sheet ? $"/media/{id}/{sheet.Uri}" : null);
     }

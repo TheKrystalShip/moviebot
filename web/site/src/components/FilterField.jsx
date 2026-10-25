@@ -62,8 +62,8 @@ const STATE = "state";
  * `/api/me/wants/page`): the picks and the state picked in the address, the words typed in the field,
  * and the order the person keeps on the page (`useSort` under `surface`, its keys `keys`; a page served in
  * one order names no `surface`). `ask(params)`
- * asks the API and answers `{titles, total, facets}`; its facets give the drawer its sections, the
- * page's states (worded by `stateWords`, offered while it holds two) and its orders. `device` are
+ * asks the API and answers `{titles, total, facets, sorts}`; its facets give the drawer its sections
+ * and the page's states (worded by `stateWords`, offered while it holds two), and `sorts` its orders. `device` are
  * sections only the device knows the answer to, kept in the address under their ids, and
  * `deviceAsk(values)` what the API is asked for them; `passes(title)` is what a surface leaves off
  * what the API answers. `deps` ask again when what they name changes. Answers the titles as the API
@@ -87,7 +87,7 @@ export function useListedFilter(ask, { surface, keys, fixed = ["kind"], stateWor
   const facets = page ? page.facets : null;
   const states = facets ? facets.sections.find((s) => s.id === STATE) : null;
   const stateSection = states && (states.options.length >= 2 || state)
-    ? [{ id: STATE, label: "State", kind: "optional", options: states.options.map((o) => ({ value: o.value, label: stateWords[o.value] || o.value, disabled: !!o.empty })) }]
+    ? [{ id: STATE, label: "State", kind: "optional", options: states.options.map((o) => ({ value: o.value, label: stateWords[o.value] || o.value, disabled: o.count === 0 })) }]
     : [];
   const filters = sectionsOf(facets ? { sections: facets.sections.filter((s) => s.id !== STATE) } : null, picks, { watched: false });
   const drawn = {
@@ -98,7 +98,7 @@ export function useListedFilter(ask, { surface, keys, fixed = ["kind"], stateWor
       navigate(withPicks(route.query, picksOfValues(next), route.path, extra), { replace: true });
     },
   };
-  const orders = facets ? facets.sorts.map(orderOf) : [];
+  const orders = page && page.sorts ? page.sorts.map(orderOf) : [];
   const field = orders.length > 0 ? { ...drawn, ...withOrder(drawn, orders, order, pick) } : drawn;
   const titles = page ? page.titles.filter((t) => passes(t, deviceValues)) : null;
   return {

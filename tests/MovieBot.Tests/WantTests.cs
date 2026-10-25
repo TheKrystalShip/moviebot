@@ -19,7 +19,7 @@ public sealed class WantTests(SessionFixture fixture) : IClassFixture<SessionFix
 {
     private const string HeatImdb = "tt0113277";
     private const string NotOutImdb = "tt0325980";
-    private const string QuietImdb = FilmDatabaseStub.SilverHarbour;
+    private const string QuietImdb = SessionFixture.Quiet;
 
     private HttpClient As(string userId, string name = "Cy", IEnumerable<string>? actions = null)
     {
@@ -61,7 +61,7 @@ public sealed class WantTests(SessionFixture fixture) : IClassFixture<SessionFix
         var want = Assert.Single(await Wants(me));
         Assert.Equal(HeatImdb, want.ImdbId);
         Assert.Equal("Heat", want.Title);
-        Assert.Equal(1995, want.Year);
+        Assert.Equal(1995, want.Card!.Year);
         Assert.Equal("film", want.Kind);
         Assert.True(want.Visible);
         Assert.True(want.InLibrary);

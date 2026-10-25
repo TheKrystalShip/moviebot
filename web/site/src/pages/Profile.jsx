@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Icon, List, ListRow, NotificationSettings, RadioGroup, Select, SettingsRow, SettingsSection, PosterCard, SubTabs, ThemePicker, Toggle, toast } from "@thekrystalship/krystal";
 import { notificationsClient } from "../notifications.js";
-import { api, episodeCode, filmName, posterUrl } from "../api.js";
+import { cardRating, episodeCode, filmName, meApi, posterArt, posterUrl } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { languageOptions } from "../languages.js";
 import { accountUrl, can, useCan, useSession } from "../session.js";
@@ -17,7 +17,7 @@ import { linkProps, navigate } from "../router.js";
 import { ago, airDay } from "../time.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
-import { CardsSkeleton, keptArt } from "../components/TitleCards.jsx";
+import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { FilterField, useListedFilter } from "../components/FilterField.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
@@ -101,13 +101,13 @@ export function panel(tab, session) {
 function History() {
   const [changed, setChanged] = React.useState(0);
   const filter = useListedFilter(
-    (params) => api.historyPage(params).then((page) => ({ titles: page.entries, total: page.total, facets: page.facets })),
+    (params) => meApi.historyPage(params).then((page) => ({ titles: page.entries, total: page.total, facets: page.facets, sorts: page.sorts })),
     { surface: null, keys: null, fixed: [], deps: [changed] });
   const entries = filter.titles;
 
   const forget = async (row) => {
     try {
-      await api.forgetHistory(row.titleId);
+      await meApi.forgetHistory(row.titleId);
       setChanged((n) => n + 1);
     } catch (error) {
       toast.fromError(error, "Could not remove it from your history");
@@ -134,7 +134,7 @@ function History() {
 function HistoryCard({ row, title, onForget }) {
   const fraction = row.finished ? 1 : Math.min(1, row.positionSeconds / Math.max(1, row.durationSeconds));
   const poster = title && posterUrl(title);
-  const d = title && title.details;
+  const d = title && title.card;
   const ready = title && title.status === "ready";
   const name = !title ? row.name : title.episode || !title.film || !title.film.name ? filmName(title) : title.film.name;
   return (
@@ -144,8 +144,8 @@ function HistoryCard({ row, title, onForget }) {
       onPick={() => navigate(moviePath(row.titleId))}
       progress={fraction}
       facts={[
-        { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-        { value: (title && title.film && title.film.year) || null, label: "Year" },
+        { icon: "star", value: cardRating(d), label: "Rating" },
+        { value: (d && d.year) || (title && title.film && title.film.year) || null, label: "Year" },
         { value: row.finished ? "Watched" : `${Math.round(100 * fraction)}% watched`, label: "Watched" },
       ]}
       status={{ icon: "history", label: ago(row.lastWatchedAt), title: new Date(row.lastWatchedAt).toLocaleString() }}
@@ -159,12 +159,12 @@ function HistoryCard({ row, title, onForget }) {
 /** The shows this person follows, whether each is fetched when an episode airs, and unfollowing. */
 function Following() {
   const downloading = useCan("cinema:download");
-  const follows = useLoad(() => api.follows(), []);
+  const follows = useLoad(() => meApi.follows(), []);
   const rows = follows.data || [];
 
   const setAuto = async (row, on) => {
     try {
-      await api.follow(row.imdbId, on);
+      await meApi.follow(row.imdbId, on);
       follows.reload();
     } catch (error) {
       toast.fromError(error, "Could not save that");
@@ -172,7 +172,7 @@ function Following() {
   };
   const unfollow = async (row) => {
     try {
-      await api.unfollow(row.imdbId);
+      await meApi.unfollow(row.imdbId);
       toast.info(`You no longer follow ${row.title}.`);
       follows.reload();
     } catch (error) {
@@ -201,7 +201,7 @@ function Following() {
               <PosterCard
                 key={row.imdbId}
                 name={row.title}
-                art={row.posterUrl ? `url("${row.posterUrl}")` : keptArt(row.imdbId, "show")}
+                art={posterArt(row.card)}
                 onPick={() => navigate(showPath(row.imdbId))}
                 facts={[
                   { value: next ? "Next " + episodeCode({ season: next.season, number: next.episode }) : null, label: "Next episode" },
@@ -238,7 +238,7 @@ function usePreferences() {
   const stored = useLoad(() => {
     const kept = keptPreferences(sub);
     if (!online && kept) return Promise.resolve(kept);
-    return api.preferences().catch((error) => {
+    return meApi.preferences().catch((error) => {
       if (error.status === 0 && kept) return kept;
       throw error;
     });
@@ -250,7 +250,7 @@ function usePreferences() {
 
   const change = async (patch) => {
     try {
-      setSaved(await api.setPreferences({ ...preferences, ...patch }));
+      setSaved(await meApi.setPreferences({ ...preferences, ...patch }));
     } catch (error) {
       toast.fromError(error, "Could not save that");
     }
@@ -260,7 +260,7 @@ function usePreferences() {
     setSaved(next);
     clearTimeout(pending.current);
     pending.current = setTimeout(() => {
-      api.setPreferences(next).then(setSaved, (error) => toast.fromError(error, "Could not save that"));
+      meApi.setPreferences(next).then(setSaved, (error) => toast.fromError(error, "Could not save that"));
     }, 600);
   };
   return { preferences, stored, change, changeSoon, fixed };

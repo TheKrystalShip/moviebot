@@ -18,7 +18,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
     public const double RatingPrior = 6.5;
 
     /// <summary>How much being well known (the log of a title's votes) weighs in a search beside how well it matches.</summary>
-    public const double KnownWeight = 0.6;
+    public const double KnownWeight = 1.0;
 
     /// <summary>How many similar titles a page carries.</summary>
     public const int SimilarShown = 20;
@@ -50,25 +50,31 @@ public sealed class CatalogueQueries(CatalogueReader reader)
     /// with every other section's picks applied. One scan reads every title's facet values, and the
     /// sections are counted from it.
     /// </summary>
-    public Facets Facets(TitleQuery query) => reader.Read(c =>
+    public Facets Facets(TitleQuery query) => Count(query, FacetRows(query));
+
+    /// <summary>The facet values of every title a query names without its drawer picks: what <see cref="Count"/> counts.</summary>
+    public List<FacetRow> FacetRows(TitleQuery query) => reader.Read(c =>
     {
         var offered = Select(query, skip: "*");
-        if (offered is null) return new Facets(0, []);
-        var rows = c.Query($"""
-            SELECT t.kind, t.category, t.year, t.runtime, t.rating, t.original_language, t.genres {offered.From} WHERE {offered.Where}
-            """, r => new FacetRow(r.GetString(0), r.GetStringOrNull(1), r.GetIntOrNull(2), r.GetIntOrNull(3), r.GetDoubleOrNull(4),
-                r.GetStringOrNull(5), r.GetString(6) is { Length: > 0 } g ? g.Split(',') : []), offered.Args);
+        if (offered is null) return [];
+        return c.Query($"""
+            SELECT t.imdb_id, t.kind, t.category, t.year, t.runtime, t.rating, t.original_language, t.genres {offered.From} WHERE {offered.Where}
+            """, r => new FacetRow(r.GetString(0), r.GetString(1), r.GetStringOrNull(2), r.GetIntOrNull(3), r.GetIntOrNull(4), r.GetDoubleOrNull(5),
+                r.GetStringOrNull(6), r.GetString(7) is { Length: > 0 } g ? g.Split(',') : []), offered.Args);
+    });
 
-        bool Passes(FacetRow row, string section) => section switch
-        {
-            "kind" => (query.Kind is null || row.Kind == query.Kind) && (query.Category is null || row.Category == query.Category),
-            "genre" => query.AnyGenres.Count == 0 || row.Genres.Any(query.AnyGenres.Contains),
-            "decade" => query.Decades.Count == 0 || row.Year is { } y && query.Decades.Contains(y / 10 * 10),
-            "length" => query.Lengths.Count == 0 || row.Runtime is { } r && query.Lengths.Contains(LengthOf(r)),
-            "rating" => query.MinRating is not { } floor || row.Rating >= floor,
-            "language" => query.Languages.Count == 0 || row.Language is { } l && query.Languages.Contains(l),
-            _ => true,
-        };
+    /// <summary>
+    /// A query's facets counted from the facet values of the titles it names without its drawer picks
+    /// (<see cref="FacetRows"/>, or every entry's for a query that narrows nothing else), the asking
+    /// person's <see cref="TitleQuery.Only"/> and <see cref="TitleQuery.Except"/> applied here.
+    /// </summary>
+    public static Facets Count(TitleQuery query, IReadOnlyList<FacetRow> all)
+    {
+        IReadOnlyList<FacetRow> rows = query.Only is null && query.Except is not { Count: > 0 }
+            ? all
+            : all.Where(r => (query.Only is not { } only || only.Contains(r.ImdbId)) && (query.Except is not { } except || !except.Contains(r.ImdbId))).ToList();
+
+        bool Passes(FacetRow row, string section) => Picks(query, row, section);
         IEnumerable<string> Values(FacetRow row, string section) => section switch
         {
             "kind" => row.Category == "anime" ? [row.Kind, "anime"] : [row.Kind],
@@ -81,7 +87,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         };
 
         // Which sections' picks each row passes, as one bit a section.
-        var all = (1 << FacetSections.Length) - 1;
+        var every = (1 << FacetSections.Length) - 1;
         var passes = rows.Select(row =>
         {
             var mask = 0;
@@ -94,7 +100,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         for (var s = 0; s < FacetSections.Length; s++)
         {
             var section = FacetSections[s];
-            var others = all & ~(1 << s);
+            var others = every & ~(1 << s);
             var offeredCounts = new Dictionary<string, int>(StringComparer.Ordinal);
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             for (var n = 0; n < rows.Count; n++)
@@ -118,10 +124,23 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             };
             sections.Add(new FacetSection(section, ordered.Select(v => new FacetOption(v, Label(section, v), counts.GetValueOrDefault(v))).ToList()));
         }
-        return new Facets(passes.Count(m => m == all), sections);
-    });
+        return new Facets(passes.Count(m => m == every), sections);
+    }
 
-    private sealed record FacetRow(string Kind, string? Category, int? Year, int? Runtime, double? Rating, string? Language, string[] Genres);
+    /// <summary>Whether a title passes the pick of one facet section of a query.</summary>
+    public static bool Picks(TitleQuery query, FacetRow row, string section) => section switch
+    {
+        "kind" => (query.Kind is null || row.Kind == query.Kind) && (query.Category is null || row.Category == query.Category),
+        "genre" => query.AnyGenres.Count == 0 || row.Genres.Any(query.AnyGenres.Contains),
+        "decade" => query.Decades.Count == 0 || row.Year is { } y && query.Decades.Contains(y / 10 * 10),
+        "length" => query.Lengths.Count == 0 || row.Runtime is { } r && query.Lengths.Contains(LengthOf(r)),
+        "rating" => query.MinRating is not { } floor || row.Rating >= floor,
+        "language" => query.Languages.Count == 0 || row.Language is { } l && query.Languages.Contains(l),
+        _ => true,
+    };
+
+    /// <summary>Whether a title passes every facet section's pick of a query.</summary>
+    public static bool Matches(TitleQuery query, FacetRow row) => FacetSections.All(s => Picks(query, row, s));
 
     private static readonly int[] RatingFloors = [8, 7, 6];
 
@@ -157,8 +176,14 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         }
         bool Picks(string section) => skip is null || (skip != "*" && skip != section);
 
-        var from = new StringBuilder("FROM titles t");
         var where = new List<string> { "t.listed = 1" };
+        // A list of titles drives the query, an ordered one or the titles a person's join keeps to: SQLite
+        // would otherwise scan every listed title and look each up in the list, a second on a full catalogue.
+        string Listed(IReadOnlyList<string> ids, string alias) =>
+            $"FROM json_each({Bind(JsonSerializer.Serialize(ids.ToArray(), StoreJson.Default.StringArray))}) {alias} CROSS JOIN titles t ON t.imdb_id = {alias}.value";
+        var from = new StringBuilder(q.Ordered is not null ? Listed(q.Ordered, "o") : q.Only is { } only ? Listed([.. only], "l") : "FROM titles t");
+        if (q.Ordered is not null && q.Only is { } kept)
+            where.Add($"t.imdb_id IN (SELECT value FROM json_each({Bind(JsonSerializer.Serialize(kept.ToArray(), StoreJson.Default.StringArray))}))");
 
         if (q.Words is not null)
         {
@@ -207,6 +232,8 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             where.Add($"EXISTS (SELECT 1 FROM title_countries x WHERE x.title_id = t.id AND x.country IN ({string.Join(", ", q.Countries.Select(x => Bind(x)))}))");
         foreach (var keyword in q.Keywords)
             where.Add($"EXISTS (SELECT 1 FROM title_keywords x WHERE x.title_id = t.id AND x.keyword_id = {Bind(keyword)})");
+        if (q.AnyKeywords.Count > 0)
+            where.Add($"EXISTS (SELECT 1 FROM title_keywords x WHERE x.title_id = t.id AND x.keyword_id IN ({string.Join(", ", q.AnyKeywords.Select(x => Bind(x)))}))");
         if (q.Companies.Count > 0)
             where.Add($"EXISTS (SELECT 1 FROM title_companies x WHERE x.title_id = t.id AND x.company_id IN ({string.Join(", ", q.Companies.Select(x => Bind(x)))}))");
         foreach (var person in q.People)
@@ -222,25 +249,33 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         }
         if (Picks("rating") && q.MinRating is { } minRating) where.Add($"t.rating >= {Bind(minRating)}");
         if (q.MinVotes is { } minVotes) where.Add($"t.votes >= {Bind(minVotes)}");
+        if (q.MaxVotes is { } maxVotes) where.Add($"t.votes <= {Bind(maxVotes)}");
+        if (q.MaxRating is { } maxRating) where.Add($"t.rating <= {Bind(maxRating)}");
+        if (q.Status is not null) where.Add($"t.status = {Bind(q.Status)}");
+        if (q.MaxSeasons is { } maxSeasons) where.Add($"t.seasons <= {Bind(maxSeasons)}");
         foreach (var (property, item) in q.Facts)
             where.Add($"EXISTS (SELECT 1 FROM title_facts x WHERE x.title_id = t.id AND x.property = {Bind(property)} AND x.item = {Bind(item)})");
-        if (q.Only is { } only) where.Add($"t.imdb_id IN (SELECT value FROM json_each({Bind(JsonSerializer.Serialize(only.ToArray(), StoreJson.Default.StringArray))}))");
         if (q.Except is { Count: > 0 } except) where.Add($"t.imdb_id NOT IN (SELECT value FROM json_each({Bind(JsonSerializer.Serialize(except.ToArray(), StoreJson.Default.StringArray))}))");
 
         var order = q.Order switch
         {
+            "order" when q.Ordered is not null => "o.key",
             "order" when q.Ranking is not null => "k.rank",
             "order" when q.SimilarTo is not null => "s.rank",
             "order" => "coalesce(t.released, t.year || '-12-31') NULLS LAST",
-            "match" => $"m.score - {KnownWeight.ToString(CultureInfo.InvariantCulture)} * known(t.votes)",
+            // A title named exactly what was typed comes first, the blend ordering the rest: a widely released
+            // title's names in every language lengthen its row, which full-text scoring holds against it.
+            "match" => $"(t.english_title = {Bind(q.Words!.Trim())} COLLATE NOCASE OR t.original_title = {Bind(q.Words!.Trim())} COLLATE NOCASE) DESC, "
+                + $"m.score - {KnownWeight.ToString(CultureInfo.InvariantCulture)} * known(t.votes)",
             "rating" => $"(t.votes * t.rating + {RatingWeight} * {RatingPrior.ToString(CultureInfo.InvariantCulture)}) / (t.votes + {RatingWeight}.0) DESC NULLS LAST",
+            "lowest" => $"(t.votes * t.rating + {RatingWeight} * {RatingPrior.ToString(CultureInfo.InvariantCulture)}) / (t.votes + {RatingWeight}.0) NULLS LAST",
             "newest" => "coalesce(t.released, t.year || '-12-31') DESC NULLS LAST",
             "oldest" => "coalesce(t.released, t.year || '-01-01') NULLS LAST",
             "title" => "t.english_title COLLATE NOCASE",
             "votes" => "t.votes DESC NULLS LAST",
             _ => "t.popularity DESC NULLS LAST, t.votes DESC NULLS LAST",
         };
-        if (q.Order == "rating") where.Add("t.rating IS NOT NULL");
+        if (q.Order is "rating" or "lowest") where.Add("t.rating IS NOT NULL");
         return new Query(from.ToString(), string.Join(" AND ", where), order + ", t.id", args.ToArray());
     }
 
@@ -395,7 +430,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
                 SELECT 'k' || k.id, k.name FROM title_keywords x JOIN keywords k ON k.id = x.keyword_id WHERE x.title_id = $id ORDER BY k.name
                 """, r => new Named(r.GetString(0), r.GetString(1)), ("$id", titleId)),
             Cast = c.Query("""
-                SELECT p.id, p.name, nullif(x.role, ''), p.profile FROM credits x JOIN people p ON p.id = x.person_id
+                SELECT p.id, p.name, nullif(x.role, ''), (SELECT i.path FROM images i WHERE i.path = p.profile AND i.size = 'w185') FROM credits x JOIN people p ON p.id = x.person_id
                 WHERE x.title_id = $id AND x.department = 'cast' ORDER BY x.ord
                 """, r => new CastMember(r.GetInt64(0), r.GetString(1), r.GetStringOrNull(2), ImageUrls.Of(r.GetStringOrNull(3), ImageUrls.Portrait)), ("$id", titleId)),
             Crew = c.Query("""
@@ -421,7 +456,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             FollowedBy = Linked("P156"),
             Budget = row.Budget,
             Revenue = row.Revenue,
-            Seasons = c.Query("SELECT number, name, air_date, poster, episodes FROM seasons WHERE title_id = $id ORDER BY number",
+            Seasons = c.Query("SELECT number, name, air_date, (SELECT i.path FROM images i WHERE i.path = poster AND i.size = 'w500'), episodes FROM seasons WHERE title_id = $id ORDER BY number",
                 r => new SeasonSummary(r.GetInt32(0), r.GetStringOrNull(1), r.GetStringOrNull(2), ImageUrls.Of(r.GetStringOrNull(3), ImageUrls.Poster), r.GetInt32(4)),
                 ("$id", titleId)),
             NextEpisode = row is { NextAir: { } air, NextSeason: { } season, NextNumber: { } number } ? new NextEpisode(season, number, row.NextName, air) : null,
@@ -432,16 +467,31 @@ public sealed class CatalogueQueries(CatalogueReader reader)
     public Season? Season(string imdbId, int number) => reader.Read(c =>
     {
         var season = c.First("""
-            SELECT s.title_id, s.name, s.overview, s.air_date, s.poster FROM seasons s JOIN titles t ON t.id = s.title_id
+            SELECT s.title_id, s.name, s.overview, s.air_date, (SELECT i.path FROM images i WHERE i.path = s.poster AND i.size = 'w500') FROM seasons s JOIN titles t ON t.id = s.title_id
             WHERE t.imdb_id = $imdb AND t.listed = 1 AND s.number = $n
             """, r => (Id: r.GetInt64(0), Name: r.GetStringOrNull(1), Overview: r.GetStringOrNull(2), Air: r.GetStringOrNull(3), Poster: r.GetStringOrNull(4)),
             ("$imdb", imdbId), ("$n", number));
         if (season.Id == 0) return null;
         var episodes = c.Query("""
-            SELECT number, name, overview, air_date, runtime, still FROM episodes WHERE title_id = $id AND season = $n ORDER BY number
+            SELECT number, name, overview, air_date, runtime, (SELECT i.path FROM images i WHERE i.path = still AND i.size = 'w300') FROM episodes WHERE title_id = $id AND season = $n ORDER BY number
             """, r => new Episode(r.GetInt32(0), r.GetStringOrNull(1), r.GetStringOrNull(2), r.GetStringOrNull(3), r.GetIntOrNull(4),
                 ImageUrls.Of(r.GetStringOrNull(5), ImageUrls.Still)), ("$id", season.Id), ("$n", number));
         return new Season(number, season.Name, season.Overview, season.Air, ImageUrls.Of(season.Poster, ImageUrls.Poster), episodes);
+    });
+
+    /// <summary>Every season of a listed show with its episodes, in order; empty for a title with none.</summary>
+    public List<Season> Seasons(string imdbId) => reader.Read(c =>
+    {
+        var id = c.First("SELECT id FROM titles WHERE imdb_id = $imdb AND listed = 1", r => (long?)r.GetInt64(0), ("$imdb", imdbId));
+        if (id is not { } titleId) return [];
+        var episodes = c.Query("""
+            SELECT season, number, name, overview, air_date, runtime, (SELECT i.path FROM images i WHERE i.path = still AND i.size = 'w300') FROM episodes WHERE title_id = $id ORDER BY season, number
+            """, r => (Season: r.GetInt32(0), Episode: new Episode(r.GetInt32(1), r.GetStringOrNull(2), r.GetStringOrNull(3), r.GetStringOrNull(4),
+                r.GetIntOrNull(5), ImageUrls.Of(r.GetStringOrNull(6), ImageUrls.Still))), ("$id", titleId))
+            .ToLookup(e => e.Season, e => e.Episode);
+        return c.Query("SELECT number, name, overview, air_date, (SELECT i.path FROM images i WHERE i.path = poster AND i.size = 'w500') FROM seasons WHERE title_id = $id ORDER BY number",
+            r => new Season(r.GetInt32(0), r.GetStringOrNull(1), r.GetStringOrNull(2), r.GetStringOrNull(3), ImageUrls.Of(r.GetStringOrNull(4), ImageUrls.Poster),
+                episodes[r.GetInt32(0)].ToList()), ("$id", titleId));
     });
 
     /// <summary>The cards of titles by IMDb id, in the order given; an id the catalogue does not list is left out.</summary>
@@ -456,7 +506,7 @@ public sealed class CatalogueQueries(CatalogueReader reader)
     // ---- People, franchises, words
 
     public Person? Person(long id) => reader.Read(c => c.First("""
-        SELECT p.id, p.name, p.profile, p.department,
+        SELECT p.id, p.name, (SELECT i.path FROM images i WHERE i.path = p.profile AND i.size = 'w185'), p.department,
                (SELECT count(DISTINCT x.title_id) FROM credits x JOIN titles t ON t.id = x.title_id AND t.listed = 1 WHERE x.person_id = p.id)
         FROM people p WHERE p.id = $id
         """, r => new Person(r.GetInt64(0), r.GetString(1), ImageUrls.Of(r.GetStringOrNull(2), ImageUrls.Portrait), r.GetStringOrNull(3), r.GetInt32(4)),
@@ -495,6 +545,18 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         return new FranchisePage(rows, total, offset + rows.Count < total ? page + 1 : null);
     });
 
+    /// <summary>
+    /// Every franchise's listed titles in its order (by release, as <c>sort=order</c> lists them), by the
+    /// franchise's id: each title's IMDb id, kind and poster. One read for every franchise at once.
+    /// </summary>
+    public Dictionary<string, List<FranchiseEntry>> FranchiseEntries() => reader.Read(c => c.Query("""
+        SELECT CASE f.source WHEN 'tmdb' THEN 'c' || f.source_id ELSE f.source_id END, t.imdb_id, t.kind, t.poster
+        FROM franchise_titles ft JOIN franchises f ON f.id = ft.franchise_id JOIN titles t ON t.id = ft.title_id AND t.listed = 1
+        ORDER BY f.id, coalesce(t.released, t.year || '-12-31'), t.id
+        """, r => (Franchise: r.GetString(0), Entry: new FranchiseEntry(r.GetString(1), r.GetString(2), ImageUrls.Of(r.GetStringOrNull(3), ImageUrls.Poster))))
+        .GroupBy(x => x.Franchise, x => x.Entry)
+        .ToDictionary(g => g.Key, g => g.ToList()));
+
     public Franchise? Franchise(string id) => reader.Read(c =>
     {
         var (source, sourceId) = id.StartsWith('c') ? ("tmdb", id[1..]) : ("wikidata", id);
@@ -512,6 +574,12 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             """, FranchiseOf, ("$source", source), ("$id", sourceId));
         return new Franchise(card, parts);
     });
+
+    /// <summary>The catalogue's people by the film database's person ids, for lists named by those ids.</summary>
+    public Dictionary<int, long> PeopleByTmdb(IReadOnlyCollection<int> tmdbIds) => reader.Read(c => c.Query(
+        "SELECT tmdb_id, id FROM people WHERE tmdb_id IN (SELECT value FROM json_each($ids))",
+        r => (r.GetInt32(0), r.GetInt64(1)),
+        ("$ids", JsonSerializer.Serialize(tmdbIds.Select(i => (long)i).ToArray(), StoreJson.Default.Int64Array))).ToDictionary(x => x.Item1, x => x.Item2));
 
     /// <summary>The rankings the catalogue holds, by name.</summary>
     public List<string> Rankings() => reader.Read(c => c.Query("SELECT DISTINCT list FROM rankings ORDER BY list", r => r.GetString(0)));

@@ -17,7 +17,7 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
     /// <summary>A position past the share of an episode that counts as having watched it.</summary>
     private const double Finished = SessionFixture.TitleDuration * 0.95;
 
-    /// <summary>A show of its own for one test: S1E1, S1E2, S1E3 and S2E1, which the film database has not described.</summary>
+    /// <summary>A show of its own for one test: S1E1, S1E2, S1E3 and S2E1, which the catalogue does not list.</summary>
     private string Show(string name)
     {
         var imdbId = $"tt-{name}";
@@ -83,33 +83,21 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
     }
 
     /// <summary>
-    /// A show the film database has described: S1E1 and S1E2 in the library, S1E3 aired and not here,
+    /// A show the catalogue lists: S1E1 and S1E2 in the library, S1E3 aired and not here,
     /// S1E4 airing in a month.
     /// </summary>
     private string Described(string imdbId, string name)
     {
         fixture.AddEpisode($"{name}-s01e01", imdbId, name, 1, 1);
         fixture.AddEpisode($"{name}-s01e02", imdbId, name, 1, 2);
-        var today = DateTime.UtcNow.Date;
-        var show = new Api.Shows.StoredShow
-        {
-            FetchedAt = DateTimeOffset.UtcNow,
-            Seasons =
-            [
-                new Acquire.Tmdb.SeasonDetails
-                {
-                    Number = 1,
-                    Episodes =
-                    [
-                        new() { Season = 1, Number = 1, AirDate = today.AddDays(-30).ToString("yyyy-MM-dd") },
-                        new() { Season = 1, Number = 2, AirDate = today.AddDays(-23).ToString("yyyy-MM-dd") },
-                        new() { Season = 1, Number = 3, Name = "Gone Fishing", RuntimeMinutes = 44, AirDate = today.AddDays(-16).ToString("yyyy-MM-dd") },
-                        new() { Season = 1, Number = 4, AirDate = today.AddDays(30).ToString("yyyy-MM-dd") },
-                    ],
-                },
-            ],
-        };
-        fixture.Services.GetRequiredService<Api.Shows.ShowStore>().Keep(imdbId, show);
+        string Day(int days) => DateTime.UtcNow.Date.AddDays(days).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        fixture.KeepShow(imdbId, int.Parse(imdbId[2..], System.Globalization.CultureInfo.InvariantCulture), name,
+        [
+            new(1, 1, null, Day(-30)),
+            new(1, 2, null, Day(-23)),
+            new(1, 3, "Gone Fishing", Day(-16), 44),
+            new(1, 4, null, Day(30)),
+        ]);
         return name;
     }
 

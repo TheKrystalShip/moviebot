@@ -47,13 +47,13 @@ public sealed record OfflineArtwork(string? Poster, string? Backdrop, string? St
 /// <summary>
 /// What <c>POST /api/me/offline</c> answers: everything the device fetches and keeps. A title still being
 /// made is <c>Growing</c>: its tracks are what is on disk so far, and the device asks again for more.
-/// <c>Category</c> is the shelf the title is on beyond its kind, which the device's own library keeps.
-/// <c>Grant</c> opens the save's tracks to the device's own downloader.
+/// <c>Card</c> is the title's catalogue card (an episode its show's), which the device's own library
+/// keeps. <c>Grant</c> opens the save's tracks to the device's own downloader.
 /// </summary>
 public sealed record OfflinePackage(
     OfflineSave Save, Manifest Manifest, long Bytes, List<OfflineTrack> Tracks, List<OfflineSubtitle> Subtitles,
-    Films.FilmFacts? Details, OfflineEpisode? Episode, OfflineArtwork Artwork, bool Growing,
-    Library.TitleCategory? Category = null, OfflineGrant? Grant = null);
+    TheKrystalShip.MovieBot.Catalogue.TitleCard? Card, OfflineEpisode? Episode, OfflineArtwork Artwork, bool Growing,
+    OfflineGrant? Grant = null);
 
 /// <summary>
 /// The save's grant (<see cref="Auth.SaveGrant"/>): what a device's own downloader carries in

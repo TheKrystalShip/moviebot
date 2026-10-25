@@ -139,9 +139,9 @@ A release name is what a film arrives as. It is not what the film is called.
   search that cannot be sure returns nothing: a year given and matched by nothing finds nothing rather
   than the closest thing.
 - **A source's own cover art is never used.** It is whatever the packer put there, often a landscape
-  still. The poster beside the title is the catalogue's, and the API shows the film database's in its
-  place wherever it holds one (`src/MovieBot.Api/CLAUDE.md`), so a title looks the same from the
-  search that found it to the library that holds it.
+  still. The poster beside the title is the title index's, and the API shows the catalogue's in its
+  place wherever the catalogue lists the title (`src/MovieBot.Api/CLAUDE.md`), so a title looks the
+  same from the search that found it to the library that holds it.
 
 ## What an episode lets a viewer skip (`MarkerPass`, `FingerprintStore`)
 

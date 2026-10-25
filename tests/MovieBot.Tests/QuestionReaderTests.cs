@@ -1,5 +1,4 @@
-using TheKrystalShip.MovieBot.Acquire.Tmdb;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
@@ -12,22 +11,23 @@ public sealed class QuestionReaderTests
 {
     private static readonly DateOnly Today = new(2026, 10, 24);
 
-    /// <summary>The film database's genre lists for films and for shows, and a few of its languages.</summary>
+    /// <summary>The catalogue's genres, IMDb's, which films and shows share, and a few of its languages.</summary>
     private static readonly QuestionVocabulary Vocabulary = new()
     {
-        FilmGenres = Genres("Action", "Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "History",
-            "Horror", "Music", "Mystery", "Romance", "Science Fiction", "TV Movie", "Thriller", "War", "Western"),
-        ShowGenres = Genres("Action & Adventure", "Animation", "Comedy", "Crime", "Documentary", "Drama", "Family", "Kids", "Mystery", "News",
-            "Reality", "Sci-Fi & Fantasy", "Soap", "Talk", "War & Politics", "Western"),
-        Languages =
-        [
-            new LanguageName { Code = "en", Name = "English" }, new LanguageName { Code = "ko", Name = "Korean" },
-            new LanguageName { Code = "es", Name = "Spanish" }, new LanguageName { Code = "xx", Name = "No Language" },
-        ],
+        FilmGenres = ImdbGenres,
+        ShowGenres = ImdbGenres,
+        Languages = [new("en", "English"), new("ko", "Korean"), new("es", "Spanish"), new("xx", "No Language")],
     };
 
-    private static List<CatalogueGenre> Genres(params string[] names) =>
-        [.. names.Select((name, i) => new CatalogueGenre { Id = i + 1, Name = name })];
+    private static List<GenreName> ImdbGenres =>
+    [
+        .. new[]
+        {
+            "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family", "Fantasy", "Film-Noir",
+            "Game-Show", "History", "Horror", "Music", "Musical", "Mystery", "News", "Reality-TV", "Romance", "Sci-Fi", "Sport", "Talk-Show",
+            "Thriller", "War", "Western",
+        }.Select(name => new GenreName(name)),
+    ];
 
     private static Question? ReadOrNone(string text) => QuestionReader.Read(text, Today, Vocabulary);
 
@@ -43,9 +43,8 @@ public sealed class QuestionReaderTests
         Assert.Equal("film", question.Request.Kind);
         Assert.Equal(["Horror"], question.Request.Genres);
         Assert.Equal((2000, 2000), (question.Request.From, question.Request.To));
-        Assert.Equal(DiscoverSorts.Rating, question.Request.Sort);
-        Assert.Equal(10, question.Request.Limit);
-        Assert.True(question.Request.GoodOnly);
+        Assert.Equal(QuestionSorts.Rating, question.Request.Sort);
+        Assert.Equal(10, question.Request.Count);
         Assert.Equal("count:Top 10 | genre:Horror | kind:Movies | years:2000", Parts(question));
     }
 
@@ -89,8 +88,12 @@ public sealed class QuestionReaderTests
     }
 
     [Theory]
-    [InlineData("sci-fi", new[] { "Science Fiction" })]
-    [InlineData("science fiction", new[] { "Science Fiction" })]
+    [InlineData("sci-fi", new[] { "Sci-Fi" })]
+    [InlineData("science fiction", new[] { "Sci-Fi" })]
+    [InlineData("biopics", new[] { "Biography" })]
+    [InlineData("sports movies", new[] { "Sport" })]
+    [InlineData("documentaries", new[] { "Documentary" })]
+    [InlineData("musicals", new[] { "Musical" })]
     [InlineData("scary", new[] { "Horror" })]
     [InlineData("animated", new[] { "Animation" })]
     [InlineData("romcoms", new[] { "Romance", "Comedy" })]
@@ -101,28 +104,17 @@ public sealed class QuestionReaderTests
         Assert.Equal(genres, Read(text).Request.Genres);
 
     [Theory]
-    [InlineData("sci-fi shows", "Sci-Fi & Fantasy")]
-    [InlineData("shows science fiction", "Sci-Fi & Fantasy")]
-    [InlineData("war series", "War & Politics")]
-    [InlineData("action shows", "Action & Adventure")]
-    [InlineData("kids shows", "Kids")]
-    [InlineData("reality tv", "Reality")]
-    public void A_show_s_genre_is_named_as_the_database_names_it_for_shows(string text, string genre)
+    [InlineData("sci-fi shows", "Sci-Fi")]
+    [InlineData("shows science fiction", "Sci-Fi")]
+    [InlineData("war series", "War")]
+    [InlineData("horror shows", "Horror")]
+    public void A_show_s_genre_is_the_catalogue_s_own_name_for_it(string text, string genre)
     {
         var question = Read(text);
 
         Assert.Equal("show", question.Request.Kind);
         Assert.Equal([genre], question.Request.Genres);
         Assert.Equal(genre, question.Parts.Single(p => p.Part == "genre").Text);
-    }
-
-    [Fact]
-    public void A_genre_the_other_list_alone_has_is_kept_for_the_discovery_to_refuse()
-    {
-        var question = Read("horror shows");
-
-        Assert.Equal("show", question.Request.Kind);
-        Assert.Equal(["Horror"], question.Request.Genres);
     }
 
     [Fact]
@@ -194,7 +186,7 @@ public sealed class QuestionReaderTests
         var question = Read("keanu reeves sci-fi movies");
 
         Assert.Equal("keanu reeves", question.Named);
-        Assert.Equal(["Science Fiction"], question.Request.Genres);
+        Assert.Equal(["Sci-Fi"], question.Request.Genres);
         Assert.Null(ReadOrNone("keanu reeves from 1999"));
         Assert.Null(ReadOrNone("horror movies keanu reeves"));
     }
@@ -209,21 +201,20 @@ public sealed class QuestionReaderTests
     }
 
     [Fact]
-    public void A_count_is_held_to_the_most_a_question_counts_and_none_is_the_whole_discovery()
+    public void A_count_is_held_to_the_most_a_question_counts_and_none_is_no_count()
     {
-        Assert.Equal(QuestionReader.MostCounted, Read("top 500 westerns").Request.Limit);
-        Assert.Equal(CatalogueSearch.MostListed, Read("horror shows").Request.Limit);
-        Assert.Equal(5, Read("five best documentaries").Request.Limit);
-        Assert.Equal(3, Read("3 best musicals").Request.Limit);
+        Assert.Equal(QuestionReader.MostCounted, Read("top 500 westerns").Request.Count);
+        Assert.Null(Read("horror shows").Request.Count);
+        Assert.Equal(5, Read("five best documentaries").Request.Count);
+        Assert.Equal(3, Read("3 best musicals").Request.Count);
     }
 
     [Fact]
-    public void The_newest_ask_for_titles_already_out_without_the_floor_of_the_well_rated()
+    public void The_newest_ask_only_for_the_few_votes_a_new_title_has()
     {
         var question = Read("new horror movies");
 
-        Assert.Equal(DiscoverSorts.Newest, question.Request.Sort);
-        Assert.False(question.Request.GoodOnly);
+        Assert.Equal(QuestionSorts.Newest, question.Request.Sort);
         Assert.Equal(QuestionReader.NewestVotes, question.Request.MinVotes);
     }
 
@@ -242,7 +233,7 @@ public sealed class QuestionReaderTests
     {
         Assert.Equal("anime", Read("best anime series").Request.Category);
         Assert.Equal("show", Read("best anime series").Request.Kind);
-        Assert.Equal(DiscoverSorts.Popular, Read("most popular movies").Request.Sort);
+        Assert.Equal(QuestionSorts.Popular, Read("most popular movies").Request.Sort);
     }
 
     [Fact]
@@ -306,7 +297,7 @@ public sealed class QuestionReaderTests
         Assert.Equal("stephen king", question.Wikidata!.Name);
         Assert.Equal(["Horror"], question.Request.Genres);
         Assert.Equal((1990, 1999), (question.Request.From, question.Request.To));
-        Assert.Equal(DiscoverSorts.Rating, question.Request.Sort);
+        Assert.Equal(QuestionSorts.Rating, question.Request.Sort);
     }
 
     [Theory]
@@ -329,8 +320,8 @@ public sealed class QuestionReaderTests
 
         Assert.Equal("paris", question.Wikidata!.Name);
         Assert.Equal((2000, 2009), (question.Request.From, question.Request.To));
-        Assert.Equal(10, question.Request.Limit);
-        Assert.Equal(DiscoverSorts.Rating, question.Request.Sort);
+        Assert.Equal(10, question.Request.Count);
+        Assert.Equal(QuestionSorts.Rating, question.Request.Sort);
     }
 
     [Theory]

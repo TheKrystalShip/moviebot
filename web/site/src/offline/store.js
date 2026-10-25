@@ -132,8 +132,8 @@ function ignoreMissing(error) {
 }
 
 /**
- * A show kept on the device for its saved episodes: `{ imdbId, keptAt, show, files }`, `show` the
- * `GET /api/shows/{imdbId}` answer as it was and `files` the artwork kept beside it,
+ * A show kept on the device for its saved episodes: `{ imdbId, keptAt, show, files }`, `show` its
+ * answers as they were (`{ page, mine }`, `shows.js`) and `files` the artwork kept beside it,
  * `[{ name, url, type }]` by the URL the answer names it at. Null when none is kept.
  */
 export async function readShow(sub, imdbId) {

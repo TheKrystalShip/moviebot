@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Menu, MenuCheckboxItem, MenuItem, toast } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useCan } from "../session.js";
 
@@ -26,13 +26,13 @@ export function FollowButton({ imdbId, title, follow, onChange }) {
   };
 
   const start = () => run(async () => {
-    await api.follow(imdbId, false);
+    await meApi.follow(imdbId, false);
     toast.success(`You follow ${title}.`);
     onChange();
   }, "Could not follow it");
-  const setAuto = (on) => run(async () => { await api.follow(imdbId, on); onChange(); }, "Could not save that");
+  const setAuto = (on) => run(async () => { await meApi.follow(imdbId, on); onChange(); }, "Could not save that");
   const stop = () => run(async () => {
-    await api.unfollow(imdbId);
+    await meApi.unfollow(imdbId);
     toast.info(`You no longer follow ${title}.`);
     onChange();
   }, "Could not unfollow it");

@@ -115,7 +115,7 @@ public sealed class NotifyCommand(MovieBotApiClient api, IOptions<ApiOptions> op
     public NotifyResult Describe(SetWantReply reply, string imdbId)
     {
         var want = reply.Want;
-        var name = want is null ? imdbId : want.Year is { } year ? $"{want.Title} ({year})" : want.Title;
+        var name = want is null ? imdbId : want.Card?.Year is { } year ? $"{want.Title} ({year})" : want.Title;
         var title = want?.Title ?? imdbId;
         var waiting = want is { Wish: { Release: null } } ? Wish.From(want, options.Value.PublicBaseUrl) : null;
 

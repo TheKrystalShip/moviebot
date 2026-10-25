@@ -28,7 +28,6 @@ public sealed class DiscordBotService(
     DownloadCommand download,
     NotifyCommand notify,
     LaunchCards cards,
-    TheKrystalShip.MovieBot.Acquire.Download.AcquisitionService acquisition,
     TheKrystalShip.MovieBot.Acquire.Imdb.ImdbClient catalogue,
     IVoiceSessions voiceSessions,
     VoiceDecryptHealth decryptHealth,
@@ -578,7 +577,8 @@ public sealed class DiscordBotService(
             if (interaction.Data.CommandName == ShowSlashCommand.Name)
             {
                 var shows = typed.Trim().Length < 2 ? [] : await api.FindShowsAsync(typed, CancellationToken.None);
-                await interaction.RespondAsync(shows.Take(25).Select(s => new AutocompleteResult(Choice(s.Display), s.ImdbId)));
+                await interaction.RespondAsync(shows.Take(25).Select(s => new AutocompleteResult(
+                    Choice(s.Year is { } year ? $"{s.Title} ({year})" : s.Title), s.Id)));
                 return;
             }
 

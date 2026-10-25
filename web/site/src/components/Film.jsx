@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Icon, PosterCard } from "@thekrystalship/krystal";
-import { episodeCode, filmName, posterUrl } from "../api.js";
+import { cardRating, episodeCode, filmName, posterArt, posterUrl } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
 import { useWantRibbon } from "./WantButton.jsx";
@@ -54,7 +54,7 @@ export function WatchButton({ titleId, sessionId, at, children, ...props }) {
  * film on the television, from where this person got to, and the glyph on it is the television's.
  */
 export function ContinueCard({ title, progress, remainingSeconds, room, onTv = false }) {
-  const art = (title.details && title.details.backdropUrl) || posterUrl(title);
+  const art = (title.card && title.card.backdrop) || posterUrl(title);
   const fraction = progress.durationSeconds > 0 ? Math.min(1, progress.positionSeconds / progress.durationSeconds) : 0;
   const link = useWatchLink(title.id, room && room.sessionId, progress.positionSeconds);
   const [starting, setStarting] = React.useState(false);
@@ -91,8 +91,8 @@ export function ContinueCard({ title, progress, remainingSeconds, room, onTv = f
 export function NextEpisodeCard({ progress, show, onTv = false }) {
   const [starting, setStarting] = React.useState(false);
   const online = useOnline();
-  const details = show && show.details;
-  const art = progress.stillUrl || (details && (details.backdropUrl || details.posterUrl));
+  const card = show && show.card;
+  const art = progress.stillUrl || (card && (card.backdrop || card.poster));
   const name = `${progress.name} · ${episodeCode(progress.episode)}`;
   const start = async () => {
     if (starting) return;
@@ -154,7 +154,7 @@ function downloadMarks(download) {
  */
 export function FilmCard({ title, room, isNew, download }) {
   const film = title.film || {};
-  const d = title.details;
+  const d = title.card;
   const progress = title.progress && !title.progress.finished && title.progress.positionSeconds > 0 ? title.progress : null;
   const poster = posterUrl(title);
   const ready = title.status === "ready";
@@ -172,14 +172,14 @@ export function FilmCard({ title, room, isNew, download }) {
   return (
     <>
       <PosterCard
-        name={film.name || title.title}
+        name={(d && d.title) || film.name || title.title}
         art={poster ? `url("${poster}")` : null}
-        onPick={() => navigate(moviePath(title.id, title.category))}
+        onPick={() => navigate(moviePath(title.id, d && d.category))}
         badge={isNew ? { tone: "info", label: "New" } : null}
         {...downloadMarks(download)}
         facts={[
-          { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
-          { value: film.year || null, label: "Year" },
+          { icon: "star", value: cardRating(d), label: "Rating" },
+          { value: (d && d.year) || film.year || null, label: "Year" },
           { value: title.durationSeconds ? clock(title.durationSeconds) : null, label: "Length" },
         ]}
         status={status}
@@ -199,7 +199,7 @@ export function FilmCard({ title, room, isNew, download }) {
  * this device (`downloaded`) says how many on its poster.
  */
 export function ShowCard({ show, downloaded = 0 }) {
-  const d = show.details;
+  const d = show.card;
   const resume = show.resume;
   const status =
     resume ? { tone: "active", icon: "history", label: `${episodeCode({ season: resume.season, number: resume.episode })}${resume.positionSeconds > 0 ? " · " + timeLeft(resume.durationSeconds - resume.positionSeconds) : ""}` }
@@ -214,11 +214,11 @@ export function ShowCard({ show, downloaded = 0 }) {
       <PosterCard
         name={show.title}
         segments={show.seasonProgress ? show.seasonProgress.map((x) => (x.episodes > 0 ? x.watched / x.episodes : 0)) : null}
-        art={d && d.posterUrl ? `url("${d.posterUrl}")` : null}
-        onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: show.category }) : moviePath(show.firstTitleId, show.category))}
+        art={posterArt(d)}
+        onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: d && d.category }) : moviePath(show.firstTitleId, d && d.category))}
         {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded`, tone: "accent" } } : {})}
         facts={[
-          { icon: "star", value: d && d.rating ? d.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "star", value: cardRating(d), label: "Rating" },
           { value: counted(show.seasons.length, "season"), label: "Seasons" },
           { value: counted(show.episodes, "episode"), label: "Episodes" },
         ]}

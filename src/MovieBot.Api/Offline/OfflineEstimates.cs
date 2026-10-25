@@ -1,4 +1,4 @@
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -19,8 +19,8 @@ namespace TheKrystalShip.MovieBot.Api.Offline;
 public sealed class OfflineEstimates(
     TitleLibrary library,
     TrackIndexes indexes,
-    FilmStore films,
-    ShowStore shows,
+    CatalogueTitles films,
+    CatalogueTitles shows,
     ILogger<OfflineEstimates> logger) : BackgroundService
 {
     /// <summary>The heights a download is offered at.</summary>
@@ -41,15 +41,15 @@ public sealed class OfflineEstimates(
         double? seconds;
         if (season is { } s)
         {
-            var show = shows.Held(imdbId);
+            var show = shows.Show(imdbId);
             original = show?.Details?.OriginalLanguage;
             seconds = EpisodeSeconds(show?.Seasons.FirstOrDefault(x => x.Number == s), episodes ?? []);
         }
         else
         {
-            var film = films.Held(imdbId)?.Details;
-            original = film?.OriginalLanguage;
-            seconds = film?.RuntimeMinutes is > 0 and var minutes ? minutes * 60.0 : null;
+            var film = films.Card(imdbId);
+            original = film?.Language;
+            seconds = film?.Runtime is > 0 and var minutes ? minutes * 60.0 : null;
         }
 
         var rates = _bytesPerSecond;

@@ -24,7 +24,7 @@ RestartSec=5s
 #
 # The media root stays read-only. What this writes goes to its own state directory, which systemd
 # makes and hands over in the environment: its database (people's records, the rooms, the wish
-# list), subtitles fetched from outside, and the film database's artwork. None belongs under the
+# list) and subtitles fetched from outside. None belongs under the
 # media root — everything there is regenerable from the source file, a
 # re-ingest replaces a title's directory wholesale, and the transcode rewrites the manifest inside
 # it every few seconds. A subtitle that cost a download, a room somebody is sitting in and a film
@@ -39,6 +39,9 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadOnlyPaths=/home/heisen/moviebot/media /home/heisen/moviebot/cold
 StateDirectory=moviebot
+# The catalogue's directory, which moviebot-catalogue writes: the API reads catalogue.db and serves
+# images/, and a reader of a database in WAL mode writes its shared-memory file beside it.
+ReadWritePaths=-/var/lib/moviebot-catalogue
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

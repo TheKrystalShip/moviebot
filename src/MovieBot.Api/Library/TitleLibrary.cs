@@ -46,14 +46,8 @@ public sealed record TitleSummary
     /// <summary>When the film came into the library: when its directory was made.</summary>
     public DateTimeOffset? AddedAt { get; init; }
 
-    /// <summary>
-    /// What the film database says about the film, as far as a listing shows it; absent until the
-    /// film has been described.
-    /// </summary>
-    public Films.FilmFacts? Details { get; init; }
-
-    /// <summary>The shelf the title is on beyond its kind; absent until something says (<see cref="TitleCategories"/>).</summary>
-    public TitleCategory? Category { get; init; }
+    /// <summary>The catalogue's card for the film, or for the show an episode belongs to; absent for a title the catalogue does not list.</summary>
+    public TheKrystalShip.MovieBot.Catalogue.TitleCard? Card { get; init; }
 
     /// <summary>
     /// How far the asking person has got in the film. Absent when they have not watched it, and for

@@ -1,11 +1,11 @@
 import React from "react";
 import { PosterCard } from "@thekrystalship/krystal";
-import { api, episodeCode } from "../api.js";
+import { episodeCode, meApi, posterArt, runtimeText } from "../api/index.js";
 import { discoverFilmPath, moviePath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { SORTED } from "../sorts.js";
 import { shownOf } from "../orders.js";
-import { ago, clock } from "../time.js";
+import { ago } from "../time.js";
 import { refreshWants, useWantList } from "../wants.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { FilterField, useListedFilter } from "../components/FilterField.jsx";
@@ -17,8 +17,9 @@ const FETCHING_EVERY_MS = 10000;
 
 /** Where a want leads: the library's own page for a film it holds, otherwise the catalogue's. */
 export function wantHref(w) {
-  if (w.kind === "show") return showPath(w.imdbId, { held: w.inLibrary, category: w.category });
-  return w.libraryId ? moviePath(w.libraryId, w.category) : discoverFilmPath(w.imdbId);
+  const category = w.card && w.card.category;
+  if (w.kind === "show") return showPath(w.imdbId, { held: w.inLibrary, category });
+  return w.libraryId ? moviePath(w.libraryId, category) : discoverFilmPath(w.imdbId);
 }
 
 /** What a want's state looks like on a card's foot. */
@@ -45,15 +46,15 @@ export function WantCard({ want: w, action }) {
     <>
       <PosterCard
         name={w.title}
-        art={w.posterUrl ? `url("${w.posterUrl}")` : null}
+        art={posterArt(w.card)}
         onPick={() => navigate(wantHref(w))}
         badge={w.visible ? null : { tone: "info", label: "Just me" }}
         progress={w.state === "fetching" ? w.progress || 0 : undefined}
         facts={[
-          { value: w.year || null, label: "Year" },
+          { value: (w.card && w.card.year) || null, label: "Year" },
           w.kind === "show"
             ? { value: next ? "Next " + episodeCode({ season: next.season, number: next.episode }) : null, label: "Next episode" }
-            : { value: w.runtimeMinutes ? clock(w.runtimeMinutes * 60) : null, label: "Length" },
+            : { value: (w.card && runtimeText(w.card.runtime)) || null, label: "Length" },
           { icon: "users", value: w.others > 0 ? w.others : null, label: "Others who want it" },
         ]}
         status={stateLine(w)}
@@ -86,7 +87,7 @@ const WANT_STATE_WORDS = { ready: "Ready", fetching: "Fetching", available: "Ava
 export function useWantsPage(list) {
   const changed = (list || []).map((w) => w.imdbId + ":" + w.state).join(",");
   const filter = useListedFilter(
-    (params) => api.wantsPage(params).then((page) => ({ titles: page.wants, total: page.total, facets: page.facets })),
+    (params) => meApi.wantsPage(params).then((page) => ({ titles: page.wants, total: page.total, facets: page.facets, sorts: page.sorts })),
     { surface: SORTED.wants, keys: WANT_KEYS, fixed: [], stateWords: WANT_STATE_WORDS, deps: [changed] });
   const held = new Map((list || []).map((w) => [w.imdbId, w]));
   const titles = filter.titles && filter.titles.filter((w) => held.has(w.imdbId)).map((w) => held.get(w.imdbId));

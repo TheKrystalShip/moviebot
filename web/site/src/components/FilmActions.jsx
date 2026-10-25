@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Pill, toast } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { libraryApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCan } from "../session.js";
@@ -18,9 +18,8 @@ import { Wanters } from "./Wanters.jsx";
  * What can be done with a film that has to be fetched, from what its availability says: Watch when it
  * can be fetched or is already being prepared, with how far the preparing has got, Want, with the faces
  * of the others who want it, and Download onto this device when it can be watched, in the order a
- * library film's page puts them. `state` is the `useLoad` of
- * `api.availability`, which the caller asks for and can reload; `film` is the film as `api.film`
- * describes it. `compact` keeps to the actions that watch or wait, for a film shown among others;
+ * library film's page puts them. `state` is the `useLoad` of `library.availability`, which the caller
+ * asks for and can reload; `film` is the film's catalogue card. `compact` keeps to the actions that watch or wait, for a film shown among others;
  * `afterWatch` follows Watch (a page's Trailer), and `children` follow the actions on their row.
  */
 export function FilmActions({ imdbId, film, state, compact = false, afterWatch = null, children }) {
@@ -55,7 +54,7 @@ export function FilmActions({ imdbId, film, state, compact = false, afterWatch =
     setBusy(true);
     await watchOnTv({
       request: { imdbId, torrentId: arriving ? undefined : offer && offer.torrentId }, limit: a.streams.limit,
-      name, meta: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null, art: film.backdropUrl || film.posterUrl,
+      name, meta: film.runtime ? clock(film.runtime * 60) : null, art: film.backdrop || film.poster,
     });
     setBusy(false);
   };
@@ -94,8 +93,8 @@ export function FilmActions({ imdbId, film, state, compact = false, afterWatch =
         {!compact && <PlanButton imdbId={imdbId} kind="film" notOut={!!(a && a.notOut)} />}
         {!compact && a && downloading && saving && (arriving || offer) && (
           <DownloadButton imdbId={imdbId} head={{
-            name: film.title, context: film.year || null, runtime: film.runtimeMinutes ? clock(film.runtimeMinutes * 60) : null,
-            still: film.posterUrl, portrait: true, backdrop: film.backdropUrl || film.posterUrl,
+            name: film.title, context: film.year || null, runtime: film.runtime ? clock(film.runtime * 60) : null,
+            still: film.poster, portrait: true, backdrop: film.backdrop || film.poster,
           }} />
         )}
         {children}
@@ -106,13 +105,12 @@ export function FilmActions({ imdbId, film, state, compact = false, afterWatch =
 }
 
 /**
- * A film that has to be fetched, as its own page offers it: whether it can be is asked as soon as it is
- * shown. `compact` and `children` are FilmActions'.
+ * A film that has to be fetched, as its own page offers it, by its card: whether it can be is asked as
+ * soon as it is shown. `compact` and `children` are FilmActions'.
  */
 export function FilmMatchActions({ found, compact, children }) {
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
-  const state = useLoad(() => (downloading || wishing ? api.availability(found.imdbId) : Promise.resolve(null)), [found.imdbId, downloading, wishing]);
-  const film = { title: found.title, year: found.year, posterUrl: found.posterUrl, directors: [] };
-  return <FilmActions imdbId={found.imdbId} film={film} state={state} compact={compact}>{children}</FilmActions>;
+  const state = useLoad(() => (downloading || wishing ? libraryApi.availability(found.id) : Promise.resolve(null)), [found.id, downloading, wishing]);
+  return <FilmActions imdbId={found.id} film={found} state={state} compact={compact}>{children}</FilmActions>;
 }

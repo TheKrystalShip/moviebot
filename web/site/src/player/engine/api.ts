@@ -1,6 +1,6 @@
 import { environment } from './environment';
 import type {
-  FilmDescription, FilmTracks, GuestLink, Manifest, Participant, Person, RoomAround, ShowDescription, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
+  CataloguePage, FilmTracks, GuestLink, Manifest, Participant, PersonShow, Person, RoomAround, SubtitlePin, SubtitleSearch, SubtitleTrack, TitleSummary,
   TrackChoice, ViewerPreferences
 } from './types';
 
@@ -48,10 +48,10 @@ export const api = {
     getJson<RoomAround>(`/api/sessions/${encodeURIComponent(sessionId)}/around`),
 
   /** A show's seasons and their episodes, each joined with the library: what the episode menu lists. */
-  show: (imdbId: string) => getJson<ShowDescription>(`/api/shows/${encodeURIComponent(imdbId)}`),
+  show: (imdbId: string) => getJson<PersonShow>(`/api/me/shows/${encodeURIComponent(imdbId)}`),
 
-  /** What the film database says of a film, for what the player tells about it. */
-  film: (imdbId: string) => getJson<FilmDescription>(`/api/films/${encodeURIComponent(imdbId)}`),
+  /** A film's or show's catalogue page, for what the player tells about it. */
+  title: (imdbId: string) => getJson<CataloguePage>(`/api/catalogue/titles/${encodeURIComponent(imdbId)}`),
 
   /** What a request for this film's bytes carries instead of who is asking. */
   mediaTicket: (id: string) =>

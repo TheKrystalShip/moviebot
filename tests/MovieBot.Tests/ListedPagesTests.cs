@@ -19,13 +19,13 @@ public sealed class ListedPagesTests(FollowFixture fixture) : IClassFixture<Foll
 {
     private static readonly JsonSerializerOptions Web = new(JsonSerializerDefaults.Web);
 
-    private sealed record Page(List<Item> Items, int Total, Facets Facets);
+    private sealed record Page(List<Item> Items, int Total, Facets Facets, List<string> Sorts);
     private sealed record Item(Named? Film, Named? Show);
     private sealed record Named(string Title);
-    private sealed record Facets(List<Section> Sections, List<string> Sorts);
+    private sealed record Facets(List<Section> Sections);
     private sealed record Section(string Id, List<Option> Options);
     private sealed record Option(string Value, int? Count);
-    private sealed record WantsPage(List<Named> Wants, int Total, Facets Facets);
+    private sealed record WantsPage(List<Named> Wants, int Total, Facets Facets, List<string> Sorts);
 
     private HttpClient As(string userId)
     {
@@ -74,7 +74,7 @@ public sealed class ListedPagesTests(FollowFixture fixture) : IClassFixture<Foll
         Assert.Equal(["zq-brazil"], Titles(await Library(me, "%20bra")));
         Assert.Equal(["zq-brazil"], Titles(await Library(me, "&state=ready")));
 
-        Assert.Equal(["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest", "shortest", "longest"], byName.Facets.Sorts);
+        Assert.Equal(["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest", "shortest", "longest"], byName.Sorts);
         var states = byName.Facets.Sections.Single(s => s.Id == ListedPages.State).Options;
         Assert.Contains(states, o => o is { Value: "preparing", Count: >= 1 });
         Assert.True(byName.Total >= 3);
@@ -86,7 +86,7 @@ public sealed class ListedPagesTests(FollowFixture fixture) : IClassFixture<Foll
     {
         var me = As("9302");
         var shows = (await me.GetFromJsonAsync<Page>("/api/library/shows", Web))!;
-        Assert.DoesNotContain("shortest", shows.Facets.Sorts);
+        Assert.DoesNotContain("shortest", shows.Sorts);
         var all = (await me.GetFromJsonAsync<Page>("/api/library/all?kind=film", Web))!;
         Assert.All(all.Items, i => Assert.NotNull(i.Film));
     }
@@ -168,6 +168,6 @@ public sealed class ListedPagesTests(FollowFixture fixture) : IClassFixture<Foll
         var me = As("9304");
         var page = (await me.GetFromJsonAsync<WantsPage>("/api/me/wants/page?q=nothing-is-called-this", Web))!;
         Assert.Empty(page.Wants);
-        Assert.Equal(["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest", "most-wanted", "least-wanted"], page.Facets.Sorts);
+        Assert.Equal(["added", "first-added", "name", "name-desc", "rating", "lowest", "newest", "oldest", "most-wanted", "least-wanted"], page.Sorts);
     }
 }

@@ -1,13 +1,13 @@
 import React from "react";
 import { Button, ConfirmDialog, Drawer, Icon, Input, Popover, RadioGroup, toast } from "@thekrystalship/krystal";
-import { api, episodeCode } from "../api.js";
+import { episodeCode, meApi, roomsApi, runtimeText } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { discoverFilmPath, isAnime, moviePath, plansPath, showPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { MAX_TIMES, localInput, timeBounds, usePlanChanges } from "../plans.js";
-import { ahead, clock, hourOf } from "../time.js";
+import { ahead, hourOf } from "../time.js";
 import { Empty, Failed, watchHref } from "../components/Film.jsx";
 import { PersonCard } from "../components/FilmDetails.jsx";
 import { DateTile } from "../components/DateTile.jsx";
@@ -192,8 +192,8 @@ function InviteCard({ plan }) {
   const [open, setOpen] = React.useState(false);
   const anchor = React.useRef(null);
   const here = React.useMemo(() => new Set(plan.people.map((p) => p.userId)), [plan.people]);
-  const invite = React.useCallback((person) => api.invitePlan(plan.id, person.userId).then((reply) => reply.delivery), [plan.id]);
-  const list = <InvitePeople load={api.people} invite={invite} here={here} hereMark="In this plan" label={null} />;
+  const invite = React.useCallback((person) => meApi.invitePlan(plan.id, person.userId).then((reply) => reply.delivery), [plan.id]);
+  const list = <InvitePeople load={roomsApi.people} invite={invite} here={here} hereMark="In this plan" label={null} />;
 
   return (
     <div ref={anchor} className="kc-plan__invite">
@@ -226,15 +226,12 @@ function titleHref(p) {
  */
 export function Plan({ id }) {
   const online = useOnline();
-  const plan = useLoad(() => api.plan(id), [id]);
+  const plan = useLoad(() => meApi.plan(id), [id]);
   const [busy, setBusy] = React.useState(false);
   const [cancelling, setCancelling] = React.useState(false);
   usePlanChanges((changed) => { if (changed === null || changed === id) plan.reload(); });
 
   const p = plan.data;
-  const imdbId = p && p.imdbId;
-  const kind = p && p.kind;
-  const described = useLoad(() => (imdbId ? (kind === "show" ? api.show(imdbId) : api.film(imdbId)).catch(() => null) : Promise.resolve(null)), [imdbId, kind]);
   useCrumb(p ? p.title : plan.error && plan.error.status === 404 ? "No such plan" : null);
 
   if (plan.error && plan.error.status === 404) {
@@ -262,8 +259,8 @@ export function Plan({ id }) {
     }
   };
 
-  const d = described.data;
-  const art = (d && d.backdropUrl) || p.posterUrl;
+  const d = p.card;
+  const art = d && (d.backdrop || d.poster);
   const now = Date.now();
   // The times still ahead, and the picked one whatever its hour; a time that has passed drops out.
   const shown = p.times.filter((t) => t.at === p.fixedTime || new Date(t.at).getTime() > now);
@@ -274,12 +271,12 @@ export function Plan({ id }) {
   return (
     <div className="kc-page kc-plan">
       <TitleHero art={art} eyebrow={`Plan · ${kindWord(p.kind, isAnime(d))}`} title={p.title}
-        facts={<TitleFacts rating={d && d.rating} votes={d && d.votes} ratedBy={d && d.ratedBy} kind={p.kind} category={d && d.category}
+        facts={<TitleFacts rating={d && d.rating && d.rating.value} votes={d && d.rating && d.rating.votes} ratedBy={d && d.rating && d.rating.by}
+          kind={p.kind} category={d && d.category}
           parts={[
             p.kind === "show" && p.season != null && episodeCode({ season: p.season, number: p.number }),
-            p.year,
-            d && d.certification && { cert: d.certification },
-            p.kind !== "show" && d && d.runtimeMinutes && clock(d.runtimeMinutes * 60),
+            d && d.year,
+            p.kind !== "show" && d && runtimeText(d.runtime),
           ]}
           genres={d ? d.genres : []} />}>
         <HeroGroup>
@@ -308,8 +305,8 @@ export function Plan({ id }) {
           <div className="kc-plan__times">
             {shown.map((time) => (
               <TimeRow key={time.at} plan={p} time={time} busy={busy || !online}
-                onAnswer={(at, answer) => run(() => api.answerPlan(p.id, at, answer), "Could not save that")}
-                onPick={(at) => run(() => api.fixPlan(p.id, at), "Could not pick that time")} />
+                onAnswer={(at, answer) => run(() => meApi.answerPlan(p.id, at, answer), "Could not save that")}
+                onPick={(at) => run(() => meApi.fixPlan(p.id, at), "Could not pick that time")} />
             ))}
           </div>
         ) : (
@@ -317,7 +314,7 @@ export function Plan({ id }) {
         )}
         {online && (
           <SuggestTime plan={p} from={from} busy={busy}
-            onSuggest={(at) => run(() => api.suggestPlanTime(p.id, at), "Could not suggest that time")} />
+            onSuggest={(at) => run(() => meApi.suggestPlanTime(p.id, at), "Could not suggest that time")} />
         )}
       </section>
 
@@ -338,7 +335,7 @@ export function Plan({ id }) {
           onClose={() => setCancelling(false)}
           onConfirm={async () => {
             try {
-              await api.cancelPlan(p.id);
+              await meApi.cancelPlan(p.id);
               navigate(plansPath);
             } catch (error) {
               return { refusal: error.message };

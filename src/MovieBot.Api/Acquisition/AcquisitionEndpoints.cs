@@ -34,19 +34,6 @@ public static class AcquisitionEndpoints
                 answer.Explanation));
         }).RequireAction(CinemaActions.Download);
 
-        // The films the title index offers for a name, for a search box: each leads to its own page,
-        // which is where whether it can be watched is asked. Finding a film is how a download and a
-        // wish both begin.
-        group.MapGet("/films/find", async (string? q, ImdbClient index, TitleSearch search, CancellationToken ct) =>
-            Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Films, ct)))
-            .RequireAction(CinemaActions.Download, CinemaActions.Wish);
-
-        // Films and shows together, in the index's own order, so the likeliest answer to a name comes
-        // first whichever it is. A show is fetched by its seasons, so this takes downloading.
-        group.MapGet("/titles/find", async (string? q, ImdbClient index, TitleSearch search, CancellationToken ct) =>
-            Results.Ok(await search.FindAsync(index, q ?? "", SearchKinds.Both, ct)))
-            .RequireAction(CinemaActions.Download);
-
         // Whether a film can be watched and how: here, arriving, offered at 1080p and 720p, or not out.
         group.MapGet("/films/{imdbId}/availability", async (string imdbId, HttpContext context, WatchNow watch, CancellationToken ct) =>
             ImdbId.IsValid(imdbId)
@@ -116,13 +103,12 @@ public static class AcquisitionEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.Download);
 
-        // What everybody wants that nothing has yet, as counts: no one is named. A film is shown by the
-        // poster its page shows, which is the one its search result showed; what the title index said is
-        // kept for a film the film database has none for.
-        group.MapGet("/anticipated", (HttpContext context, Wishes wishes, Films.TitleGlances glances) =>
+        // What everybody wants that nothing has yet, as counts: no one is named. A film is shown by its
+        // catalogue poster; what the title index said is kept for a film the catalogue lists none for.
+        group.MapGet("/anticipated", (HttpContext context, Wishes wishes, Catalogue.CatalogueTitles catalogue) =>
             CinemaPerson.Of(context) is { } person
                 ? Results.Ok(wishes.Anticipated(person.UserId)
-                    .Select(a => a with { PosterUrl = glances.PosterUrl(a.ImdbId) ?? a.PosterUrl }).ToList())
+                    .Select(a => a with { PosterUrl = catalogue.Card(a.ImdbId)?.Poster ?? a.PosterUrl }).ToList())
                 : NoPerson())
             .RequireAction(CinemaActions.Wish);
 

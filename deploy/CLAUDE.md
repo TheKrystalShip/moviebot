@@ -119,8 +119,7 @@ deploy/deploy-app.sh phone      # one: phone or tv
   `notifications.db`, every person's notifications and push subscriptions; `vapid.json`, the push key pair
   every browser's subscription is bound to (it cannot be made again without every device subscribing
   again); and the subtitles fetched from outside, each of which cost one of
-  a limited daily allowance. The artwork beside them is the film database's and is fetched again if
-  lost. The catalogue has `/var/lib/moviebot-catalogue`: `catalogue.db` and `images/`, all of it
+  a limited daily allowance. The catalogue has `/var/lib/moviebot-catalogue`: `catalogue.db` and `images/`, all of it
   fetched again from its sources if lost, which takes the first fill's hours. It sits on `/`, leaving
   `/home` to the downloads. The bot has `/var/lib/moviebot-bot`, holding the launch cards still standing. The assistant keeps no state of its own: the conversations and what people
   asked it to remember are the harness's.

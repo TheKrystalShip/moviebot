@@ -11,7 +11,7 @@
 
 import React from "react";
 import { createStore, useStore } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { meApi } from "./api/index.js";
 import { onReconnect } from "./connectivity.js";
 import { LoadTracker } from "./data.js";
 import { sessionStore } from "./session.js";
@@ -37,7 +37,7 @@ function refresh() {
     return Promise.resolve();
   }
   changed = false;
-  reading = api.wants().then(
+  reading = meApi.wants().then(
     (list) => { if (!changed && changing === 0) keep(list); },
     (error) => { store.setState({ error }); },
   ).finally(() => {
@@ -139,7 +139,7 @@ async function change(work, before) {
  * Answers the API's `SetWantReply`.
  */
 export function setWant(imdbId, kind, { visible, title } = {}) {
-  return change(() => api.want(imdbId, kind, visible), (list) => {
+  return change(() => meApi.want(imdbId, kind, visible), (list) => {
     const held = list.find((w) => w.imdbId === imdbId);
     if (held) return list.map((w) => (w === held ? { ...held, visible: visible === undefined ? held.visible : visible } : w));
     const placeholder = {
@@ -152,7 +152,7 @@ export function setWant(imdbId, kind, { visible, title } = {}) {
 
 /** Removes the person's want on a title. */
 export function removeWant(imdbId) {
-  return change(() => api.unwant(imdbId), (list) => list.filter((w) => w.imdbId !== imdbId));
+  return change(() => meApi.unwant(imdbId), (list) => list.filter((w) => w.imdbId !== imdbId));
 }
 
 /** What a made want found, in a sentence for the toast that says so; null when it found nothing to add to the button's change. */

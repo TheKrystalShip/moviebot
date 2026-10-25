@@ -21,7 +21,7 @@
 // same progress, and a pause or a removal in one stops the transfer in whichever runs it.
 
 import { createStore, toast, useStore } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { appDownload, appFailure, appPause, appResume, appStatus, heldByApp, inApp, savedByApp } from "./shell.js";
 import { isOnline, onReconnect, probe, unreached } from "../connectivity.js";
 import { freshToken, sessionStore } from "../session.js";
@@ -173,7 +173,7 @@ export async function startSave({ titleId, rung, audio, subtitles, subtitleLangu
   const have = held ? held.receivedBytes : 0;
   if (room && need - have > room.free) throw new NoRoom(need - have, room.free);
 
-  const pkg = await api.saveOffline({
+  const pkg = await meApi.saveOffline({
     titleId, rung: rung.rendition, audio: audio.map((a) => a.rendition), subtitles: subtitles.map((s) => s.id), device: deviceName(),
     subtitleLanguage,
   });
@@ -188,7 +188,7 @@ export async function startSave({ titleId, rung, audio, subtitles, subtitleLangu
 async function repost(job) {
   const save = job.meta ? job.meta.package.save : (await readSave(job.sub, job.titleId))?.meta.package.save;
   if (!save) throw new Error("This download is not on the device.");
-  const pkg = await api.saveOffline({
+  const pkg = await meApi.saveOffline({
     titleId: job.titleId, rung: save.rung, audio: save.audio, subtitles: save.subtitles, device: deviceName(),
     subtitleLanguage: save.subtitleLanguage || null,
   });
@@ -199,7 +199,7 @@ async function repost(job) {
 function metaOf(sub, pkg) {
   const m = pkg.manifest;
   const film = m.film || {};
-  const d = pkg.details || {};
+  const card = pkg.card || null;
   const episode = m.episode ? { season: m.episode.season, number: m.episode.number, name: (pkg.episode && pkg.episode.name) || null } : null;
   const rung = m.video.renditions[0] || {};
   const rendition = (uri) => String(uri).split("/")[0];
@@ -233,10 +233,9 @@ function metaOf(sub, pkg) {
     imdbId: film.imdbId || null,
     show: episode && film.imdbId ? { imdbId: film.imdbId, name: film.name || m.title } : null,
     episode,
-    overview: (pkg.episode && pkg.episode.overview) || d.overview || null,
-    genres: d.genres || [],
-    rating: d.rating ?? null,
-    category: pkg.category || null,
+    overview: (pkg.episode && pkg.episode.overview) || (card && card.plot) || null,
+    category: (card && card.category) || null,
+    card,
     durationSeconds: m.durationSeconds,
     quality: { rendition: rendition(rung.uri), width: rung.width || null, height: rung.height || null, label: rung.name || null },
     files,
@@ -311,7 +310,7 @@ async function heard(message) {
     case "done": {
       set(job.titleId, null);
       const save = await readSave(job.sub, job.titleId).catch(() => null);
-      if (save && save.meta.saveId) api.completeSave(save.meta.saveId).catch(() => {});
+      if (save && save.meta.saveId) meApi.completeSave(save.meta.saveId).catch(() => {});
       if (save) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
       break;
     }
@@ -435,7 +434,7 @@ async function finished(titleId) {
   set(titleId, null);
   const sub = currentSub();
   const save = sub ? await readSave(sub, titleId).catch(() => null) : null;
-  if (save && save.meta.saveId) api.completeSave(save.meta.saveId).catch(() => {});
+  if (save && save.meta.saveId) meApi.completeSave(save.meta.saveId).catch(() => {});
   if (save && save.complete) toast.info(`Downloaded ${saveTitle(save.meta)}.`);
 }
 

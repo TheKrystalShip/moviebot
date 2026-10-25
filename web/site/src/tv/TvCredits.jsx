@@ -4,7 +4,7 @@ import { linkProps } from "../router.js";
 
 /**
  * The people in a film or a show as a row of round portraits, each with the part they play. OK on one
- * the film database knows opens Discover on everything they are credited on; every one takes focus,
+ * the catalogue knows opens Discover on everything they are credited on; every one takes focus,
  * which is also how the remote reaches the row and the details below it.
  */
 export function TvCast({ cast }) {
@@ -30,7 +30,7 @@ export function TvCast({ cast }) {
 }
 
 function Face({ person }) {
-  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face" />;
+  return <Avatar src={person.portrait} name={person.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face" />;
 }
 
 /** Label over value, four to a line; a fact with no value is left out. `mono` sets a code in a code face. */
@@ -52,7 +52,12 @@ export function TvFacts({ facts }) {
   );
 }
 
-/** The film database's credit, which its terms ask for wherever its words and artwork are shown. */
+/** The sources' credit, in the words TMDB's terms ask for wherever its words and artwork are shown. */
 export function TmdbCredit() {
-  return <p className="kc-tv-tmdb">Film details and artwork from TMDB.</p>;
+  return (
+    <p className="kc-tv-tmdb">
+      Details and artwork from TMDB, IMDb and Wikidata. This product uses TMDB and the TMDB APIs but is not endorsed,
+      certified, or otherwise approved by TMDB.
+    </p>
+  );
 }

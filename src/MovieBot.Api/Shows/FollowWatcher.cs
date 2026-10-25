@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using System.Collections.Concurrent;
 using System.Globalization;
 using Microsoft.Extensions.Options;
@@ -16,9 +17,6 @@ namespace TheKrystalShip.MovieBot.Api.Shows;
 public sealed class FollowOptions
 {
     public const string Section = "Follow";
-
-    /// <summary>How old a followed show's description may be before the film database is asked again.</summary>
-    public int RefreshHours { get; set; } = 24;
 
     /// <summary>How long after asking the tracker for an episode it is not asked for again.</summary>
     public int AskMinutes { get; set; } = 60;
@@ -47,7 +45,7 @@ public sealed class FollowOptions
 /// </summary>
 public sealed class FollowWatcher(
     FollowStore follows,
-    ShowStore shows,
+    CatalogueTitles shows,
     ShowOfferCache offers,
     TitleLibrary library,
     Downloads downloads,
@@ -98,8 +96,7 @@ public sealed class FollowWatcher(
     private async Task PassAsync(string show, CancellationToken ct)
     {
         var settings = options.Value;
-        var stored = await shows.GetAsync(show, ct, TimeSpan.FromHours(Math.Max(1, settings.RefreshHours)));
-        if (stored?.Details is not { } details) return;
+        if (shows.Show(show) is not { Details: { } details } stored) return;
 
         var today = FollowViews.Today(clock);
         var followers = follows.Followers(show);
@@ -185,7 +182,7 @@ public sealed class FollowWatcher(
         if (wanting.Count == 0) return null;
 
         var quality = wanting.Select(u => QualityOf(u, show)).Max();
-        var original = shows.Held(show)?.Details?.OriginalLanguage;
+        var original = shows.Show(show)?.Details?.OriginalLanguage;
         if (ShowOfferCache.Pick(offered, number, quality, original: original) is not { } release) return null;
 
         // The download's own notice reaches whoever it is started as.

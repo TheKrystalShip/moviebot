@@ -30,10 +30,11 @@ export function TvGroup({ children }) {
   return <div className="kc-tvf__group">{children}</div>;
 }
 
-/** What a film won and what it is based on, as plain lines: a remote reaches the buttons, not these. */
-export function TvHonours({ awards, basedOn = [] }) {
-  const line = honoursLine(awards);
-  const source = basedOn[0];
+/** What a title won and what it is based on, from its Wikidata facts, as plain lines: a remote reaches the buttons, not these. */
+export function TvHonours({ facts }) {
+  const line = honoursLine(facts);
+  const source = facts && facts.basedOn[0];
+  const author = source && source.authors[0];
   if (!line && !source) return null;
   return (
     <TvGroup>
@@ -47,22 +48,30 @@ export function TvHonours({ awards, basedOn = [] }) {
       {source && (
         <span className="kc-tvf__honour">
           <Icon name="book-open" size={18} />
-          <span>Based on <i>{source.work}</i>{source.author && <> by <b>{source.author}</b></>}</span>
+          <span>Based on <i>{source.work.name}</i>{author && <> by <b>{author.name}</b></>}</span>
         </span>
       )}
     </TvGroup>
   );
 }
 
+/** The jobs the Writers line names. */
+const WRITING = ["Screenplay", "Writer", "Story", "Novel", "Characters", "Author"];
+
 /**
  * The overview, clamped, and who made it and who is in it as the site's credits table, the names as
- * text: Director, Writers and Stars for a film, Creator and Stars for a show.
+ * text, from a catalogue page's `crew` and `cast` (`credits`): Director, Writers and Stars for a film,
+ * Creator and Stars for a show.
  */
 export function TvAbout({ overview, credits }) {
+  const crew = (credits && credits.crew) || [];
+  const doing = (jobs) => [...new Set(crew.filter((c) => jobs.includes(c.job)).map((c) => c.name))].slice(0, 3);
+  const creators = doing(["Creator"]);
+  const directors = doing(["Director"]);
   const rows = credits ? [
-    [(credits.creators || []).length > 1 ? "Creators" : "Creator", credits.creators || [], ", "],
-    [(credits.directors || []).length > 1 ? "Directors" : "Director", credits.directors || [], ", "],
-    ["Writers", credits.writers || [], ", "],
+    [creators.length > 1 ? "Creators" : "Creator", creators, ", "],
+    [directors.length > 1 ? "Directors" : "Director", directors, ", "],
+    ["Writers", doing(WRITING), ", "],
     ["Stars", (credits.cast || []).slice(0, 4).map((c) => c.name), " · "],
   ].filter(([, names]) => names.length > 0) : [];
   if (!overview && rows.length === 0) return null;
@@ -89,11 +98,11 @@ export function TvAbout({ overview, credits }) {
  * plays it.
  */
 export function TvNextEpisode({ episode: e, at = 0, label, meta }) {
-  const length = e.runtimeMinutes ? e.runtimeMinutes * 60 : e.durationSeconds || 0;
+  const length = e.runtime ? e.runtime * 60 : e.durationSeconds || 0;
   return (
     <TvGroup>
       <div className="kc-tvf__next">
-        <span className="kc-tvf__still" style={e.stillUrl ? { backgroundImage: `url("${e.stillUrl}")` } : undefined}>
+        <span className="kc-tvf__still" style={e.still ? { backgroundImage: `url("${e.still}")` } : undefined}>
           {at > 0 && length > 0 && <span className="kc-tvf__still-progress" style={{ width: `${Math.min(100, (at / length) * 100)}%` }} />}
         </span>
         <span className="kc-tvf__next-text">

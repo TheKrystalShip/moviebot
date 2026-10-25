@@ -18,7 +18,7 @@ export const SLIDE_MS = 8000;
  * the far end of the buttons' row. Every slide described is laid in the same place, so the top is as tall
  * as its tallest slide and nothing below it moves as it turns or as later slides' artwork arrives; it
  * turns among those whose artwork has (`readySlides`), and the artwork fades from one to the next.
- * `where` joins a title from the film database with the library when it is drawn.
+ * `where` joins a catalogue title with the library when it is drawn.
  */
 export function Spotlight({ slides, where }) {
   const turning = readySlides(slides);
@@ -49,7 +49,7 @@ function Slide({ slide, where }) {
   const { spot } = slide;
   const f = spot.facts || {};
   const kind = spot.kind || slide.kind || "film";
-  const category = spot.category || (slide.found || slide.film || {}).category || null;
+  const category = spot.category || (slide.found || (slide.film && slide.film.card) || {}).category || null;
   return (
     <>
       <HeroGroup>
@@ -80,8 +80,8 @@ function Slide({ slide, where }) {
 function SlideActions({ slide, where }) {
   const here = slide.title || (slide.found && where ? where(slide.found).here : slide.here);
   const page = slide.show || slide.kind === "show"
-    ? showPath(slide.imdbId, { held: slide.held, category: (slide.show || slide.found || {}).category })
-    : here ? moviePath(here.id, here.category) : discoverFilmPath(slide.imdbId);
+    ? showPath(slide.imdbId, { held: slide.held, category: ((slide.show && slide.show.card) || slide.found || {}).category })
+    : here ? moviePath(here.id, here.card && here.card.category) : discoverFilmPath(slide.imdbId);
   const info = <Button size="xl" icon="info" {...linkProps(page)}>More info</Button>;
 
   if (slide.show || slide.kind === "show") {

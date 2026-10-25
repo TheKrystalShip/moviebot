@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using System.Collections.Concurrent;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Api.Acquisition;
@@ -23,7 +24,7 @@ public sealed record RoomAround(RoomEpisode? Current, RoomEpisode? Previous, Roo
 /// who may download.
 /// </summary>
 public sealed class RoomEpisodes(
-    SessionStore sessions, TitleLibrary library, ShowStore shows, RoomControls controls, WatchNow watch)
+    SessionStore sessions, TitleLibrary library, CatalogueTitles shows, RoomControls controls, WatchNow watch)
 {
     /// <summary>The show and the episode a room holds, or null when it holds a film or nothing.</summary>
     public (string Show, EpisodeIdentity Episode, Manifest? Manifest)? Current(string sessionId)
@@ -128,12 +129,12 @@ public sealed class RoomEpisodes(
     }
 
     private EpisodeIdentity? After(string show, EpisodeIdentity episode) =>
-        shows.Held(show) is { Seasons.Count: > 0 }
+        shows.Show(show) is { Seasons.Count: > 0 }
             ? shows.EpisodeAfter(show, episode)
             : Held(show).FirstOrDefault(e => Later(e, episode));
 
     private EpisodeIdentity? Before(string show, EpisodeIdentity episode) =>
-        shows.Held(show) is { Seasons.Count: > 0 }
+        shows.Show(show) is { Seasons.Count: > 0 }
             ? shows.EpisodeBefore(show, episode)
             : Held(show).LastOrDefault(e => Later(episode, e));
 

@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using System.Globalization;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Core;
@@ -15,7 +16,8 @@ public sealed record FollowView
 {
     public required string ImdbId { get; init; }
     public required string Title { get; init; }
-    public string? PosterUrl { get; init; }
+    /// <summary>The show's card; absent for a show the catalogue does not list.</summary>
+    public TheKrystalShip.MovieBot.Catalogue.TitleCard? Card { get; init; }
     public required DateTimeOffset Since { get; init; }
     public bool AutoDownload { get; init; }
 
@@ -81,14 +83,15 @@ public static class FollowViews
     }
 
     /// <summary>One follow as the person's list shows it.</summary>
-    public static FollowView View(this ShowStore store, StoredFollow follow)
+    public static FollowView View(this CatalogueTitles store, StoredFollow follow)
     {
-        var details = store.Held(follow.ImdbId)?.Details;
+        var details = store.Show(follow.ImdbId)?.Details;
+        var card = store.Card(follow.ImdbId);
         return new FollowView
         {
             ImdbId = follow.ImdbId,
-            Title = details?.Title ?? follow.ImdbId,
-            PosterUrl = store.HasImage(follow.ImdbId, ShowStore.Poster) ? ShowViews.ImageUrl(follow.ImdbId, ShowStore.Poster) : null,
+            Title = card?.Title ?? follow.ImdbId,
+            Card = card,
             Since = follow.Since,
             AutoDownload = follow.AutoDownload,
             NextEpisode = Airing(details?.NextEpisodeToAir),

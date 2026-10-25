@@ -13,22 +13,6 @@
 /** The decades a decade's options are named by: its first year. */
 const decadeOf = (year) => (year ? Math.floor(year / 10) * 10 : null);
 
-/**
- * The film database's genres that are other genres in Cinema's one vocabulary across films and shows,
- * by the names they are here: a show's list joins genres a film's keeps apart. The API's
- * `Films/CinemaGenres.cs` holds the same table, and its tests hold the two equal.
- */
-export const JOINED_GENRES = {
-  "Action & Adventure": ["Action", "Adventure"],
-  "Sci-Fi & Fantasy": ["Science Fiction", "Fantasy"],
-  "War & Politics": ["War"],
-};
-
-/** The genres of a title's database genres in Cinema's vocabulary, each once. */
-export function cinemaGenres(names) {
-  return [...new Set((names || []).flatMap((name) => JOINED_GENRES[name] || [name]))];
-}
-
 /** A film's length by its minutes, as the API names lengths; a show has none. */
 export function lengthOf(minutes) {
   if (!minutes) return null;
@@ -44,18 +28,17 @@ export const RATINGS = [8, 7, 6];
  * null, and such a title is in none of that section's options.
  */
 export function traitsOf(title) {
-  const details = title.details || null;
+  const card = title.card || null;
   const kind = title.kind === "show" || title.episode || title.seasons ? "show" : "film";
-  const minutes = title.runtimeMinutes ?? (details && details.runtimeMinutes)
-    ?? (kind === "film" && title.durationSeconds ? Math.round(title.durationSeconds / 60) : null);
+  const minutes = (card && card.runtime) ?? (kind === "film" && title.durationSeconds ? Math.round(title.durationSeconds / 60) : null);
   return {
     kind,
-    anime: title.category === "anime",
-    genres: cinemaGenres(title.genres || (details && details.genres)),
-    year: title.year ?? title.firstYear ?? (title.film && title.film.year) ?? null,
+    anime: !!card && card.category === "anime",
+    genres: (card && card.genres) || [],
+    year: (card && card.year) ?? (title.film && title.film.year) ?? null,
     length: kind === "film" ? lengthOf(minutes) : null,
-    rating: title.rating ?? (details && details.rating) ?? null,
-    language: title.originalLanguage ?? (details && details.originalLanguage) ?? null,
+    rating: (card && card.rating && card.rating.value) ?? null,
+    language: (card && card.language) ?? null,
   };
 }
 
@@ -75,8 +58,7 @@ function holds(traits, section, value) {
 /** The values picked in a section, as a list: a `one` or `optional` section's single value is a list of one. */
 const picked = (picks, section) => {
   const value = picks[section];
-  const values = Array.isArray(value) ? value : value === null || value === undefined || value === "" ? [] : [value];
-  return section === "genre" ? cinemaGenres(values) : values;
+  return Array.isArray(value) ? value : value === null || value === undefined || value === "" ? [] : [value];
 };
 
 /** Whether a title's traits answer every section's picks other than `except`. */

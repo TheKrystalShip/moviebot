@@ -1,5 +1,5 @@
 import { Button, Shelf } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { discoverPath, newPlanPath } from "../paths.js";
 import { usePlanChanges } from "../plans.js";
@@ -24,7 +24,7 @@ function PlanWantCard({ want }) {
  * waiting for a release has nothing to watch yet and is left out.
  */
 function Plannable() {
-  const together = useLoad(() => api.together().catch(() => []), []);
+  const together = useLoad(() => meApi.together().catch(() => []), []);
   const { list } = useWantList();
   if (!together.data || !list) return <CardsSkeleton count={4} />;
 
@@ -61,7 +61,7 @@ function Plannable() {
 
 /** The person's plans to watch something together, soonest first, and Plan a watch for another. */
 export function Plans() {
-  const plans = useLoad(() => api.plans(), []);
+  const plans = useLoad(() => meApi.plans(), []);
   usePlanChanges(() => plans.reload());
 
   const list = plans.data || [];

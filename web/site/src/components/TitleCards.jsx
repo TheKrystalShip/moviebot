@@ -1,4 +1,5 @@
 import { Icon, PosterCard, Skeleton } from "@thekrystalship/krystal";
+import { cardRating, posterArt } from "../api/index.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { watchHref } from "./Film.jsx";
@@ -6,16 +7,6 @@ import { useWantRibbon } from "./WantButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers and what somebody waits on. Every
 // card is krystal's PosterCard, so a page of them reads like Home's rows.
-
-/**
- * The poster a title's page shows, kept by this server, as a card's art: the film's or the show's, as
- * `kind` says, else `fallback`. Each is a layer, and a layer whose image is not there draws nothing, so
- * the first that exists is the one seen. Every layer is fetched, so only the kind the title is gets one.
- */
-export function keptArt(imdbId, kind, fallback) {
-  const kept = imdbId && `/${kind === "show" ? "shows" : "films"}/${encodeURIComponent(imdbId)}/poster.jpg`;
-  return [...new Set([kept, fallback].filter(Boolean))].map((url) => `url("${url}")`).join(", ") || null;
-}
 
 /**
  * A grid of cards while what fills it is read, at the cards' own height so they settle in place.
@@ -48,32 +39,38 @@ export function MoreTile({ label, to = discoverPath() }) {
   );
 }
 
-/** Where a found film or show leads: the library's own page when it is here, its catalogue page when not. */
-export function foundPage(found, here, held) {
-  if (found.kind === "show") return showPath(found.imdbId, { held, category: found.category });
-  return here ? moviePath(here.id, here.category) : discoverFilmPath(found.imdbId);
+/**
+ * Where a card leads: a film the library holds to its library page, any other film to its catalogue
+ * page, and a show to its page, which is the library's when it holds an episode of it. `here` is the
+ * library's title for a film it holds, `held` whether it holds an episode of a show.
+ */
+export function foundPage(card, here, held) {
+  if (card.kind === "show") return showPath(card.id, { held, category: card.category });
+  return here ? moviePath(here.id, card.category) : discoverFilmPath(card.id);
 }
 
 /**
- * A film or show the catalogue answered with: its poster, its rating and year, and its cast, or `line` in its place (a person's part in it). `here` is the library's title for a film
- * it holds, `held` whether it holds an episode of a show; they decide where the card leads and whether
- * it plays from here, and nothing on the card says which. Its ribbon wants it.
+ * A title the catalogue listed, as its card: its poster, rating and year, and its two top-billed or
+ * `line` in their place (a person's part in it, which a list filtered by them carries as `credit`). It
+ * plays from the card when the library holds it ready, and nothing on the card says where it comes
+ * from. Its ribbon wants it.
  */
-export function FoundCard({ found, here, held, line = found.starring }) {
+export function FoundCard({ found, here, held, line }) {
   const show = found.kind === "show";
   const playable = here && here.status === "ready";
-  const [ribbon, wantMenu] = useWantRibbon(found.imdbId, show ? "show" : "film", found.title);
+  const status = line || (found.credit && found.credit.role) || (found.starring || []).join(", ");
+  const [ribbon, wantMenu] = useWantRibbon(found.id, show ? "show" : "film", found.title);
   return (
     <>
       <PosterCard
         name={found.title}
-        art={found.posterUrl ? `url("${found.posterUrl}")` : null}
+        art={posterArt(found)}
         onPick={() => navigate(foundPage(found, here, held))}
         facts={[
-          { icon: "star", value: found.rating != null ? found.rating.toFixed(1) : null, label: "Rating" },
+          { icon: "star", value: cardRating(found), label: "Rating" },
           { value: found.year || null, label: "Year" },
         ]}
-        status={line ? { label: line, title: line } : null}
+        status={status ? { label: status, title: status } : null}
         action={playable ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) } : undefined}
         ribbon={ribbon} />
       {wantMenu}
@@ -95,7 +92,7 @@ export function AnticipatedCard({ film }) {
     <>
       <PosterCard
         name={film.title}
-        art={keptArt(film.imdbId, "film", film.posterUrl)}
+        art={film.posterUrl ? `url("${film.posterUrl}")` : null}
         onPick={() => navigate(discoverFilmPath(film.imdbId))}
         facts={[{ value: film.year || null, label: "Year" }]}
         status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}

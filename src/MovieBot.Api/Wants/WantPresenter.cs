@@ -1,6 +1,6 @@
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Api.Acquisition;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -9,18 +9,15 @@ using TheKrystalShip.MovieBot.Core;
 namespace TheKrystalShip.MovieBot.Api.Wants;
 
 /// <summary>
-/// Turns stored wants into what a page shows, reading only what is kept: the film and show
-/// descriptions, the library as last listed, the watch record, the wishes and the torrent client.
+/// Turns stored wants into what a page shows, reading only what is kept: the catalogue, the library as
+/// last listed, the watch record, the wishes and the torrent client.
 /// Nobody's want is shown to anybody else except as a count and, when visible, as a name.
 /// </summary>
 public sealed class WantPresenter(
-    FilmStore films,
-    ShowStore shows,
+    CatalogueTitles shows,
     LibraryListing library,
     WatchRecord record,
     PersonDirectory people,
-    TitleCategories categories,
-    TitleGlances glances,
     WantStore wants,
     WantMatcher matcher,
     WishList wishes,
@@ -64,7 +61,7 @@ public sealed class WantPresenter(
             Name = people.NameOf(w.UserId),
             Since = w.Since,
             NextEpisode = w.Kind == WantKinds.Show
-                ? ShowProgress.Next(shows.Held(w.ImdbId), ShowProgress.Finished(titles, record.Entries(w.UserId)).GetValueOrDefault(w.ImdbId))
+                ? ShowProgress.Next(shows.Show(w.ImdbId), ShowProgress.Finished(titles, record.Entries(w.UserId)).GetValueOrDefault(w.ImdbId))
                 : null,
         })];
     }
@@ -77,48 +74,27 @@ public sealed class WantPresenter(
         var wish = isShow ? null : wishes.Find(want.ImdbId);
         var release = wish is null ? null : wishes.OutAs(want.ImdbId);
 
+        var card = shows.Card(want.ImdbId);
         var view = new WantView
         {
-            ImdbId = want.ImdbId, Kind = want.Kind, Title = want.ImdbId, Visible = want.Visible, Since = want.Since,
+            ImdbId = want.ImdbId, Kind = want.Kind, Title = card?.Title ?? wish?.Title ?? want.ImdbId, Card = card,
+            Visible = want.Visible, Since = want.Since,
             Others = others.GetValueOrDefault(want.ImdbId),
-            Category = categories.Of(want.Kind, want.ImdbId) switch
-            {
-                TitleCategory.Anime => "anime",
-                TitleCategory.General => "general",
-                _ => null,
-            },
             Wish = wish is null ? null : new WantWish { Release = release is null ? null : OfferedReleases.View(release) },
         };
 
         if (isShow)
         {
-            var stored = shows.Held(want.ImdbId);
-            var details = stored?.Details;
             view = view with
             {
-                Title = details?.Title ?? view.Title, Year = details?.FirstYear,
-                Rating = shows.Scores.Serve(want.ImdbId, details?.TmdbId, "show", details?.Rating, details?.Votes ?? 0).Rating,
-                Genres = [.. details?.Genres ?? []], OriginalLanguage = details?.OriginalLanguage,
-                PosterUrl = shows.HasImage(want.ImdbId, ShowStore.Poster) ? ShowViews.ImageUrl(want.ImdbId, ShowStore.Poster) : null,
                 InLibrary = shelf.Shows.Contains(want.ImdbId),
-                NextEpisode = ShowProgress.Next(stored, finished.GetValueOrDefault(want.ImdbId)),
+                NextEpisode = ShowProgress.Next(shows.Show(want.ImdbId), finished.GetValueOrDefault(want.ImdbId)),
             };
         }
         else
         {
-            var details = films.Held(want.ImdbId)?.Details;
             var libraryId = shelf.Films.GetValueOrDefault(want.ImdbId);
-            view = view with
-            {
-                Title = details?.Title ?? wish?.Title ?? view.Title, Year = details?.Year ?? wish?.Year,
-                Rating = films.Scores.Serve(want.ImdbId, details?.TmdbId, "film", details?.Rating, details?.Votes ?? 0).Rating,
-                RuntimeMinutes = details?.RuntimeMinutes, Genres = [.. details?.Genres ?? []], OriginalLanguage = details?.OriginalLanguage,
-                PosterUrl = films.HasImage(want.ImdbId, FilmStore.Poster)
-                    ? FilmViews.ImageUrl(want.ImdbId, FilmStore.Poster)
-                    : glances.PosterUrl(want.ImdbId) ?? wish?.PosterUrl,
-                LibraryId = libraryId, InLibrary = libraryId is not null,
-                Watched = shelf.Watched.Contains(want.ImdbId),
-            };
+            view = view with { LibraryId = libraryId, InLibrary = libraryId is not null, Watched = shelf.Watched.Contains(want.ImdbId) };
         }
 
         if (view.InLibrary) return view with { State = WantStates.Ready };

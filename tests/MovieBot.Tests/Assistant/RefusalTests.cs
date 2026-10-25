@@ -13,7 +13,7 @@ public sealed class RefusalTests
     [Fact]
     public async Task A_title_the_database_does_not_hold_is_said_in_words_the_model_can_act_on()
     {
-        var rig = new ToolRig(CinemaWorld.Build().Answer("/api/catalogue/search?q=Nothing Like This&year=1901", new SearchResult()));
+        var rig = new ToolRig(CinemaWorld.Build().Answer("/api/catalogue/titles?q=Nothing Like This&from=1900&to=1902&size=10", CinemaWorld.Page()));
 
         ToolOutcome result = await rig.RunAsync(rig.Details, new { title = "Nothing Like This (1901)" });
 
@@ -24,7 +24,7 @@ public sealed class RefusalTests
     [Fact]
     public async Task A_refusal_of_the_api_carries_its_own_reason()
     {
-        var world = CinemaWorld.Build().Answer("/api/popular", """{"error":"The week is closed."}""", 400);
+        var world = CinemaWorld.Build().Answer("/api/catalogue/titles?ranking=trending-films&size=20", """{"error":"The week is closed."}""", 400);
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.WhatsNew, new { which = "trending" });
@@ -34,19 +34,11 @@ public sealed class RefusalTests
     }
 
     [Fact]
-    public async Task Shows_cannot_be_filtered_by_people_and_the_request_is_not_sent()
-    {
-        ToolOutcome result = await _rig.RunAsync(_rig.Discover, new { kind = "show", with = new[] { "Ada Calloway" } });
-
-        Assert.True(result.IsError);
-        Assert.Contains("Shows cannot be filtered by people here.", result.Text);
-        Assert.Empty(_rig.World.Asked);
-    }
-
-    [Fact]
     public async Task A_discovery_the_api_declines_is_a_note_in_the_clue_search_and_the_rest_still_search()
     {
-        var world = CinemaWorld.Build().Answer("/api/catalogue/discover?kind=film&goodonly=false&about=heist", """{"error":"No such keyword."}""", 404);
+        var world = CinemaWorld.Build()
+            .Answer("/api/catalogue/terms?q=heist", new List<Term> { new("keyword", "k79", "heist", null) })
+            .Answer("/api/catalogue/titles?kind=film&keyword=k79", """{"error":"No such keyword."}""", 404);
         var rig = new ToolRig(world);
 
         ToolOutcome result = await rig.RunAsync(rig.Clues, new { about = new[] { "heist" } });

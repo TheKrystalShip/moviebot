@@ -96,7 +96,6 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
         client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", TestIssuer.Token("u-alice", "Alice"));
         var room = "preview-" + Guid.NewGuid().ToString("N")[..8];
-        (await client.GetAsync("/api/films/tt0113277")).EnsureSuccessStatusCode();
         (await client.PostAsJsonAsync($"/api/sessions/{room}/title",
             new TheKrystalShip.MovieBot.Core.SetTitleRequest(SessionFixture.Heat))).EnsureSuccessStatusCode();
         Rooms.SetOpen(room, true);
@@ -106,7 +105,7 @@ public sealed class SitePagesTests(SessionFixture fixture) : IClassFixture<Sessi
 
         Assert.Contains("<meta property=\"og:title\" content=\"Watch Heat on Cinema\" />", page);
         Assert.Contains("<meta property=\"og:description\" content=\"1995\" />", page);
-        Assert.Contains("property=\"og:image\" content=\"http://localhost/films/tt0113277/poster.jpg\"", page);
+        Assert.Contains("property=\"og:image\" content=\"http://localhost/images/w500/film949.jpg\"", page);
         Assert.DoesNotContain("Alice", page);
         Assert.DoesNotContain("watching", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Cinema</title>", page);

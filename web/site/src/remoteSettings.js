@@ -11,7 +11,7 @@
  */
 
 import { createStore, toast, useStore } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { meApi } from "./api/index.js";
 import { Ordered } from "./player/engine/session/ordered.ts";
 
 /** How long a style change waits for the next before it is sent, so a slider dragged across its range is one write. */
@@ -31,7 +31,7 @@ export async function refreshSettings() {
   const mine = ++reading;
   const asking = titleId;
   try {
-    const [preferences, tracks] = await Promise.all([api.preferences(), asking ? api.tracks(asking) : Promise.resolve(null)]);
+    const [preferences, tracks] = await Promise.all([meApi.preferences(), asking ? meApi.tracks(asking) : Promise.resolve(null)]);
     if (mine !== reading) return;
     settingsStore.setState((held) => ({
       preferences: styleSave === null ? preferences : { ...preferences, subtitleStyle: held.preferences && held.preferences.subtitleStyle },
@@ -138,16 +138,16 @@ export const settingsCommands = {
       ...held,
       tracks: { ...(held.tracks || { titleId: film }), titleId: film, subtitleId: id === null ? undefined : id, subtitleOff: id === null },
     }));
-    return writing(() => writeThrough(tracksOrder(film), () => api.setTracks(film, id === null ? { subtitleOff: true } : { subtitleId: id })));
+    return writing(() => writeThrough(tracksOrder(film), () => meApi.setTracks(film, id === null ? { subtitleOff: true } : { subtitleId: id })));
   },
   chooseAudio: (film, id) => {
     settingsStore.setState((held) => ({ ...held, tracks: { ...(held.tracks || { titleId: film }), titleId: film, audioId: id } }));
-    return writing(() => writeThrough(tracksOrder(film), () => api.setTracks(film, { audioId: id })));
+    return writing(() => writeThrough(tracksOrder(film), () => meApi.setTracks(film, { audioId: id })));
   },
   chooseQuality: async (height) => {
     const held = await preferencesNow();
     settingsStore.setState((s) => ({ ...s, preferences: { ...held, qualityHeight: height } }));
-    return writing(() => writeThrough(preferencesOrder, () => api.setPreferences({ ...held, qualityHeight: height })));
+    return writing(() => writeThrough(preferencesOrder, () => meApi.setPreferences({ ...held, qualityHeight: height })));
   },
   /**
    * The look of subtitles: shown at once, sent once the choosing pauses. Every send carries the whole
@@ -159,7 +159,7 @@ export const settingsCommands = {
     styleSave = window.setTimeout(() => {
       styleSave = null;
       const held = settingsStore.getState().preferences;
-      if (held) writing(() => writeThrough(preferencesOrder, () => api.setPreferences(held))).catch((error) => toast.fromError(error, "The TV did not take that"));
+      if (held) writing(() => writeThrough(preferencesOrder, () => meApi.setPreferences(held))).catch((error) => toast.fromError(error, "The TV did not take that"));
     }, StyleSettleMs);
   },
 };

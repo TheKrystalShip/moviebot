@@ -54,14 +54,14 @@ async function sitIn(api, issuer, person, room, titleId, at, playing) {
 }
 
 /**
- * Waits for the film database to have described the library, when the scratch API has a token for
- * it: until then a card has no rating and a page no backdrop, which is not what a phone will show.
+ * Waits for the catalogue to list every title of the library: until then a title has no card, so no
+ * rating and no backdrop, which is not what a phone will show.
  */
 async function described(api, token, timeoutMs = 90000) {
   const until = Date.now() + timeoutMs;
   for (;;) {
     const titles = await call(api, token, "GET", "/api/titles");
-    if (titles.every((t) => t.details) || Date.now() > until) return titles;
+    if (titles.every((t) => t.card) || Date.now() > until) return titles;
     await wait(2000);
   }
 }

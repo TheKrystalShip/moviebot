@@ -1,6 +1,6 @@
 import React from "react";
 import { PosterCard, SearchField, useDebouncedValue } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { catalogue, posterArt } from "../api/index.js";
 import { newPlanPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { CardsSkeleton } from "./TitleCards.jsx";
@@ -16,7 +16,7 @@ export function PlanTitlePicker({ autoFocus = false }) {
   React.useEffect(() => {
     if (!q) return undefined;
     let live = true;
-    api.findTitles(q).catch(() => []).then((list) => live && setFound({ q, list }));
+    catalogue.titles({ q, size: 20 }).then((page) => page.titles, () => []).then((list) => live && setFound({ q, list }));
     return () => { live = false; };
   }, [q]);
 
@@ -29,10 +29,10 @@ export function PlanTitlePicker({ autoFocus = false }) {
       {q && settled && found.list.length > 0 && (
         <div className="kc-grid">
           {found.list.map((t) => (
-            <PosterCard key={t.imdbId}
+            <PosterCard key={t.id}
               name={t.title}
-              art={t.posterUrl ? `url("${t.posterUrl}")` : null}
-              onPick={() => navigate(newPlanPath(t.imdbId, t.kind))}
+              art={posterArt(t)}
+              onPick={() => navigate(newPlanPath(t.id, t.kind))}
               facts={[{ value: t.year || null, label: "Year" }]} />
           ))}
         </div>

@@ -1,7 +1,7 @@
 using System.Globalization;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -20,11 +20,11 @@ public static class PlanEndpoints
     public static void MapPlans(this WebApplication app)
     {
         app.MapPost("/api/plans", async (MakePlanRequest body, HttpContext context, PlanService service, PlanPresenter present,
-            PersonDirectory people, FilmStore films, ShowStore shows, LibraryListing library, People.WatchRecord record,
+            PersonDirectory people, CatalogueTitles films, CatalogueTitles shows, LibraryListing library, People.WatchRecord record,
             WatchNow watch, TimeProvider clock, CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
-            if (body.ImdbId is not { } imdb || !FilmStore.IsImdbId(imdb)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
+            if (body.ImdbId is not { } imdb || !TheKrystalShip.MovieBot.Catalogue.TitleQuery.IsImdbId(imdb)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
             if (!WantKinds.IsKnown(body.Kind)) return Error("A plan is for a film or a show.", StatusCodes.Status400BadRequest);
 
             var (times, refusal) = PlanRules.Times(body.Times, clock.GetUtcNow());
@@ -36,13 +36,8 @@ public static class PlanEndpoints
             if (invited.Any(u => people.NameOf(u) is null))
                 return Error("Nobody by that id can be invited.", StatusCodes.Status404NotFound);
 
-            var described = body.Kind == WantKinds.Show
-                ? await shows.GetAsync(imdb, ct) is { } show ? show.Details is not null : (bool?)null
-                : await films.GetAsync(imdb, ct) is { } film ? film.Details is not null : null;
-            if (described is null)
-                return Error("The film database could not be asked about this title.", StatusCodes.Status503ServiceUnavailable);
-            if (described is false)
-                return Error($"The film database has no {body.Kind} under that id.", StatusCodes.Status404NotFound);
+            if (shows.Card(imdb) is not { } card || card.Kind != (body.Kind == WantKinds.Show ? "show" : "film"))
+                return Error($"The catalogue lists no {body.Kind} under that id.", StatusCodes.Status404NotFound);
 
             // A title that is not out has nothing to watch at any time a plan could name. Only what is
             // known refuses: a tracker that did not answer, or an episode with no air date, is let through.
@@ -53,10 +48,10 @@ public static class PlanEndpoints
             if (body.Kind == WantKinds.Show)
             {
                 var at = body.Season is { } s && body.Number is { } n ? new WantEpisode { Season = s, Episode = n }
-                    : Wants.ShowProgress.Next(shows.Held(imdb),
+                    : Wants.ShowProgress.Next(shows.Show(imdb),
                         Wants.ShowProgress.Finished(library.Titles(), record.Entries(person.UserId)).GetValueOrDefault(imdb));
                 if (at is null) return Error("That show has no episode to start at.", StatusCodes.Status400BadRequest);
-                if (NotAired(shows.Held(imdb), at, FollowViews.Today(clock)))
+                if (NotAired(shows.Show(imdb), at, FollowViews.Today(clock)))
                     return Error("That episode has not aired yet, so there is nothing to plan.", StatusCodes.Status409Conflict);
                 (season, number) = (at.Season, at.Episode);
             }

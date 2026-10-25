@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -79,7 +80,7 @@ public static class PeopleEndpoints
         // finish, and for each show one episode, the latest they watched while they have not finished
         // it, else the one after it. A title the library no longer holds is left out: there is
         // nothing to continue and no name to show for it.
-        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, ShowStore shows,
+        app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, CatalogueTitles shows,
             SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
@@ -220,7 +221,7 @@ public static class PeopleEndpoints
     /// place in the list.
     /// </summary>
     public static List<ProgressEntry> ContinueWatching(
-        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, TitleLibrary library, ShowStore shows,
+        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, TitleLibrary library, CatalogueTitles shows,
         bool mayFetch, DateOnly today)
     {
         var entries = newestFirst.ToList();
@@ -282,18 +283,16 @@ public static class PeopleEndpoints
     }
 
     /// <summary>One episode as the show's description lists it, or null.</summary>
-    private static Acquire.Tmdb.EpisodeDetails? Described(ShowStore shows, string show, EpisodeIdentity episode) =>
-        shows.Held(show)?.Seasons.FirstOrDefault(s => s.Number == episode.Season)?
+    private static Acquire.Tmdb.EpisodeDetails? Described(CatalogueTitles shows, string show, EpisodeIdentity episode) =>
+        shows.Show(show)?.Seasons.FirstOrDefault(s => s.Number == episode.Season)?
             .Episodes.FirstOrDefault(e => e.Number == episode.Number);
 
-    /// <summary>The episode's still as this server serves it, or null when none is kept.</summary>
-    private static string? StillOf(ShowStore shows, string show, EpisodeIdentity episode) =>
-        shows.HasImage(show, ShowStore.Still(episode.Season, episode.Number))
-            ? ShowViews.ImageUrl(show, ShowStore.Still(episode.Season, episode.Number))
-            : null;
+    /// <summary>The episode's still as the catalogue keeps it, or null when none is kept.</summary>
+    private static string? StillOf(CatalogueTitles shows, string show, EpisodeIdentity episode) =>
+        Described(shows, show, episode)?.StillPath;
 
     private static ProgressEntry Progress(string titleId, Manifest manifest, double position, double duration, DateTimeOffset at,
-        ShowStore shows)
+        CatalogueTitles shows)
     {
         var show = manifest.Episode is null ? null : manifest.Film?.ImdbId;
         return new(titleId, NameOf(manifest), position, duration, Math.Max(0, duration - position), at,

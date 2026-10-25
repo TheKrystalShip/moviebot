@@ -95,8 +95,8 @@ function TvSlideActions({ slide, initial }) {
   const here = slide.title || slide.here;
   const show = slide.show || slide.kind === "show";
   const page = show
-    ? showPath(slide.imdbId, { held: slide.held, category: (slide.show || slide.found || {}).category })
-    : here ? moviePath(here.id, here.category) : discoverFilmPath(slide.imdbId);
+    ? showPath(slide.imdbId, { held: slide.held, category: ((slide.show && slide.show.card) || slide.found || {}).category })
+    : here ? moviePath(here.id, here.card && here.card.category) : discoverFilmPath(slide.imdbId);
   const fetch = async () => {
     setStarting(true);
     if (!(await startFilm(slide.imdbId))) setStarting(false);

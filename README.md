@@ -60,7 +60,7 @@ Playback starts seconds after a film is requested, while it is still being trans
    that has left is fetched again like any other.
 6. **The assistant** helps people find films and shows: one they half remember, one by someone they
    like, one that fits a mood. It is a plugin to the organization's assistant harness, which runs the
-   model, the conversations and the memory; the plugin reads the film database and each person's
+   model, the conversations and the memory; the plugin reads the catalogue and each person's
    history, wants and follows through the API, as that person, and answers with cards that open a
    title's page. It acts on nothing: watching, getting a film and following are buttons on the page.
    It speaks the same chat protocol as the KGSM assistant, so one chat client serves both.
@@ -227,9 +227,9 @@ when it starts.
 
 The API keeps everything it knows in one SQLite database, `moviebot.db` in the state directory
 systemd hands it (`Database:Path` names another): every person's records, the rooms, the wants and wishes,
-what the film database said. Only served bytes sit beside it as files: the
-notifications and push keys (`notifications.db`, `vapid.json`), fetched
-subtitles and the film database's artwork. It needs nothing installed; the native SQLite ships with
+and the notifications and push keys (`notifications.db`, `vapid.json`); fetched subtitles sit beside
+it as files. What Cinema knows about every title is the catalogue's, which `moviebot-catalogue` keeps
+in its own state directory and the API reads. It needs nothing installed; the native SQLite ships with
 the binary.
 
 ## API

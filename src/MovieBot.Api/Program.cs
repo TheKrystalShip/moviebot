@@ -6,10 +6,10 @@ using TheKrystalShip.MovieBot.Acquire;
 using TheKrystalShip.MovieBot.Api;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
-using TheKrystalShip.MovieBot.Api.Films;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Plans;
 using TheKrystalShip.MovieBot.Api.Wants;
@@ -101,96 +101,12 @@ builder.Services.AddSingleton<IPlayHistory>(sp => sp.GetRequiredService<WatchRec
 builder.Services.AddSingleton<WatchRecorder>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WatchRecorder>());
 
-// What a film is, from the film database, kept with its artwork and served from here.
-builder.Services.Configure<TmdbOptions>(builder.Configuration.GetSection(TmdbOptions.Section));
-builder.Services.AddOptions<FilmStoreOptions>().Bind(builder.Configuration.GetSection(TmdbOptions.Section));
-builder.Services.AddHttpClient<TmdbClient>((sp, http) =>
-    http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<TmdbOptions>>().Value.TimeoutSeconds))
-    .KeepConnectionsOpen();
+// The catalogue moviebot-catalogue keeps, read here and never asked of a source.
+builder.Services.AddCatalogue(builder.Configuration);
 
-// IMDb's datasets, imported daily into the database: they rank a question asked by rating and give
-// every title its IMDb rating. A host where the import has not run has none and does without.
-builder.Services.AddOptions<ImdbOptions>().Bind(builder.Configuration.GetSection(ImdbOptions.Section));
-builder.Services.AddHttpClient<ImdbDatasets>(http => http.Timeout = Timeout.InfiniteTimeSpan);
-builder.Services.AddSingleton<ImdbRatings>();
-builder.Services.AddHostedService<ImdbImporter>();
-builder.Services.AddSingleton<PosterPins>();
-builder.Services.AddSingleton<TitleScores>();
-builder.Services.AddSingleton<KeptImages>();
-builder.Services.AddSingleton<AnswerKeeper>();
-builder.Services.AddSingleton(sp => new FilmStore(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.Directory, "films"),
-    sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<PosterPins>(),
-    sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<CinemaDatabase>(),
-    sp.GetRequiredService<TitleScores>(),
-    TimeProvider.System,
-    sp.GetRequiredService<ILogger<FilmStore>>()));
+// How a show's episodes are numbered by its releases, learned from their names.
 builder.Services.AddSingleton<EpisodeNumbering>();
 builder.Services.AddHostedService<EpisodeNumberingWarmer>();
-builder.Services.AddSingleton(sp => new ShowStore(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.ShowsDirectory, "shows"),
-    sp.GetRequiredService<IOptions<FilmStoreOptions>>(),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<PosterPins>(),
-    sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<CinemaDatabase>(),
-    sp.GetRequiredService<TitleScores>(),
-    sp.GetRequiredService<EpisodeNumbering>(),
-    sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<ShowStore>>()));
-// Which shelf each title is on beyond its kind: anime, or everything else.
-builder.Services.AddSingleton<TitleCategories>();
-builder.Services.AddSingleton(sp => new TitleGlances(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.GlancesDirectory, "glances"),
-    sp.GetRequiredService<FilmStore>(),
-    sp.GetRequiredService<ShowStore>(),
-    sp.GetRequiredService<PosterPins>(),
-    sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<CinemaDatabase>(),
-    sp.GetRequiredService<TitleScores>(),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<TitleGlances>>()));
-
-// Wikidata, asked in the background only: the sets of films the Discover shelves are made of and each
-// film's awards and sources, kept like any answer. A host that cannot reach it does without.
-builder.Services.AddOptions<WikidataOptions>().Bind(builder.Configuration.GetSection(WikidataOptions.Section));
-builder.Services.AddSingleton<WikidataGate>();
-builder.Services.AddHttpClient<WikidataClient>((sp, http) =>
-    http.Timeout = TimeSpan.FromSeconds(sp.GetRequiredService<IOptions<WikidataOptions>>().Value.TimeoutSeconds));
-builder.Services.AddSingleton<WikidataSets>();
-builder.Services.AddSingleton<WikidataFacts>();
-builder.Services.AddHostedService<WikidataWarmer>();
-builder.Services.AddSingleton(sp => new Catalogue(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.CatalogueDirectory, "catalogue"),
-    sp.GetRequiredService<AnswerKeeper>(),
-    sp.GetRequiredService<TitleGlances>(),
-    sp.GetRequiredService<TitleScores>(),
-    sp.GetRequiredService<KeptImages>()));
-builder.Services.AddSingleton<CatalogueSearch>();
-builder.Services.AddSingleton<TitleSearch>();
-builder.Services.AddHostedService<FilmWarmer>();
-builder.Services.AddSingleton(sp => new PopularNow(
-    StatePath(sp.GetRequiredService<IOptions<FilmStoreOptions>>().Value.PopularDirectory, "popular"),
-    sp.GetRequiredService<IServiceScopeFactory>(),
-    sp.GetRequiredService<PosterPins>(),
-    sp.GetRequiredService<KeptImages>(),
-    sp.GetRequiredService<CinemaDatabase>(),
-    sp.GetRequiredService<TitleScores>(),
-    sp.GetRequiredService<TimeProvider>(),
-    sp.GetRequiredService<ILogger<PopularNow>>()));
-builder.Services.AddHostedService(sp => sp.GetRequiredService<PopularNow>());
-// The franchises: the curated series and every series of the film database known well enough,
-// measured in the background from the database's daily list of series.
-builder.Services.AddOptions<FranchiseOptions>().Bind(builder.Configuration.GetSection(FranchiseOptions.Section));
-builder.Services.AddHttpClient<FranchiseExport>(http => http.Timeout = TimeSpan.FromMinutes(2));
-builder.Services.AddSingleton<Franchises>();
-builder.Services.AddHostedService<FranchiseScanner>();
-builder.Services.AddSingleton<DiscoverShelves>();
-builder.Services.AddHostedService<DiscoverWarmer>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionKeeper>());
 
 // The subtitle index. Searching costs nothing and only a download spends the day's allowance, so
@@ -433,9 +349,9 @@ app.MapMethods("/phone.apk", [HttpMethods.Get, HttpMethods.Head], (IConfiguratio
 // Each title with what the film database said about it, from what is kept: a listing never waits
 // on the network, and a film not described yet is listed without it. Each carries the asking
 // person's progress and when the film was last played, and a caller that is nobody gets no progress.
-app.MapGet("/api/titles", (HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
-    TitleCategories categories, TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
-    Results.Ok(ListedPages.Listed(context, library, films, shows, categories, posters, record, people, sessions, clock)))
+app.MapGet("/api/titles", (HttpContext context, LibraryListing library, CatalogueTitles catalogue, TitlePosters posters,
+    WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
+    Results.Ok(ListedPages.Listed(context, library, catalogue, posters, record, people, sessions, clock)))
     .RequireActionOrService(CinemaActions.Watch);
 
 // A guest reads the film their room holds, and no other.
@@ -461,9 +377,7 @@ app.MapSubtitles();
 app.MapAcquisition();
 app.MapTranscode();
 app.MapPeople();
-app.MapFilms();
-app.MapCatalogueSearch();
-app.MapDiscover();
+app.MapCatalogue();
 app.MapShows();
 app.MapListedPages();
 app.MapFollows();
@@ -518,7 +432,7 @@ app.MapHub<SessionHub>("/hub/session").RequireActionOrGuest(GuestReach.Hub, Cine
 // matched ahead of the static files means they never see the request. Anything under the API's own
 // prefixes that matched nothing stays a 404.
 app.MapFallback(async (HttpContext context, IWebHostEnvironment environment, IConfiguration configuration,
-    SessionStore sessions, TitleLibrary library, FilmStore films, GuestCodes codes) =>
+    SessionStore sessions, TitleLibrary library, CatalogueTitles films, GuestCodes codes) =>
 {
     var request = context.Request;
     if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method)) return Results.NotFound();

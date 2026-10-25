@@ -5,7 +5,7 @@
 // account (`components/SignOutDialog.jsx`).
 
 import { createStore } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { meApi } from "./api/index.js";
 import { forgotten, listSaves, pendingForgets } from "./offline/store.js";
 import { removeAllFromDevice, stopAccount } from "./offline/saver.js";
 import { forgetPreferences } from "./offline/preferences.js";
@@ -43,7 +43,7 @@ export async function finishLeaving(remove) {
     // The API's records of them are forgotten now, while the token still works; with no connection
     // they stay queued for this account's next sign-in on the device.
     for (const id of pendingForgets(asked.sub)) {
-      await api.forgetSave(id).then(() => forgotten(asked.sub, id), () => {});
+      await meApi.forgetSave(id).then(() => forgotten(asked.sub, id), () => {});
     }
   }
   leaving.setState(() => null);

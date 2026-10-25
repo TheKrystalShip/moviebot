@@ -1,5 +1,5 @@
 import { Avatar, Tooltip } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 
 /**
@@ -8,7 +8,7 @@ import { useLoad } from "../data.js";
  * nothing. A want kept to its person is never named.
  */
 export function Wanters({ imdbId }) {
-  const wanters = useLoad(() => (imdbId ? api.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
+  const wanters = useLoad(() => (imdbId ? meApi.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
   return <Faces people={wanters.data || []} />;
 }
 

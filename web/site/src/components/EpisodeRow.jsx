@@ -4,7 +4,7 @@ import { clock } from "../time.js";
 
 /**
  * One episode as a season lists it, on a show's page and in the player's Episodes menu: its number,
- * its still with how far this person got, its name, its score, its length. Under the name is where its
+ * its still with how far this person got, its name, its length. Under the name is where its
  * download to this device stands when there is one (`download`, from `useDownloadMarks`), else when it
  * aired. Choosing the row is all it takes to watch it, so nothing on it asks for anything else.
  *
@@ -18,13 +18,13 @@ export function EpisodeRow({ episode: e, download = null, link = null, onPick = 
   const done = e.progress && e.progress.finished;
   const fraction = done ? 1
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
-  const runtime = e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : e.durationSeconds ? clock(e.durationSeconds) : null;
+  const runtime = e.runtime ? clock(e.runtime * 60) : e.durationSeconds ? clock(e.durationSeconds) : null;
   const watchable = Boolean(link || onPick);
   const inner = (
     <>
       <span className="kc-episode__n">{e.number}</span>
       <span className="kc-episode__still">
-        {e.stillUrl && <img src={e.stillUrl} alt="" loading="lazy" />}
+        {e.still && <img src={e.still} alt="" loading="lazy" />}
         {fraction > 0 && <span className="kc-bar"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>}
       </span>
       <span className="kc-episode__text">
@@ -34,7 +34,6 @@ export function EpisodeRow({ episode: e, download = null, link = null, onPick = 
           : <span className="kc-episode__sub">{starting ? "Starting…" : e.airDate ? `Aired ${e.airDate}` : null}</span>}
       </span>
       <span className="kc-episode__progress"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>
-      <span className="kc-episode__score">{e.rating ? <><Icon name="star" size={11} />{e.rating.toFixed(1)}</> : null}</span>
       <span className="kc-episode__runtime">{runtime}</span>
       <span className="kc-episode__go">
         {watchable && <Icon name={current ? "audio-lines" : room ? "users" : done ? "check" : "play"} size={13} />}

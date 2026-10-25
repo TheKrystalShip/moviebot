@@ -161,10 +161,10 @@ public sealed class MovieBotApiClient
         GetAsync($"api/releases?imdb={Uri.EscapeDataString(imdbId)}",
             ManifestJsonContext.Default.RankedOffers, "The tracker could not be searched.", ct)!;
 
-    /// <summary>The shows the title index offers for a name.</summary>
-    public async Task<IReadOnlyList<FilmView>> FindShowsAsync(string typed, CancellationToken ct) =>
-        await GetAsync($"api/shows/find?q={Uri.EscapeDataString(typed)}",
-            ManifestJsonContext.Default.IReadOnlyListFilmView, "The title index could not be asked.", ct) ?? [];
+    /// <summary>The shows the catalogue lists for a name, the closest match first.</summary>
+    public async Task<IReadOnlyList<TheKrystalShip.MovieBot.Catalogue.TitleCard>> FindShowsAsync(string typed, CancellationToken ct) =>
+        (await GetAsync($"api/catalogue/titles?kind=show&size=25&q={Uri.EscapeDataString(typed)}",
+            ManifestJsonContext.Default.CardPage, "The catalogue could not be asked.", ct))?.Titles ?? [];
 
     /// <summary>What the tracker offers for a show, season by season, by the show's IMDb id.</summary>
     public Task<ShowOffers> ShowReleasesAsync(string imdbId, CancellationToken ct) =>

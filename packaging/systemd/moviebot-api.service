@@ -19,13 +19,16 @@ Restart=on-failure
 RestartSec=5s
 
 # The API reads the library and the download directory, and asks the tracker and qBittorrent for
-# films. What it writes (its database of people's records, rooms and wishes, downloaded subtitles,
-# artwork) goes to /var/lib/moviebot, which systemd creates for it.
+# films. What it writes (its database of people's records, rooms and wishes, downloaded subtitles)
+# goes to /var/lib/moviebot, which systemd creates for it; it reads the catalogue's directory beside it.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 StateDirectory=moviebot
+# The catalogue's directory, which moviebot-catalogue writes: the API reads catalogue.db and serves
+# images/, and a reader of a database in WAL mode writes its shared-memory file beside it.
+ReadWritePaths=-/var/lib/moviebot-catalogue
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX

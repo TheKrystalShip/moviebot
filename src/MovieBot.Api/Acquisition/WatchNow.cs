@@ -6,7 +6,7 @@ using TheKrystalShip.MovieBot.Acquire.Imdb;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
@@ -48,8 +48,7 @@ public sealed class WatchNow(
     Wants.WantStore wants,
     ShowOfferCache showOffers,
     FilmOfferCache filmOffers,
-    FilmStore films,
-    ShowStore shows,
+    CatalogueTitles titles,
     IOptions<NotifyOptions> notify,
     IOptions<WatchOptions> options,
     ILogger<WatchNow> logger)
@@ -101,7 +100,7 @@ public sealed class WatchNow(
 
         var floor = notify.Value.MinimumSource;
         var digital = ReleaseLanguages.OriginalFirst(ranked.Candidates.Where(r => r.Source >= floor),
-            films.Held(imdbId)?.Details?.OriginalLanguage).ToList();
+            titles.Card(imdbId)?.Language).ToList();
         var hd1080 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd1080);
         var hd720 = digital.FirstOrDefault(r => r.Resolution == Resolution.Hd720);
         offered.Remember([.. new[] { hd1080, hd720 }.OfType<Release>()]);
@@ -203,7 +202,7 @@ public sealed class WatchNow(
             var release = chosen ?? (episode is { } wanted
                 ? ShowOfferCache.Pick(await showOffers.GetAsync(request.ImdbId, ct), wanted,
                     request.Quality == "1080p" ? Resolution.Hd1080 : Resolution.Hd720,
-                    original: shows.Held(request.ImdbId)?.Details?.OriginalLanguage)
+                    original: titles.Card(request.ImdbId)?.Language)
                 : await PickAsync(request, ct));
             if (release is null)
             {
@@ -262,7 +261,7 @@ public sealed class WatchNow(
     {
         var ranked = await search.ByImdbAsync(imdbId, ct);
         var digital = ranked.Candidates.Where(r => r.Source >= notify.Value.MinimumSource);
-        return ReleaseLanguages.Choose(digital, wanted, asked, films.Held(imdbId)?.Details?.OriginalLanguage);
+        return ReleaseLanguages.Choose(digital, wanted, asked, titles.Card(imdbId)?.Language);
     }
 
     /// <summary>
@@ -281,11 +280,13 @@ public sealed class WatchNow(
 
     /// <summary>
     /// What the room calls the film while it waits: the catalogue's name, which is the one every page
-    /// shows, else the release's, which is often the film's name in another language.
+    /// shows, else the title index's, else the release's, which is often the film's name in another language.
     /// </summary>
     /// <remarks>An episode is its show's name and its place, <c>Slow Horses S05E03</c>, as the library names it.</remarks>
     private async Task<string> NameAsync(string imdbId, Release? release, EpisodeNumber? episode, CancellationToken ct)
     {
+        if (titles.Card(imdbId) is { } card)
+            return episode is { } at ? $"{card.Title} {at}" : card.Year is { } year ? $"{card.Title} ({year})" : card.Title;
         try
         {
             if (await catalogue.LookupAsync(imdbId, ct) is { } found)

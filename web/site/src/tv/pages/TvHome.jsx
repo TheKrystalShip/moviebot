@@ -1,6 +1,6 @@
 import React from "react";
 import { TvCard, TvRow, TvTile } from "@thekrystalship/krystal";
-import { api, episodeCode, posterUrl } from "../../api.js";
+import { episodeCode, libraryApi, meApi, posterUrl, roomsApi } from "../../api/index.js";
 import { useLoad } from "../../data.js";
 import { ANIME, discoverFilmPath, isAnime, libraryPath, moviePath, showPath, wantsPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
@@ -29,13 +29,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * screen, and the rows above it are put away. A row with nothing in it is left out.
  */
 export function TvHome() {
-  const titles = useLoad(() => api.titles(), []);
-  const rooms = useLoad(() => api.rooms(), [], { every: 15000 });
-  const progress = useLoad(() => api.progress().catch(() => []), []);
-  const showList = useLoad(() => api.shows().catch(() => []), []);
+  const titles = useLoad(() => libraryApi.titles(), []);
+  const rooms = useLoad(() => roomsApi.list(), [], { every: 15000 });
+  const progress = useLoad(() => meApi.progress().catch(() => []), []);
+  const showList = useLoad(() => libraryApi.shows().catch(() => []), []);
   const wanted = useWantList().list;
   const canWish = useCan("cinema:wish");
-  const anticipated = useLoad(() => (canWish ? api.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
+  const anticipated = useLoad(() => (canWish ? libraryApi.anticipated().catch(() => []) : Promise.resolve([])), [canWish]);
   const [deal] = React.useState(() => Math.random().toString(36).slice(2));
   const { store, pageRef, regionRef, focusOn: card } = useSpotlight();
 
@@ -62,12 +62,12 @@ export function TvHome() {
   if (library.length === 0) return <div className="kc-tv-page"><Empty title="The library is empty" /></div>;
 
   const rows = [];
-  const showArt = (s) => s.details && s.details.posterUrl;
+  const showArt = (s) => s.card && s.card.poster;
   const either = (row, item, eyebrow) => item.show
     ? <TvCard key={"show:" + showKey(item.show)} art={showArt(item.show)} label={item.show.title}
-      {...linkProps(showPath(item.show.imdbId, { category: item.show.category }))} {...card(row, showSpot(item.show, eyebrow))} />
+      {...linkProps(showPath(item.show.imdbId, { category: item.show.card && item.show.card.category }))} {...card(row, showSpot(item.show, eyebrow))} />
     : <TvCard key={item.film.id} art={posterUrl(item.film)} label={item.film.title}
-      {...linkProps(moviePath(item.film.id, item.film.category))} {...card(row, titleSpot(item.film, eyebrow))} />;
+      {...linkProps(moviePath(item.film.id, item.film.card && item.film.card.category))} {...card(row, titleSpot(item.film, eyebrow))} />;
 
   if (continuing.length > 0) {
     const row = rows.length;
@@ -79,7 +79,7 @@ export function TvHome() {
             const name = `${p.name} · ${episodeCode(p.episode)}`;
             const s = {
               ...(show ? showSpot(show, "Continue watching") : { eyebrow: "Continue watching", facts: {} }),
-              key: "next:" + continueKey(p), title: name, overview: p.episodeName || (show && show.details && show.details.overview),
+              key: "next:" + continueKey(p), title: name, overview: p.episodeName || (show && show.card && show.card.plot),
             };
             if (p.stillUrl) s.art = p.stillUrl;
             return <TvNextEpisode key={continueKey(p)} progress={p} art={s.art} label={name} focus={card(row, s)} />;
@@ -89,7 +89,7 @@ export function TvHome() {
           const fraction = p.durationSeconds > 0 ? Math.min(1, p.positionSeconds / p.durationSeconds) : 0;
           const s = { ...titleSpot(t, "Continue watching"), progress: { fraction, left: timeLeft(p.remainingSeconds) } };
           return (
-            <TvCard key={p.titleId} shape="wide" art={(t.details && t.details.backdropUrl) || posterUrl(t)} label={t.title}
+            <TvCard key={p.titleId} shape="wide" art={(t.card && t.card.backdrop) || posterUrl(t)} label={t.title}
               progress={fraction} {...watchLink(t.id, room && room.sessionId, p.positionSeconds)} {...card(row, s)} />
           );
         })}
@@ -104,7 +104,7 @@ export function TvHome() {
           const t = byId.get(r.titleId);
           const people = `${r.participants} watching`;
           return (
-            <TvCard key={r.sessionId} shape="wide" art={(t.details && t.details.backdropUrl) || posterUrl(t)} label={t.title}
+            <TvCard key={r.sessionId} shape="wide" art={(t.card && t.card.backdrop) || posterUrl(t)} label={t.title}
               badge={<><span className="kc-tv-live" />{people}</>}
               {...watchLink(r.titleId, r.sessionId)} {...card(row, titleSpot(t, "Watching now · " + people))} />
           );
@@ -120,9 +120,10 @@ export function TvHome() {
         end={<TvTile label="See all" {...linkProps(wantsPath)} {...card(row, end)} />}>
         {wants.map((e) => {
           const held = e.kind !== "show" ? byImdb.get(e.imdbId) : null;
-          const href = e.kind === "show" ? showPath(e.imdbId, { category: e.category }) : held ? moviePath(held.id, held.category) : discoverFilmPath(e.imdbId);
+          const category = e.card && e.card.category;
+          const href = e.kind === "show" ? showPath(e.imdbId, { category }) : held ? moviePath(held.id, category) : discoverFilmPath(e.imdbId);
           return (
-            <TvCard key={e.imdbId} art={e.posterUrl} label={e.title} {...linkProps(href)}
+            <TvCard key={e.imdbId} art={e.card && e.card.poster} label={e.title} {...linkProps(href)}
               {...card(row, entrySpot(e, held, "Want to watch · " + since(e.since).toLowerCase()))} />
           );
         })}

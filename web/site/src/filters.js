@@ -1,11 +1,11 @@
 // The filter of every page that shows titles: the picks the address holds, what the API is asked with
 // them, and the sections the filter drawer (krystal's FilterDrawer, in the page's search field) offers.
-// Discover's answers (its catalogue, a question, a person's titles, a genre's, a shelf and a browse
-// category) take their options from the API's facets; the library's shelves, Want to watch and History
-// count theirs over the list they hold (`facets.js`). The sections, their ids and their option values
-// are the API's (`docs/api-contract.md`, Filters and facets): a section offers the same options
-// whatever is picked, an option nothing is under at the other picks is shown and cannot be picked, and
-// a section with fewer than two options is left out, so the drawer holds still while somebody picks.
+// Discover's lists take their options from the catalogue's facets (`/api/catalogue/facets`), and the
+// library's shelves, Want to watch and History from their pages' facets; a device's saved titles count
+// theirs over the list they hold (`facets.js`). The sections, their ids and their option values are the
+// API's (`docs/api-contract.md`, Catalogue): a section offers the same options whatever is picked, an
+// option nothing is under at the other picks (a count of 0) is shown and cannot be picked, and a section
+// with fewer than two options is left out, so the drawer holds still while somebody picks.
 
 import React from "react";
 import { wholeFacets } from "./facets.js";
@@ -42,13 +42,11 @@ export function readPicks(query) {
 /** How many picks there are. */
 export const pickCount = (picks) => (picks.kind ? 1 : 0) + (picks.rating ? 1 : 0) + LISTS.reduce((n, id) => n + picks[id].length, 0);
 
-/** The picks as the API's parameters; a kind of All asks nothing of the kind. */
+/** The picks as the list query's parameters; a kind of All asks nothing of the kind, and Anime is a category of either. */
 export function apiPicks(picks) {
   const params = {};
-  if (picks.kind === "anime") {
-    params.kind = "all";
-    params.category = "anime";
-  } else if (picks.kind) params.kind = picks.kind;
+  if (picks.kind === "anime") params.category = "anime";
+  else if (picks.kind) params.kind = picks.kind;
   if (picks.genre.length) params.anyGenre = picks.genre;
   if (picks.decade.length) params.decade = picks.decade;
   if (picks.length.length) params.length = picks.length;
@@ -58,15 +56,11 @@ export function apiPicks(picks) {
 }
 
 /**
- * What Discover's catalogue is asked for the filter's picks: films and shows unless a kind is picked.
- * Any rating still needs a hundred votes, so nobody's home video is listed, and the floor of votes
- * stays the same with a rating picked, so the rating's options measure the answer a pick gives.
+ * What Discover's filter asks the catalogue for the drawer's picks: films and shows unless a kind is
+ * picked, with a hundred votes behind each, so what nobody has seen is not listed; the floor stays the
+ * same with a rating picked, so the rating's options measure the answer a pick gives.
  */
-export function filterQuestion(picks, sort) {
-  const q = { kind: "all", ...apiPicks(picks), goodOnly: "false", minVotes: "100" };
-  if (sort && sort !== "popular") q.sort = sort;
-  return q;
-}
+export const FILTER_BASE = { minVotes: "100" };
 
 /**
  * The address at `path` with `picks` in place of the picks it held, every other parameter kept. `extra`
@@ -107,7 +101,7 @@ function optionsOf(facet, chosen, label) {
   for (const v of chosen) if (!values.includes(v)) values.push(v);
   return values.map((value) => {
     const option = by.get(value);
-    return { value, label: label(value, option && option.label), disabled: !!(option && option.empty) };
+    return { value, label: label(value, option && option.label), disabled: !!(option && (option.empty || option.count === 0)) };
   });
 }
 

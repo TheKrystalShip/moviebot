@@ -1,5 +1,5 @@
 import { RadioGroup } from "@thekrystalship/krystal";
-import { api, filmName } from "../api.js";
+import { filmName, libraryApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLibrary } from "../offline/hooks.js";
 import { ANIME, discoverGenrePath, isAnime, libraryPath } from "../paths.js";
@@ -27,8 +27,8 @@ const KEYS = [
 const COMPARED = {
   added: (a, b) => (a.addedAt || "").localeCompare(b.addedAt || ""),
   name: (a, b) => (a.kind === "show" || a.seasons ? a.title : filmName(a)).localeCompare(b.kind === "show" || b.seasons ? b.title : filmName(b)),
-  rating: (a, b) => ((a.details && a.details.rating) || 0) - ((b.details && b.details.rating) || 0),
-  year: (a, b) => ((a.film && a.film.year) || a.firstYear || 0) - ((b.film && b.film.year) || b.firstYear || 0),
+  rating: (a, b) => ((a.card && a.card.rating && a.card.rating.value) || 0) - ((b.card && b.card.rating && b.card.rating.value) || 0),
+  year: (a, b) => ((a.card && a.card.year) || 0) - ((b.card && b.card.year) || 0),
   length: (a, b) => (a.durationSeconds || 0) - (b.durationSeconds || 0),
 };
 
@@ -136,8 +136,8 @@ function ListedShelf({ kind, category }) {
   const held = holding(kind, marks);
   const scope = kind === "show" ? "shows" : "films";
   const filter = useListedFilter(
-    (params) => api.libraryPage(scope, { ...params, shelf: category === ANIME ? "anime" : "general" })
-      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets })),
+    (params) => libraryApi.page(scope, { ...params, shelf: category === ANIME ? "anime" : "general" })
+      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets, sorts: page.sorts })),
     {
       surface: kind === "show" ? SORTED.shows : SORTED.films, keys: KEYS, stateWords: FILM_STATES,
       device: offered ? [downloadedSection] : [], deps: [scope, category],

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
-using TheKrystalShip.MovieBot.Api.Data;
+using Microsoft.Extensions.DependencyInjection;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -63,45 +64,40 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
     [Fact]
     public void A_shelf_lists_a_show_once_however_many_episodes_it_holds()
     {
-        var store = NewShowStore();
-
-        var shows = store.Summaries([Episode(2, 1), Episode(1, 2), Episode(1, 1), Episode(1, 1, show: "tt5875444") with { Id = "slow-horses-s01e01" }]);
+        var shows = Catalogue.Summaries([Episode(2, 1), Episode(1, 2), Episode(1, 1), Episode(1, 1, show: "tt5875444") with { Id = "slow-horses-s01e01" }]);
 
         Assert.Equal(2, shows.Count);
         var severance = shows.Single(s => s.ImdbId == "tt11280740");
         Assert.Equal(3, severance.Episodes);
         Assert.Equal([1, 2], severance.Seasons);
         Assert.Equal("severance-s01e01", severance.FirstTitleId);
+        Assert.Null(severance.Card); // The catalogue does not list it, so it is named by its episodes.
+        Assert.Equal("Severance", severance.Title);
     }
 
     [Fact]
-    public void A_page_holds_every_season_the_library_has_even_one_the_database_does_not_list()
+    public void A_show_the_catalogue_lists_is_shelved_with_its_card()
     {
-        var store = NewShowStore();
-        var stored = new StoredShow
-        {
-            FetchedAt = Then,
-            Seasons =
-            [
-                new Acquire.Tmdb.SeasonDetails
-                {
-                    Number = 1,
-                    Episodes =
-                    [
-                        new Acquire.Tmdb.EpisodeDetails { Season = 1, Number = 1, Name = "Good News About Hell", RuntimeMinutes = 57 },
-                        new Acquire.Tmdb.EpisodeDetails { Season = 1, Number = 2, Name = "Half Loop" },
-                    ],
-                },
-            ],
-        };
+        var show = Assert.Single(Catalogue.Summaries([Episode(1, 1, show: TestCatalogue.Chernobyl) with { Id = "chernobyl-s01e01" }]));
 
-        var view = store.View("tt11280740", stored, [Episode(1, 2), Episode(2, 1)]);
+        Assert.Equal("Chernobyl", show.Title);
+        Assert.Equal((TestCatalogue.Chernobyl, "show"), (show.Card!.Id, show.Card.Kind));
+    }
+
+    [Fact]
+    public void A_view_holds_every_season_the_library_has_even_one_the_catalogue_does_not_list()
+    {
+        var episodes = new[] { Episode(1, 2, show: TestCatalogue.Chernobyl), Episode(2, 1, show: TestCatalogue.Chernobyl) };
+
+        var view = Catalogue.View(TestCatalogue.Chernobyl, episodes);
 
         Assert.Equal([1, 2], view.Seasons.Select(s => s.Number));
+        Assert.Equal("Season 1", view.Seasons[0].Name);
         Assert.Null(view.Seasons[0].Episodes[0].TitleId);
-        Assert.Equal("Good News About Hell", view.Seasons[0].Episodes[0].Name);
+        Assert.Equal(("1:23:45", 60, "/images/w300/e1.jpg"), (view.Seasons[0].Episodes[0].Name, view.Seasons[0].Episodes[0].Runtime, view.Seasons[0].Episodes[0].Still));
         Assert.Equal("severance-s01e02", view.Seasons[0].Episodes[1].TitleId);
         Assert.Equal("severance-s02e01", Assert.Single(view.Seasons[1].Episodes).TitleId);
+        Assert.False(view.Followable); // Chernobyl has ended.
     }
 
     [Fact]
@@ -113,13 +109,5 @@ public sealed class ShowViewsTests(SessionFixture fixture) : IClassFixture<Sessi
         Assert.Equal(JsonValueKind.Array, JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.ValueKind);
     }
 
-
-    private static ShowStore NewShowStore()
-    {
-        var root = Path.Combine(Path.GetTempPath(), "moviebot-shows-" + Guid.NewGuid().ToString("n"));
-        var database = new CinemaDatabase(Path.Combine(root, "moviebot.db"));
-        return new ShowStore(root, Microsoft.Extensions.Options.Options.Create(new Api.Films.FilmStoreOptions()), null!,
-            new Api.Films.PosterPins(database), new Api.Films.KeptImages(database), database, new Api.Films.TitleScores(database, new Api.Films.ImdbRatings(database)), new EpisodeNumbering(), TimeProvider.System,
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<ShowStore>.Instance);
-    }
+    private CatalogueTitles Catalogue => fixture.Services.GetRequiredService<CatalogueTitles>();
 }

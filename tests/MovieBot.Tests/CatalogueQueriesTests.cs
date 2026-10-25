@@ -1,24 +1,15 @@
-using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
-using TheKrystalShip.MovieBot.Acquire.Configuration;
 using TheKrystalShip.MovieBot.Catalogue;
 using TheKrystalShip.MovieBot.Catalogue.Data;
-using TheKrystalShip.MovieBot.Catalogue.Entries;
-using TheKrystalShip.MovieBot.Catalogue.Tmdb;
-using TheKrystalShip.MovieBot.Catalogue.Wikidata;
 using Xunit;
-using CatalogueImdb = TheKrystalShip.MovieBot.Catalogue.Imdb.ImdbImport;
 
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
 /// Reading the catalogue: the one list query with every filter and order, its facets, a title's page and
-/// season, people, franchises and words resolved to filters. The catalogue is written here by the same
-/// layers and builder the service runs (two Fast &amp; Furious films and Chernobyl), and read through the
-/// read-only reader the API holds.
+/// season, people, franchises and words resolved to filters, over <see cref="TestCatalogue"/> read through
+/// the read-only reader the API holds.
 /// </summary>
 public sealed class CatalogueQueriesTests : IDisposable
 {
@@ -26,41 +17,10 @@ public sealed class CatalogueQueriesTests : IDisposable
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero));
     private readonly CatalogueDatabase _database;
     private readonly CatalogueQueries _queries;
-    private readonly long _fast, _two, _chernobyl;
-
-    private const string ShowBasics = "tt7366338\ttvMiniSeries\tChernobyl\tChernobyl\t0\t2019\t2019\t330\tDrama,History,Thriller\n";
-    private const string ShowRatings = "tt7366338\t9.3\t900000\n";
 
     public CatalogueQueriesTests()
     {
-        _database = new CatalogueDatabase(Path.Combine(_dir, CatalogueDatabase.FileName));
-        var builder = new EntryBuilder(_clock);
-        CatalogueImdb.Load(_database,
-            () => new MemoryStream(LocalCatalogueTests.Gz(LocalCatalogueTests.FastBasics + ShowBasics)),
-            () => new MemoryStream(LocalCatalogueTests.Gz(LocalCatalogueTests.FastRatings + ShowRatings)),
-            100, "20261025", "stamp", _clock.GetUtcNow(), default);
-        long Id(string imdb) => _database.Read(c => c.First("SELECT id FROM titles WHERE imdb_id = $i", r => r.GetInt64(0), ("$i", imdb)));
-        (_fast, _two, _chernobyl) = (Id("tt0232500"), Id("tt0322259"), Id("tt7366338"));
-
-        var layer = new TmdbLayer(_database, null!, builder, _clock, NullLogger<TmdbLayer>.Instance);
-        layer.Keep(_fast, new TmdbRef(9799, "film"), LocalCatalogueTests.Fast(), []);
-        layer.Keep(_two, new TmdbRef(584, "film"), LocalCatalogueTests.TwoFast(), []);
-        layer.Keep(_chernobyl, new TmdbRef(87108, "show"), Chernobyl(), [(1, ChernobylSeason())]);
-
-        var wikidata = new WikidataWorker(null!, _database, builder, Options.Create(new CatalogueOptions()), _clock, NullLogger<WikidataWorker>.Instance);
-        wikidata.Keep([(_fast, "tt0232500"), (_two, "tt0322259")], new Dictionary<string, (string, List<WikidataClaim>)>
-        {
-            ["tt0232500"] = ("Q155476", [new("P840", "Q65", "Los Angeles", null), new("P156", "Q222867", "2 Fast 2 Furious", null),
-                new("P179", "Q1576873", "Fast & Furious", "1")]),
-            ["tt0322259"] = ("Q222867", [new("P840", "Q8652", "Miami", null), new("P155", "Q155476", "The Fast and the Furious", null),
-                new("P179", "Q1576873", "Fast & Furious", "2")]),
-        });
-        _database.Write(c => FactItems.Build(c));
-        _database.Write(c =>
-        {
-            c.Execute("INSERT INTO rankings (list, rank, title_id, fetched_at) VALUES ('trending-films', 1, $two, $at), ('trending-films', 2, $fast, $at)",
-                ("$two", _two), ("$fast", _fast), ("$at", _clock.GetUtcNow()));
-        });
+        _database = TestCatalogue.Write(_dir, _clock);
         _queries = new CatalogueQueries(new CatalogueReader(_database.Path));
     }
 
@@ -69,28 +29,6 @@ public sealed class CatalogueQueriesTests : IDisposable
         SqliteConnection.ClearAllPools();
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
-
-    private static JsonNode Chernobyl() => JsonNode.Parse("""
-        {
-          "id": 87108, "name": "Chernobyl", "original_name": "Chernobyl", "original_language": "en", "status": "Ended",
-          "first_air_date": "2019-05-06", "last_air_date": "2019-06-03", "poster_path": "/chernobyl.jpg", "backdrop_path": "/cb.jpg",
-          "overview": "The true story of one of the worst man-made catastrophes in history. A second sentence.", "popularity": 50.0,
-          "vote_average": 8.7, "vote_count": 6000, "number_of_seasons": 1, "number_of_episodes": 5,
-          "genres": [{"id": 18, "name": "Drama"}], "networks": [{"id": 49, "name": "HBO", "origin_country": "US"}],
-          "created_by": [{"id": 500, "name": "Craig Mazin", "profile_path": "/craig.jpg"}],
-          "seasons": [{"season_number": 1, "poster_path": "/s1.jpg"}],
-          "aggregate_credits": {"cast": [{"id": 501, "name": "Jared Harris", "roles": [{"character": "Valery Legasov"}], "profile_path": "/jared.jpg"}], "crew": []},
-          "content_ratings": {"results": [{"iso_3166_1": "US", "rating": "TV-MA"}]},
-          "external_ids": {"imdb_id": "tt7366338"}
-        }
-        """)!;
-
-    private static JsonNode ChernobylSeason() => TmdbLayer.PruneSeason(JsonNode.Parse("""
-        {"season_number": 1, "name": "Season 1", "air_date": "2019-05-06", "poster_path": "/s1.jpg", "episodes": [
-          {"episode_number": 1, "name": "1:23:45", "air_date": "2019-05-06", "runtime": 60, "still_path": "/e1.jpg"},
-          {"episode_number": 2, "name": "Please Remain Calm", "air_date": "2019-05-13", "runtime": 65, "still_path": "/e2.jpg"}
-        ]}
-        """)!);
 
     private static TitleQuery Query(params (string Name, string Value)[] pairs) =>
         TitleQuery.Parse(name => pairs.Where(p => p.Name == name).Select(p => p.Value).ToList()) is ({ } query, null)
@@ -109,9 +47,12 @@ public sealed class CatalogueQueriesTests : IDisposable
         Assert.Equal(["tt0322259"], Ids(("from", "2002"), ("kind", "film")));
         Assert.Equal(["tt0232500"], Ids(("fact", "P840:Q65")));
         Assert.Equal(["tt0232500"], Ids(("keyword", "k830")));
+        Assert.Empty(Ids(("keyword", "k830,k9999"))); // Every keyword named.
+        Assert.Equal(["tt0232500"], Ids(("anyKeyword", "k830,k9999"))); // Any one of them.
         Assert.Equal(["tt7366338"], Ids(("company", "s49")));
         Assert.Equal(["tt7366338", "tt0232500"], Ids(("minRating", "6.5")));
         Assert.Equal(["tt0232500", "tt0322259"], Ids(("q", "fast furi")));
+        Assert.Equal("tt0322259", Ids(("q", "2 fast 2 furious"))[0]); // A title named exactly what was typed leads.
         Assert.Equal(["tt0232500"], Ids(("q", "todo gas")));
         Assert.Empty(Ids(("q", "fast"), ("kind", "show")));
     }
@@ -222,6 +163,20 @@ public sealed class CatalogueQueriesTests : IDisposable
         Assert.Equal(["1:23:45", "Please Remain Calm"], season.Episodes.Select(e => e.Name));
         Assert.Equal("/images/w300/e1.jpg", season.Episodes[0].Still);
         Assert.Null(_queries.Season("tt7366338", 2));
+    }
+
+    [Fact]
+    public void A_portrait_a_still_or_a_season_poster_is_named_only_once_the_image_is_kept()
+    {
+        _database.Write(c => c.Execute("DELETE FROM images WHERE path IN ('/jared.jpg', '/e1.jpg', '/s1.jpg')"));
+
+        var page = _queries.Title("tt7366338")!;
+        Assert.Null(page.Cast.Single(m => m.Name == "Jared Harris").Portrait);
+        Assert.Null(page.Seasons.Single().Poster);
+        var season = _queries.Season("tt7366338", 1)!;
+        Assert.Null(season.Episodes[0].Still);
+        Assert.Equal("/images/w300/e2.jpg", season.Episodes[1].Still);
+        Assert.Null(_queries.Seasons("tt7366338").Single().Episodes[0].Still);
     }
 
     [Fact]

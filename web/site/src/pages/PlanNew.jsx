@@ -1,7 +1,7 @@
 import React from "react";
 import { BriefCard, Button, Calendar, Icon, Input, TimeGrid, TimeInput, toast, useDebouncedValue } from "@thekrystalship/krystal";
 import { dateKey, momentKey, nextStep, parseDate, parseMoment } from "@thekrystalship/krystal/lib/datetime";
-import { api } from "../api.js";
+import { catalogue, certificateOf, meApi, roomsApi, runtimeText } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -79,12 +79,12 @@ export function PlanNew({ query }) {
   const kind = query.get("kind") === "show" ? "show" : "film";
   const online = useOnline();
   const now = useNow();
-  const title = useLoad(() => (imdbId ? (kind === "show" ? api.show(imdbId) : api.film(imdbId)) : Promise.resolve(null)), [imdbId, kind]);
-  const people = useLoad(() => api.people().catch(() => []), []);
+  const title = useLoad(() => (imdbId ? catalogue.title(imdbId) : Promise.resolve(null)), [imdbId]);
+  const people = useLoad(() => roomsApi.people().catch(() => []), []);
   const [find, setFind] = React.useState("");
   const q = useDebouncedValue(find.trim(), 250);
-  const found = useLoad(() => (q ? api.people(q).catch(() => []) : Promise.resolve(null)).then((list) => ({ q, people: list })), [q]);
-  const wanters = useLoad(() => (imdbId ? api.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
+  const found = useLoad(() => (q ? roomsApi.people(q).catch(() => []) : Promise.resolve(null)).then((list) => ({ q, people: list })), [q]);
+  const wanters = useLoad(() => (imdbId ? meApi.wanters(imdbId).catch(() => []) : Promise.resolve([])), [imdbId]);
   const [first] = React.useState(() => momentKey(nextStep(Date.now() + 60 * 60000, STEP)));
   const [times, setTimes] = React.useState([first]);
   const [day, setDay] = React.useState(first.slice(0, 10));
@@ -114,7 +114,7 @@ export function PlanNew({ query }) {
   const full = times.length >= MAX_TIMES;
   const onDay = times.filter((t) => t.startsWith(shownDay + "T")).map((t) => t.slice(11));
   const ready = times.length > 0 && times.every(fits);
-  const runtime = kind === "film" ? d.runtimeMinutes : null;
+  const runtime = kind === "film" ? d.runtime : null;
 
   const pickTimes = (next) => setTimes([...times.filter((t) => !t.startsWith(shownDay + "T")), ...next.map((t) => `${shownDay}T${t}`)].sort());
   const exactKey = exact ? `${shownDay}T${exact}` : null;
@@ -135,13 +135,13 @@ export function PlanNew({ query }) {
   };
   const everyone = everybody.length > 0 && everybody.every((p) => chosen.has(p.userId));
   // The people the words name, as the API finds them, the ones who want the title first.
-  const named = found.data && found.data.q === q ? found.data.people : everybody;
+  const named = q && found.data && found.data.q === q && found.data.people ? found.data.people : everybody;
   const shown = [...named.filter((p) => wanted.has(p.userId)), ...named.filter((p) => !wanted.has(p.userId))];
 
   const make = async () => {
     setBusy(true);
     try {
-      const plan = await api.makePlan({
+      const plan = await meApi.makePlan({
         imdbId, kind, times: times.map((t) => parseMoment(t).toISOString()), people: [...chosen],
       });
       navigate(planPath(plan.id));
@@ -151,17 +151,19 @@ export function PlanNew({ query }) {
     }
   };
 
-  const years = d.firstYear ? [d.firstYear, d.lastYear && d.lastYear !== d.firstYear ? d.lastYear : null].filter(Boolean).join("–") : null;
+  const years = d.year ? [d.year, d.endYear && d.endYear !== d.year ? d.endYear : null].filter(Boolean).join("–") : null;
+  const certificate = certificateOf(d);
   const others = chosen.size;
   return (
     <div className="kc-page kc-plan-new">
-      <TitleHero art={d.backdropUrl || d.posterUrl} eyebrow={kindWord(kind, isAnime(d))} title={d.title}
-        facts={<TitleFacts rating={d.rating} votes={d.votes} ratedBy={d.ratedBy} kind={kind} category={d.category}
+      <TitleHero art={d.backdrop || d.poster} eyebrow={kindWord(kind, isAnime(d))} title={d.title}
+        facts={<TitleFacts rating={d.rating && d.rating.value} votes={d.rating && d.rating.votes} ratedBy={d.rating && d.rating.by}
+          kind={kind} category={d.category}
           parts={kind === "film"
-            ? [d.year, d.certification && { cert: d.certification }, d.runtimeMinutes && clock(d.runtimeMinutes * 60)]
-            : [years, d.certification && { cert: d.certification }]}
-          genres={d.genres || []} />}>
-        <TitleAbout overview={d.overview} credits={kind === "film" ? d : { creators: d.creators, personIds: d.personIds, cast: d.cast }} />
+            ? [d.year, certificate && { cert: certificate }, runtimeText(d.runtime)]
+            : [years, certificate && { cert: certificate }]}
+          genres={d.genres} />}>
+        <TitleAbout overview={d.overview || d.plot} credits={d} />
         <HeroGroup>
           <span className="kc-plan__maker">
             <Icon name="calendar-heart" size={15} />

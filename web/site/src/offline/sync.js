@@ -6,7 +6,7 @@
 // and what this device asked for before the library held it is asked after (`wants.js`).
 
 import React from "react";
-import { api } from "../api.js";
+import { meApi } from "../api/index.js";
 import { onReconnect, useOnline } from "../connectivity.js";
 import { can, useSession } from "../session.js";
 import { forgotten, listSaves, offlineSupported, pendingForgets } from "./store.js";
@@ -33,14 +33,14 @@ async function settle(session) {
   await forgetPending(sub);
 
   const asked = new Date().toISOString();
-  const records = new Map((await api.offlineSaves()).map((s) => [s.id, s]));
+  const records = new Map((await meApi.offlineSaves()).map((s) => [s.id, s]));
   for (const save of await listSaves(sub)) {
     const id = save.meta.saveId;
     // A save started after the API was asked is one it could not have listed yet.
     if (!id || String(save.meta.startedAt || "") > asked) continue;
     const record = records.get(id);
     if (!record) await removeFromDevice(sub, save.titleId, { forget: false });
-    else if (save.complete && !record.completedAt) await api.completeSave(id).catch(() => {});
+    else if (save.complete && !record.completedAt) await meApi.completeSave(id).catch(() => {});
   }
   await resumeUnfinished(sub);
   await keepMissingShows(sub);
@@ -49,7 +49,7 @@ async function settle(session) {
 
 async function forgetPending(sub) {
   for (const id of pendingForgets(sub)) {
-    await api.forgetSave(id).then(() => forgotten(sub, id), () => {});
+    await meApi.forgetSave(id).then(() => forgotten(sub, id), () => {});
   }
 }
 

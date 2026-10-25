@@ -95,12 +95,11 @@ public sealed record PlanView
     /// <summary><c>film</c> or <c>show</c>.</summary>
     public required string Kind { get; init; }
 
-    /// <summary>The title's name, or its IMDb id while the film database has not described it.</summary>
+    /// <summary>The title's name: its card's, else its IMDb id.</summary>
     public required string Title { get; init; }
 
-    public int? Year { get; init; }
-
-    public string? PosterUrl { get; init; }
+    /// <summary>The title's card; absent for a title the catalogue does not list.</summary>
+    public Catalogue.TitleCard? Card { get; init; }
 
     /// <summary>For a show, the episode the plan starts at.</summary>
     public int? Season { get; init; }

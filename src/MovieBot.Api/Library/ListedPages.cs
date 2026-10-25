@@ -1,12 +1,12 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
-using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Wants;
+using TheKrystalShip.MovieBot.Catalogue;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Library;
@@ -27,7 +27,8 @@ public sealed record LibraryPageView
 {
     public required List<LibraryItemView> Items { get; init; }
     public required int Total { get; init; }
-    public required CatalogueFacetsView Facets { get; init; }
+    public required Facets Facets { get; init; }
+    public required List<string> Sorts { get; init; }
 }
 
 /// <summary>One entry of a person's history, with the library's title it names.</summary>
@@ -42,7 +43,7 @@ public sealed record HistoryPageView
 {
     public required List<HistoryItemView> Entries { get; init; }
     public required int Total { get; init; }
-    public required CatalogueFacetsView Facets { get; init; }
+    public required Facets Facets { get; init; }
 }
 
 /// <inheritdoc cref="LibraryPageView"/>
@@ -50,7 +51,8 @@ public sealed record WantsPageView
 {
     public required List<WantView> Wants { get; init; }
     public required int Total { get; init; }
-    public required CatalogueFacetsView Facets { get; init; }
+    public required Facets Facets { get; init; }
+    public required List<string> Sorts { get; init; }
 }
 
 /// <summary>
@@ -84,8 +86,9 @@ public static class ListedPages
             : [new(first, ascending), new(second, (a, b) => ascending(b, a))];
 
     private static DateTimeOffset AddedAt(LibraryItemView i) => (i.Film?.AddedAt ?? i.Show?.AddedAt) ?? DateTimeOffset.MinValue;
-    private static double RatingOf(LibraryItemView i) => (i.Film?.Details ?? i.Show?.Details)?.Rating ?? 0;
-    private static int YearOf(LibraryItemView i) => (i.Film is { } f ? f.Film?.Year : i.Show?.FirstYear) ?? 0;
+    private static TitleCard? CardOf(LibraryItemView i) => i.Film?.Card ?? i.Show?.Card;
+    private static double RatingOf(LibraryItemView i) => CardOf(i)?.Rating?.Value ?? 0;
+    private static int YearOf(LibraryItemView i) => (CardOf(i)?.Year ?? i.Film?.Film?.Year) ?? 0;
 
     /// <summary>A film's name as its card shows it, its year beside it; a show's title.</summary>
     public static string NameOf(LibraryItemView i) => i.Film is { } f
@@ -97,8 +100,8 @@ public static class ListedPages
     [
         .. Both<LibraryItemView>("added", "first-added", (a, b) => AddedAt(a).CompareTo(AddedAt(b)), true),
         .. Both<LibraryItemView>("name", "name-desc", (a, b) => Names.Compare(NameOf(a), NameOf(b)), false),
-        .. Both<LibraryItemView>(DiscoverSorts.Rating, ReversedSorts.Lowest, (a, b) => RatingOf(a).CompareTo(RatingOf(b)), true),
-        .. Both<LibraryItemView>(DiscoverSorts.Newest, DiscoverSorts.Oldest, (a, b) => YearOf(a).CompareTo(YearOf(b)), true),
+        .. Both<LibraryItemView>("rating", "lowest", (a, b) => RatingOf(a).CompareTo(RatingOf(b)), true),
+        .. Both<LibraryItemView>("newest", "oldest", (a, b) => YearOf(a).CompareTo(YearOf(b)), true),
         .. scope == Films
             ? Both<LibraryItemView>("shortest", "longest", (a, b) => (a.Film?.DurationSeconds ?? 0).CompareTo(b.Film?.DurationSeconds ?? 0), false)
             : [],
@@ -109,8 +112,8 @@ public static class ListedPages
     [
         .. Both<WantView>("added", "first-added", (a, b) => a.Since.CompareTo(b.Since), true),
         .. Both<WantView>("name", "name-desc", (a, b) => Names.Compare(a.Title, b.Title), false),
-        .. Both<WantView>(DiscoverSorts.Rating, ReversedSorts.Lowest, (a, b) => (a.Rating ?? 0).CompareTo(b.Rating ?? 0), true),
-        .. Both<WantView>(DiscoverSorts.Newest, DiscoverSorts.Oldest, (a, b) => (a.Year ?? 0).CompareTo(b.Year ?? 0), true),
+        .. Both<WantView>("rating", "lowest", (a, b) => (a.Card?.Rating?.Value ?? 0).CompareTo(b.Card?.Rating?.Value ?? 0), true),
+        .. Both<WantView>("newest", "oldest", (a, b) => (a.Card?.Year ?? 0).CompareTo(b.Card?.Year ?? 0), true),
         .. Both<WantView>("most-wanted", "least-wanted", (a, b) => a.Others.CompareTo(b.Others), true),
     ];
 
@@ -126,58 +129,64 @@ public static class ListedPages
     /// <summary>The states a want can stand in, in the order they are offered.</summary>
     private static readonly string[] WantStatesOffered = [WantStates.Ready, WantStates.Fetching, WantStates.Available, WantStates.Waiting];
 
-    private static FacetTraits TraitsOf(LibraryItemView i) => i.Film is { } f
-        ? new FacetTraits(FacetSections.Film, f.Category == TitleCategory.Anime, CinemaGenres.Of(f.Details?.Genres ?? []), f.Film?.Year,
-            f.Details?.RuntimeMinutes ?? (f.DurationSeconds > 0 ? (int)Math.Round(f.DurationSeconds / 60) : null),
-            f.Details?.Rating, f.Details?.OriginalLanguage)
-        : new FacetTraits(FacetSections.Show, i.Show!.Category == TitleCategory.Anime, CinemaGenres.Of(i.Show.Details?.Genres ?? []),
-            i.Show.FirstYear, null, i.Show.Details?.Rating, i.Show.Details?.OriginalLanguage);
+    /// <summary>What a library title is counted and picked by: its card's facts, else what the library knows of it.</summary>
+    private static FacetRow RowOf(LibraryItemView i)
+    {
+        var card = CardOf(i);
+        var kind = i.Film is not null ? "film" : "show";
+        var minutes = card?.Runtime ?? (i.Film is { DurationSeconds: > 0 } f ? (int)Math.Round(f.DurationSeconds / 60) : null);
+        return new FacetRow(card?.Id ?? i.Film?.Id ?? i.Show?.ImdbId ?? "", kind, card?.Category, card?.Year ?? i.Film?.Film?.Year,
+            kind == "film" ? minutes : null, card?.Rating?.Value, card?.Language, [.. card?.Genres ?? []]);
+    }
 
-    private static FacetTraits TraitsOf(WantView w) => new(w.Kind, w.Category == "anime", CinemaGenres.Of(w.Genres), w.Year,
-        w.Kind == FacetSections.Film ? w.RuntimeMinutes : null, w.Rating, w.OriginalLanguage);
+    private static FacetRow RowOf(WantView w) => new(w.ImdbId, w.Kind, w.Card?.Category, w.Card?.Year, w.Kind == "film" ? w.Card?.Runtime : null,
+        w.Card?.Rating?.Value, w.Card?.Language, [.. w.Card?.Genres ?? []]);
 
     private static string? StateOf(LibraryItemView i) => i.Film is { } f ? FilmStates.First(s => s.Status == f.Status).Value : null;
 
     /// <summary>
     /// A page of a list held whole: <paramref name="all"/> narrowed by the states picked, the filter's
-    /// picks and the words searched, in <paramref name="order"/>; the facets of the whole with the states
-    /// picked on it and the words not, offering what the whole holds whatever is picked, each state the
-    /// whole holds counted with the picks on it; and the orders served.
+    /// picks and the words searched, in <paramref name="order"/>; and the facets of the whole with the
+    /// states picked on it and the words not, offering what the whole holds whatever is picked, each
+    /// state the whole holds counted with the picks on it. Counted by the catalogue's own rules
+    /// (<see cref="CatalogueQueries.Count"/>), so a library page and a catalogue list agree on what a pick is.
     /// </summary>
-    private static (List<T> Shown, CatalogueFacetsView Facets) Page<T>(
-        IReadOnlyList<T> all, Func<T, FacetTraits> traits, Func<T, string?> state, IReadOnlyList<string> states, IReadOnlyList<string> offered,
-        DiscoverPicks picks, IReadOnlySet<string> fixedBy, Func<string, string?> languageName,
-        Func<T, string> name, string? q, ListedOrder<T> order, IEnumerable<string> orders)
+    private static (List<T> Shown, Facets Facets) Page<T>(
+        IReadOnlyList<T> all, Func<T, FacetRow> row, Func<T, string?> state, IReadOnlyList<string> states, IReadOnlyList<string> offered,
+        TitleQuery picks, Func<T, string> name, string? q, ListedOrder<T> order)
     {
         var stated = states.Count == 0 ? all : [.. all.Where(t => state(t) is { } s && states.Contains(s))];
-        var facets = WholeFacets.Facets([.. stated.Select(traits)], picks, fixedBy, languageName, [.. all.Select(traits)]);
-        var picked = WholeFacets.Filter(all, traits, picks);
+        var facets = CatalogueQueries.Count(picks, [.. stated.Select(row)]);
+        var picked = all.Where(t => CatalogueQueries.Matches(picks, row(t))).ToList();
         var held = offered.Where(s => all.Any(t => state(t) == s))
-            .Select(s => picked.Count(t => state(t) == s) is var count and > 0 ? new FacetOptionView(s, Count: count) : new FacetOptionView(s, Count: 0, Empty: true)).ToList();
-        var sections = held.Count > 0 ? [.. facets.Sections, new FacetSectionView(State, held)] : facets.Sections;
+            .Select(s => new FacetOption(s, null, picked.Count(t => state(t) == s))).ToList();
+        if (held.Count > 0) facets = facets with { Sections = [.. facets.Sections, new FacetSection(State, held)] };
 
-        var shown = WholeFacets.Filter(stated, traits, picks)
+        var shown = stated.Where(t => CatalogueQueries.Matches(picks, row(t)))
             .Where(t => Holds(name(t), q))
             .Order(Comparer<T>.Create(order.Compare))
             .ToList();
-        return (shown, new CatalogueFacetsView { Sections = sections, Sorts = [.. orders] });
+        return (shown, facets);
+    }
+
+    /// <summary>The filter drawer's picks a library page is asked with, as the list query reads them; a value it does not take is refused.</summary>
+    private static (TitleQuery? Picks, string? Refusal) PicksOf(HttpContext context)
+    {
+        string[] sections = ["kind", "category", "anyGenre", "decade", "length", "minRating", "language"];
+        return TitleQuery.Parse(name => sections.Contains(name) ? context.Request.Query[name].OfType<string>().ToList() : []);
     }
 
     public static void MapListedPages(this WebApplication app)
     {
         // A library shelf's page: its films, its shows or both, of the anime shelf or of the rest,
         // searched, narrowed and ordered, with the facets of the whole shelf and the orders it is served in.
-        app.MapGet("/api/library/{scope}", async (string scope, string? shelf, string? q, string? sort, [FromQuery] string[]? state, [FromQuery] string[]? held,
-            string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade, [FromQuery] string[]? length,
-            double? minRating, [FromQuery] string[]? language,
-            HttpContext context, LibraryListing library, FilmStore films, ShowStore shows, TitleCategories categories, TitlePosters posters,
-            WatchRecord record, PersonDirectory people, SessionStore sessions, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
+        app.MapGet("/api/library/{scope}", (string scope, string? shelf, string? q, string? sort, [FromQuery] string[]? state, [FromQuery] string[]? held,
+            HttpContext context, LibraryListing library, CatalogueTitles catalogue, TitlePosters posters,
+            WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
         {
             if (scope is not (Films or Shows or All)) return Error("There is no such page of the library.", StatusCodes.Status404NotFound);
             if (shelf is not null and not (AnimeShelf or GeneralShelf)) return Error("A library page's shelf is anime or general, or none for both.", StatusCodes.Status400BadRequest);
-            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks)
-                return CatalogueSearchEndpoints.BadDecade();
-            if (WholeFacets.Refusal(picks, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)) is { } refusal) return Error(refusal, StatusCodes.Status400BadRequest);
+            if (PicksOf(context) is not ({ } picks, null)) return Error(PicksOf(context).Refusal!, StatusCodes.Status400BadRequest);
             if (scope != All && (picks.Kind is not null || picks.Category is not null))
                 return Error("This page is of one kind, so a filter does not pick one.", StatusCodes.Status400BadRequest);
             var orders = LibraryOrders(scope);
@@ -186,108 +195,78 @@ public static class ListedPages
             if (states.FirstOrDefault(s => scope == Shows || FilmStates.All(f => f.Value != s)) is { } unknown)
                 return Error($"\"{unknown}\" is no state a title of this page stands in.", StatusCodes.Status400BadRequest);
 
-            bool OnShelf(TitleCategory? category) => shelf is null || (category == TitleCategory.Anime) == (shelf == AnimeShelf);
-            var listed = Listed(context, library, films, shows, categories, posters, record, people, sessions, clock);
+            bool OnShelf(TitleCard? card) => shelf is null || (card?.Category == "anime") == (shelf == AnimeShelf);
+            var listed = Listed(context, library, catalogue, posters, record, people, sessions, clock);
             var all = new List<LibraryItemView>();
             if (scope != Shows)
-                all.AddRange(listed.Where(t => t.Kind != TitleKind.Show && OnShelf(t.Category)).Select(t => new LibraryItemView { Film = t }));
+                all.AddRange(listed.Where(t => t.Kind != TitleKind.Show && OnShelf(t.Card)).Select(t => new LibraryItemView { Film = t }));
             if (scope != Films)
-                all.AddRange(shows.Summaries(listed).Select(s => s with { Category = categories.Of("show", s.ImdbId) })
-                    .Where(s => OnShelf(s.Category)).Select(s => new LibraryItemView { Show = s }));
+                all.AddRange(catalogue.Summaries(listed).Where(s => OnShelf(s.Card)).Select(s => new LibraryItemView { Show = s }));
             var total = all.Count;
             // The titles the asking device holds, which only it knows: a film by its title id, a show by its IMDb id.
             var only = Words(held);
             if (only.Count > 0) all = [.. all.Where(i => only.Contains(i.Film?.Id ?? i.Show?.ImdbId ?? ""))];
 
-            var (shown, facets) = Page(all, TraitsOf, StateOf, states, scope == Shows ? [] : [.. FilmStates.Select(s => s.Value)], picks,
-                scope == All ? new HashSet<string>() : new HashSet<string> { FacetSections.Kind }, await search.LanguageNamesAsync(ct),
-                NameOf, q, order, orders.Select(o => o.Name));
-            return Results.Ok(new LibraryPageView { Items = shown, Total = total, Facets = facets });
+            var (shown, facets) = Page(all, RowOf, StateOf, states, scope == Shows ? [] : [.. FilmStates.Select(s => s.Value)], picks, NameOf, q, order);
+            // A page of one kind takes no pick of a kind, so it offers none.
+            if (scope != All) facets = facets with { Sections = [.. facets.Sections.Where(s => s.Id != "kind")] };
+            return Results.Ok(new LibraryPageView { Items = shown, Total = total, Facets = facets, Sorts = [.. orders.Select(o => o.Name)] });
         }).RequireAction(CinemaActions.Watch);
 
         // What the person watched as their History shows it: newest first, searched by name and
         // narrowed by what each entry's title is, with the facets of the whole history.
-        app.MapGet("/api/me/history/page", async (string? q, string? kind, string? category, [FromQuery] string[]? anyGenre,
-            [FromQuery] string[]? decade, [FromQuery] string[]? length, double? minRating, [FromQuery] string[]? language,
-            HttpContext context, TitleLibrary titles, LibraryListing library, FilmStore films, ShowStore shows, TitleCategories categories,
-            TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, CatalogueSearch search,
-            TimeProvider clock, CancellationToken ct) =>
+        app.MapGet("/api/me/history/page", (string? q, HttpContext context, TitleLibrary titles, LibraryListing library, CatalogueTitles catalogue,
+            TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return Error("This belongs to a person; sign in as one.", StatusCodes.Status403Forbidden);
-            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks)
-                return CatalogueSearchEndpoints.BadDecade();
-            if (WholeFacets.Refusal(picks, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)) is { } refusal) return Error(refusal, StatusCodes.Status400BadRequest);
+            if (PicksOf(context) is not ({ } picks, null)) return Error(PicksOf(context).Refusal!, StatusCodes.Status400BadRequest);
 
-            var byId = Listed(context, library, films, shows, categories, posters, record, people, sessions, clock).ToDictionary(t => t.Id, StringComparer.Ordinal);
+            var byId = Listed(context, library, catalogue, posters, record, people, sessions, clock).ToDictionary(t => t.Id, StringComparer.Ordinal);
             var all = PeopleEndpoints.HistoryOf(person.UserId, record, sessions, titles, clock)
                 .Select(e => new HistoryItemView { Entry = e, Title = byId.GetValueOrDefault(e.TitleId) }).ToList();
-            var (shown, facets) = Page(all, TraitsOf, _ => null, [], [], picks, new HashSet<string>(), await search.LanguageNamesAsync(ct),
-                h => h.Entry.Name, q, new ListedOrder<HistoryItemView>("watched", (_, _) => 0), []);
+            var (shown, facets) = Page(all, RowOf, _ => null, [], [], picks, h => h.Entry.Name, q, new ListedOrder<HistoryItemView>("watched", (_, _) => 0));
             return Results.Ok(new HistoryPageView { Entries = shown, Total = all.Count, Facets = facets });
         }).RequireAction(CinemaActions.ProfileRead);
 
         // The person's wants as their page shows them: searched, narrowed and ordered, with the facets
         // of every want and the orders they are served in.
         app.MapGet("/api/me/wants/page", async (string? q, string? sort, [FromQuery] string[]? state,
-            string? kind, string? category, [FromQuery] string[]? anyGenre, [FromQuery] string[]? decade, [FromQuery] string[]? length,
-            double? minRating, [FromQuery] string[]? language,
-            HttpContext context, WantStore wants, WantPresenter present, CatalogueSearch search, TimeProvider clock, CancellationToken ct) =>
+            HttpContext context, WantStore wants, WantPresenter present, CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return Error("This belongs to a person; sign in as one.", StatusCodes.Status403Forbidden);
-            if (CatalogueSearchEndpoints.Picks(kind, category, anyGenre, decade, length, minRating, language) is not { } picks)
-                return CatalogueSearchEndpoints.BadDecade();
-            if (WholeFacets.Refusal(picks, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)) is { } refusal) return Error(refusal, StatusCodes.Status400BadRequest);
+            if (PicksOf(context) is not ({ } picks, null)) return Error(PicksOf(context).Refusal!, StatusCodes.Status400BadRequest);
             if (Ordered(WantOrders, sort) is not { } order) return Error($"Sort is {string.Join(", ", WantOrders.Select(o => o.Name))}.", StatusCodes.Status400BadRequest);
             var states = Words(state);
             if (states.FirstOrDefault(s => !WantStatesOffered.Contains(s)) is { } unknown)
                 return Error($"\"{unknown}\" is no state a want stands in.", StatusCodes.Status400BadRequest);
 
             var all = await present.ViewsAsync(person.UserId, wants.For(person.UserId), ct);
-            var (shown, facets) = Page(all, TraitsOf, w => w.State, states, WantStatesOffered, picks, new HashSet<string>(),
-                await search.LanguageNamesAsync(ct), w => w.Title, q, order, WantOrders.Select(o => o.Name));
-            return Results.Ok(new WantsPageView { Wants = shown, Total = all.Count, Facets = facets });
+            var (shown, facets) = Page(all, RowOf, w => w.State, states, WantStatesOffered, picks, w => w.Title, q, order);
+            return Results.Ok(new WantsPageView { Wants = shown, Total = all.Count, Facets = facets, Sorts = [.. WantOrders.Select(o => o.Name)] });
         }).RequireAction(CinemaActions.ProfileRead);
     }
 
     /// <summary>What a history entry is, by the library's title it names: an episode is its show's.</summary>
-    private static FacetTraits TraitsOf(HistoryItemView h) => h.Title is { } t
+    private static FacetRow RowOf(HistoryItemView h) => h.Title is { } t
         ? t.Kind == TitleKind.Show
-            ? new FacetTraits(FacetSections.Show, t.Category == TitleCategory.Anime, CinemaGenres.Of(t.Details?.Genres ?? []), null, null, t.Details?.Rating, t.Details?.OriginalLanguage)
-            : TraitsOf(new LibraryItemView { Film = t })
-        : new FacetTraits(h.Entry.Episode is null ? FacetSections.Film : FacetSections.Show, false, [], null, null, null, null);
+            ? new FacetRow(t.Card?.Id ?? t.Id, "show", t.Card?.Category, t.Card?.Year, null, t.Card?.Rating?.Value, t.Card?.Language, [.. t.Card?.Genres ?? []])
+            : RowOf(new LibraryItemView { Film = t })
+        : new FacetRow(h.Entry.TitleId, h.Entry.Episode is null ? "film" : "show", null, null, null, null, null, []);
 
     /// <summary>
-    /// Each library title as <c>/api/titles</c> lists it: what the film database said about it, from what
-    /// is kept, its shelf, and the asking person's progress and when it was last played.
+    /// Each library title as <c>/api/titles</c> lists it: its catalogue card (an episode its show's), its
+    /// poster, and the asking person's progress and when it was last played.
     /// </summary>
-    public static List<TitleSummary> Listed(HttpContext context, LibraryListing library, FilmStore films, ShowStore shows,
-        TitleCategories categories, TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock)
+    public static List<TitleSummary> Listed(HttpContext context, LibraryListing library, CatalogueTitles catalogue,
+        TitlePosters posters, WatchRecord record, PersonDirectory people, SessionStore sessions, TimeProvider clock)
     {
         var person = PeopleEndpoints.Person(context);
         var viewing = sessions.Viewing();
         var now = clock.GetUtcNow();
-        // A show's episodes share its description, its shelf and its poster, so each is read once per
-        // title id, and once for the listing.
-        var described = new Dictionary<(TitleKind, string?), (FilmFacts? Details, TitleCategory? Category, string? Poster, string? Version)>();
-        return library.Titles()
-            .Select(t =>
-            {
-                var key = (t.Kind, t.Film?.ImdbId);
-                if (!described.TryGetValue(key, out var d))
-                {
-                    // A title with no kept poster keeps its own, which is no other title's.
-                    var posted = posters.Listed(t);
-                    var kept = !ReferenceEquals(posted, t);
-                    // An episode is described by its show.
-                    d = (t.Kind == TitleKind.Show ? shows.Facts(t.Film?.ImdbId) : films.Facts(t.Film?.ImdbId),
-                        categories.Of(t.Kind, t.Film?.ImdbId), kept ? posted.Poster : null, kept ? posted.PosterVersion : null);
-                    if (t.Film?.ImdbId is not null) described[key] = d;
-                    else return posted with { Details = d.Details, Category = d.Category };
-                }
-                return d.Poster is null
-                    ? t with { Details = d.Details, Category = d.Category }
-                    : t with { Details = d.Details, Category = d.Category, Poster = d.Poster, PosterVersion = d.Version };
-            })
+        var titles = library.Titles();
+        var cards = catalogue.Cards(titles.Select(t => t.Film?.ImdbId));
+        return titles
+            .Select(t => posters.Listed(t) with { Card = t.Film?.ImdbId is { } imdb ? cards.GetValueOrDefault(imdb) : null })
             .WithPlays(person, record, people, viewing, now);
     }
 

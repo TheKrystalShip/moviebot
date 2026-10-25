@@ -19,13 +19,18 @@ internal sealed partial class SearchTitlesTool(CinemaApi api) : AssistantTool<Se
         [property: Description("Limit to films or shows.")] TitleKind? Kind = null,
         [property: Description("Roughly when it came out.")] int? Year = null);
 
+    private const int Shown = 10;
+
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
         string query = args.Query;
         string? kind = args.Kind.Wire();
         int? year = args.Year;
 
-        SearchResult found = await api.As(call.Principal.AccessToken).SearchAsync(query, kind, year, call.CancellationToken);
+        CardPage found = await api.As(call.Principal.AccessToken).TitlesAsync(new TitleFilter
+        {
+            Words = query, Kind = kind, From = year - 1, To = year + 1, Size = Shown,
+        }, call.CancellationToken);
         if (found.Titles.Count == 0)
             return ToolResult.Ok(
                 $"The film database has no {kind ?? "film or show"} matching '{query}'" + (year is { } y ? $" released around {y}." : ".")

@@ -38,7 +38,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
     private static readonly Dictionary<string, string> LookGenres = new(StringComparer.OrdinalIgnoreCase)
     {
         ["animated"] = "Animation", ["animation"] = "Animation", ["cartoon"] = "Animation", ["anime"] = "Animation",
-        ["documentary"] = "Documentary", ["musical"] = "Music",
+        ["documentary"] = "Documentary", ["musical"] = "Musical",
     };
 
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
@@ -65,7 +65,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
 
         var notes = new List<string>();
         var pool = new Dictionary<string, Candidate>(StringComparer.Ordinal);
-        DateOnly today = DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        DateOnly today = PersonCreditsTool.Today(clock);
 
         // The people: who they are, and everything they are credited on in the years asked for.
         // Clues are soft: none excludes a candidate. How strongly a fit counts: a person, the look, the plot
@@ -73,20 +73,21 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         // which people misremember most.
         var weights = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var clues = new List<string>();
-        var resolved = new List<string>();
-        foreach (Person person in await Task.WhenAll(people.Select(n => ReadPersonAsync(database, n, kind, from, to, ct))))
+        var resolved = new List<PersonCreditsTool.PersonMatch>();
+        foreach (Person person in await Task.WhenAll(people.Select(n => ReadPersonAsync(database, n, kind, from, to, today, ct))))
         {
             if (person.Note is not null) notes.Add(person.Note);
-            if (person.Credits is null) continue;
+            if (person.Match is null || person.Credits is null) continue;
 
-            resolved.Add(person.Credits.Name);
-            clues.Add(person.Credits.Name);
-            weights[person.Credits.Name] = 3;
-            foreach (Credit credit in person.Credits.Credits)
+            string name = person.Match.Name;
+            resolved.Add(person.Match);
+            clues.Add(name);
+            weights[name] = 3;
+            foreach (PersonCreditsTool.Credit credit in person.Credits.List)
             {
-                Candidate c = Get(pool, credit.ImdbId ?? $"tmdb:{credit.TmdbId}");
+                Candidate c = Get(pool, credit.Card.Id);
                 c.Fill(credit);
-                c.Set(person.Credits.Name, true, credit.Role is { Length: > 0 } role ? $"credited as {role}" : null);
+                c.Set(name, true, credit.Role is { } role ? $"credited as {role}" : null);
             }
         }
 
@@ -102,50 +103,61 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         foreach (string word in look) weights[word] = 3;
         foreach (string word in about) weights[Quoted(word)] = 2;
         if (language is not null) weights[$"original language {language}"] = 2;
+
+        // The words the catalogue holds as keywords and the language as its code, each resolved once.
+        string[] genres = [.. look.Where(LookGenres.ContainsKey).Select(l => LookGenres[l]).Distinct()];
+        string[] lookWords = [.. look.Where(l => !LookGenres.ContainsKey(l))];
+        string[] words = [.. lookWords.Concat(about).Distinct(StringComparer.OrdinalIgnoreCase)];
+        Term?[] terms = await Task.WhenAll(words.Select(w => Vocabulary.KeywordAsync(database, w, ct)));
+        var keywords = new Dictionary<string, Term?>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < words.Length; i++) keywords[words[i]] = terms[i];
+
+        string? languageCode = null;
+        if (language is not null)
+        {
+            try
+            {
+                languageCode = (await Vocabulary.ReadAsync(database, ct)).Language(language).Code;
+            }
+            catch (ToolRefusal refusal)
+            {
+                notes.Add(refusal.Message);
+            }
+        }
+
         // What the database finds by the look and the plot words, with the people when it can.
-        string discoverKind = kind ?? "film";
-        IReadOnlyList<string> with = discoverKind == "film" ? resolved : [];
-        string[] genres = [.. look.Where(LookGenres.ContainsKey).Select(l => LookGenres[l])];
-        string[] keywords = [.. look.Where(l => !LookGenres.ContainsKey(l))];
+        var with = new TitleFilter
+        {
+            Kind = kind ?? "film", From = from, To = to,
+            Languages = languageCode is null ? [] : [languageCode], People = [.. resolved.Select(p => p.Id)],
+        };
+        string[] names = [.. resolved.Select(p => p.Name)];
+        TitleFilter without = with with { People = [] };
 
         var searches = new List<Task<Found>>();
-        if (look.Count > 0 || language is not null)
+        if (look.Count > 0 || languageCode is not null)
         {
-            searches.Add(DiscoverAsync(database, new DiscoverQuery
-            {
-                Kind = discoverKind, Genre = genres, About = keywords, With = with, From = from, To = to,
-                Language = language, GoodOnly = false,
-            }, with, look, [], ct));
-            if (with.Count > 0)
-                searches.Add(DiscoverAsync(database, new DiscoverQuery
-                {
-                    Kind = discoverKind, Genre = genres, About = keywords, From = from, To = to, Language = language, GoodOnly = false,
-                }, [], look, [], ct));
+            searches.Add(SearchAsync(database, with with { Genres = genres }, lookWords, keywords, names, look, [], ct));
+            if (resolved.Count > 0)
+                searches.Add(SearchAsync(database, without with { Genres = genres }, lookWords, keywords, [], look, [], ct));
         }
 
         foreach (string word in about)
-            searches.Add(DiscoverAsync(database, new DiscoverQuery
-            {
-                Kind = discoverKind, About = [word], With = with, From = from, To = to, Language = language, GoodOnly = false,
-            }, with, [], [word], ct));
+            searches.Add(SearchAsync(database, with, [word], keywords, names, [], [word], ct));
 
         if (searches.Count == 0 && resolved.Count == 0)
         {
-            if (released is "upcoming" or "announced")
-                searches.Add(ListAsync(database, discoverKind, ct));
-            else
-                searches.Add(DiscoverAsync(database, new DiscoverQuery
-                {
-                    Kind = discoverKind, From = from, To = to, Language = language, GoodOnly = true,
-                }, [], [], [], ct));
+            searches.Add(released is "upcoming" or "announced"
+                ? SearchAsync(database, without with { Released = today.ToString("yyyy-MM-dd"), Sort = "popular" }, [], keywords, [], [], [], ct)
+                : SearchAsync(database, without with { MinRating = DiscoverTool.GoodRating, MinVotes = DiscoverTool.GoodVotes }, [], keywords, [], [], [], ct));
         }
 
         foreach (Found found in await Task.WhenAll(searches))
         {
             if (found.Note is not null) notes.Add(found.Note);
-            foreach (TitleHit hit in found.Hits)
+            foreach (CatalogueCard hit in found.Hits)
             {
-                Candidate c = Get(pool, hit.ImdbId ?? $"tmdb:{hit.TmdbId}");
+                Candidate c = Get(pool, hit.Id);
                 c.Fill(hit, today);
                 foreach (string name in found.People) c.Set(name, true, null);
                 foreach (string word in found.Look) c.Set(word, true, "the database tags it so");
@@ -153,11 +165,11 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             }
         }
 
-        Judge(pool.Values, resolved, years, from, to, released);
+        Judge(pool.Values, [.. names], years, from, to, released);
 
         // The best candidates are read as the database's own page for them, which holds the keywords.
         Candidate[] ranked = [.. Rank(pool.Values, weights)];
-        await Task.WhenAll(ranked.Take(Verified).Where(c => c.ImdbId is not null).Select(c => ReadAsync(database, c, look, about, ct)));
+        await Task.WhenAll(ranked.Take(Verified).Select(c => ReadAsync(database, c, look, about, ct)));
         ranked = [.. Rank(pool.Values, weights).Take(Shown)];
 
         if (ranked.Length == 0)
@@ -175,7 +187,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             text.Append($"Fits every clue: {string.Join("; ", fits.Select(c => TitleText.Named(c.Title, c.Year)))}.\n");
         else
         {
-            Candidate? closest = ranked.FirstOrDefault(c => c.ImdbId is not null && c.Unchecked(clues) == 0);
+            Candidate? closest = ranked.FirstOrDefault(c => c.Unchecked(clues) == 0);
             text.Append("No candidate fits every clue.");
             if (closest is not null)
             {
@@ -205,8 +217,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             .Append(string.Join(", ", more.Take(more.Count - 1))).Append(", or ").Append(more[^1]).Append(".\"");
 
         return ToolResult.Ok(text.ToString(), TitleCards.Of(
-            ranked.Where(c => c.ImdbId is not null)
-                .Select(c => new TitleCard(c.ImdbId!, c.Kind, c.Title, c.Year, c.PosterUrl, c.InLibrary, c.Watched))));
+            ranked.Select(c => new TitleCard(c.ImdbId, c.Kind, c.Title, c.Year, c.PosterUrl, c.InLibrary, c.Watched))));
     }
 
     private static string Quoted(string word) => $"\"{word}\"";
@@ -245,16 +256,8 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
     {
         try
         {
-            if (c.Kind == "show")
-            {
-                ShowDetails s = await database.ShowAsync(c.ImdbId!, ct);
-                c.Read(s.Keywords, s.Genres, s.Overview, look, about);
-            }
-            else
-            {
-                FilmDetails f = await database.FilmAsync(c.ImdbId!, ct);
-                c.Read(f.Keywords, f.Genres, f.Overview, look, about);
-            }
+            TitlePage page = await database.TitleAsync(c.ImdbId, ct);
+            c.Read([.. page.Keywords.Select(k => k.Name)], page.Genres, page.Overview, look, about);
         }
         catch (ToolRefusal)
         {
@@ -263,46 +266,44 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
     }
 
     private static async Task<Person> ReadPersonAsync(
-        CinemaApi.PersonApi database, string name, string? kind, int? from, int? to, CancellationToken ct)
+        CinemaApi.PersonApi database, string name, string? kind, int? from, int? to, DateOnly today, CancellationToken ct)
     {
         try
         {
-            PeopleResult found = await database.PeopleAsync(name, ct);
-            if (found.People.Count == 0)
-                return new Person(null, $"The database has nobody named '{name}'.");
+            (PersonCreditsTool.PersonMatch? match, string? note) = await PersonCreditsTool.FindAsync(database, name, null, null, ct);
+            if (match is null)
+                return new Person(null, null, $"The database has nobody named '{name}'.");
 
-            (PersonMatch match, string? note) = PersonCreditsTool.Pick(found.People, name, null, null);
-            PersonCredits credits = await database.CreditsAsync(match.PersonId, from, to, null, kind, ct);
-            return new Person(credits, note);
+            PersonCreditsTool.Credits credits = await PersonCreditsTool.CreditsAsync(database, match, from, to, null, kind, today, ct);
+            return new Person(match, credits, note);
         }
         catch (ToolRefusal refusal)
         {
-            return new Person(null, $"{name} could not be read: {refusal.Message}");
+            return new Person(null, null, $"{name} could not be read: {refusal.Message}");
         }
     }
 
-    private static async Task<Found> DiscoverAsync(
-        CinemaApi.PersonApi database, DiscoverQuery query, IReadOnlyList<string> people, IReadOnlyList<string> look,
-        IReadOnlyList<string> about, CancellationToken ct)
+    /// <summary>
+    /// One list the clues ask for, its <paramref name="keywordWords"/> as the keywords they resolved to. A
+    /// word the database holds no keyword for, or a list the API declines, is a note and finds nothing.
+    /// </summary>
+    private static async Task<Found> SearchAsync(
+        CinemaApi.PersonApi database, TitleFilter filter, IReadOnlyList<string> keywordWords, Dictionary<string, Term?> keywords,
+        IReadOnlyList<string> people, IReadOnlyList<string> look, IReadOnlyList<string> about, CancellationToken ct)
     {
-        var answer = await database.TryDiscoverAsync(query, ct);
-        return answer.Value is { } result
-            ? new Found(result.Titles, people, look, about, null)
+        if (keywordWords.FirstOrDefault(w => keywords.GetValueOrDefault(w) is null) is { } missing)
+            return new Found([], people, look, about, $"The database has no keyword '{missing}'.");
+
+        var answer = await database.TryTitlesAsync(filter with { Keywords = [.. keywordWords.Select(w => keywords[w]!.Value)] }, ct);
+        return answer.Value is { } page
+            ? new Found(page.Titles, people, look, about, null)
             : new Found([], people, look, about, answer.Why);
     }
 
-    private static async Task<Found> ListAsync(CinemaApi.PersonApi database, string kind, CancellationToken ct)
-    {
-        var answer = await database.TryUpcomingAsync(kind, ct);
-        return answer.Value is { } list
-            ? new Found(list.Titles, [], [], [], null)
-            : new Found([], [], [], [], answer.Why);
-    }
-
-    private sealed record Person(PersonCredits? Credits, string? Note);
+    private sealed record Person(PersonCreditsTool.PersonMatch? Match, PersonCreditsTool.Credits? Credits, string? Note);
 
     private sealed record Found(
-        IReadOnlyList<TitleHit> Hits, IReadOnlyList<string> People, IReadOnlyList<string> Look, IReadOnlyList<string> About, string? Note);
+        IReadOnlyList<CatalogueCard> Hits, IReadOnlyList<string> People, IReadOnlyList<string> Look, IReadOnlyList<string> About, string? Note);
 
     private readonly record struct Verdict(bool Ok, string? Why);
 
@@ -313,12 +314,12 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         public string Title { get; private set; } = "";
         public int? Year { get; private set; }
         public string Kind { get; private set; } = "film";
-        public string? ImdbId { get; private set; }
+        public string ImdbId { get; private set; } = "";
         public string? Date { get; private set; }
         public string Status { get; private set; } = "released";
         public string? Role { get; private set; }
         public string? Plot { get; private set; }
-        public double? Rating { get; private set; }
+        public CardRating? Rating { get; private set; }
         public int Votes { get; private set; }
         public bool InLibrary { get; private set; }
         public bool Watched { get; private set; }
@@ -340,21 +341,25 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             _verdicts[clue] = new Verdict(ok, why);
         }
 
-        public void Fill(Credit credit)
+        public void Fill(PersonCreditsTool.Credit credit)
         {
-            Title = credit.Title; Year = credit.Year; Kind = credit.Kind; ImdbId = credit.ImdbId; Date = credit.ReleaseDate;
-            Status = credit.Status; Role ??= credit.Role; Rating ??= credit.Rating; Votes = Math.Max(Votes, credit.Votes);
-            InLibrary = credit.InLibrary; Watched = credit.Watched; PosterUrl ??= credit.PosterUrl;
+            Fill(credit.Card);
+            Status = credit.Status;
+            Role ??= credit.Role;
         }
 
-        public void Fill(TitleHit hit, DateOnly today)
+        public void Fill(CatalogueCard card, DateOnly today)
         {
-            Title = hit.Title; Year = hit.Year; Kind = hit.Kind; ImdbId = hit.ImdbId; Date = hit.ReleaseDate;
-            Plot ??= hit.Plot; Rating ??= hit.Rating; Votes = Math.Max(Votes, hit.Votes);
-            InLibrary = hit.InLibrary; Watched = hit.Watched; PosterUrl ??= hit.PosterUrl;
-            if (Genres.Count == 0) Genres.AddRange(hit.Genres);
-            Status = hit.ReleaseDate is null ? "announced"
-                : DateOnly.TryParse(hit.ReleaseDate, out DateOnly day) && day > today ? "upcoming" : "released";
+            Fill(card);
+            Status = TitleText.Status(card, today);
+        }
+
+        private void Fill(CatalogueCard card)
+        {
+            Title = card.Title; Year = card.Year; Kind = card.Kind; ImdbId = card.Id; Date = card.Released;
+            Plot ??= card.Plot; Rating ??= card.Rating; Votes = Math.Max(Votes, card.Rating?.Votes ?? 0);
+            InLibrary = card.InLibrary; Watched = card.Watched; PosterUrl ??= card.Poster;
+            if (Genres.Count == 0) Genres.AddRange(card.Genres);
         }
 
         /// <summary>Settles the look and plot clues a database page can settle: its keywords, genres and overview.</summary>
@@ -414,8 +419,8 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             text.Append('.');
             if (Role is { Length: > 0 } role) text.Append(" Role: ").Append(role).Append('.');
             if (Genres.Count > 0) text.Append(' ').Append(string.Join(", ", Genres)).Append('.');
-            if (Rating is not null) text.Append(' ').Append(TitleText.Rating(Rating, Votes));
-            text.Append(ImdbId is { Length: > 0 } id ? $" id {id}." : " No IMDb id: it has no page here.");
+            if (TitleText.Rating(Rating) is { Length: > 0 } rated) text.Append(' ').Append(rated);
+            text.Append(" id ").Append(ImdbId).Append('.');
             if (Plot is { Length: > 0 } plot) text.Append("\n  ").Append(plot);
 
             var matched = clues.Where(c => _verdicts.TryGetValue(c, out Verdict v) && v.Ok).ToList();

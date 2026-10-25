@@ -1,5 +1,5 @@
 import React from "react";
-import { api, filmName, posterUrl } from "../api.js";
+import { catalogue, certificateOf, filmName, libraryApi, posterUrl, roomsApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
 import { ANIME, moviePath, tvPath } from "../paths.js";
@@ -8,9 +8,9 @@ import { useCan, useSession } from "../session.js";
 import { ago, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton } from "../components/Film.jsx";
 import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
-import { CastGrid, FactGrid, Keywords, TitleSkeleton, dollars, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroGroup, kindWord, ResumeMeter, TitleAbout, TitleAwards, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
-import { TitleShelves } from "./DiscoverShelves.jsx";
+import { TitleSkeleton } from "../components/FilmDetails.jsx";
+import { TitleSections, titleFacts } from "../components/TitleSections.jsx";
+import { HeroGroup, kindWord, ResumeMeter, TitleAbout, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
@@ -21,21 +21,21 @@ import { Unreachable } from "./Offline.jsx";
 /**
  * One film in the library: what it is, who made it and who is in it, watch, and Download.
  *
- * What the film is comes from the film database through the API, which keeps it; what is on this
- * server — its length, its picture, its size, how far this person got — comes from the library.
+ * What the film is comes from its catalogue page; what is on this server — its length, its picture,
+ * its size, how far this person got — comes from the library.
  * `fromDevice` is the page opened with no connection, drawn from the film's download on this device
  * (`useDeviceTitle`); a film not downloaded here cannot be drawn. `category` is the shelf the address
  * is under; a film the API shelves elsewhere moves to its own shelf's address.
  */
 export function Title({ id, category = null, fromDevice = false }) {
   const device = useDeviceTitle(id, fromDevice);
-  const served = useLoad(() => (fromDevice ? Promise.resolve(null) : api.title(id)), [id]);
+  const served = useLoad(() => (fromDevice ? Promise.resolve(null) : libraryApi.title(id)), [id]);
   const manifest = fromDevice ? device.manifest : served;
-  const listing = useLoad(() => (fromDevice ? Promise.resolve(null) : api.titles().then((all) => all.find((t) => t.id === id) || null)), [id]);
+  const listing = useLoad(() => (fromDevice ? Promise.resolve(null) : libraryApi.titles().then((all) => all.find((t) => t.id === id) || null)), [id]);
   const imdbId = !fromDevice && manifest.data && manifest.data.film && manifest.data.film.imdbId;
-  const described = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
-  const details = fromDevice ? device.details : described;
-  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : api.rooms()), [id]);
+  const described = useLoad(() => (imdbId ? catalogue.title(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
+  const details = fromDevice ? device.page : described;
+  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : roomsApi.list()), [id]);
   const session = useSession();
   const me = session && session.user;
   const saving = useOffersSaving();
@@ -54,7 +54,7 @@ export function Title({ id, category = null, fromDevice = false }) {
     if (episodeOf) navigate(episodeOf, { replace: true });
   }, [episodeOf]);
   // Under Anime or Movies, as the API shelves it. A film the listing does not name stays where it is.
-  const shelved = listing.data ? (listing.data.category === ANIME ? ANIME : null) : category;
+  const shelved = listing.data ? (listing.data.card && listing.data.card.category === ANIME ? ANIME : null) : category;
   React.useEffect(() => {
     if (!episodeOf && shelved !== category) navigate(moviePath(id, shelved), { replace: true });
   }, [episodeOf, shelved, category, id]);
@@ -68,40 +68,33 @@ export function Title({ id, category = null, fromDevice = false }) {
   if (!manifest.data) return <div className="kc-page"><Failed error={manifest.error} onRetry={manifest.reload} /></div>;
 
   const m = manifest.data;
-  const title = { id: m.id, title: m.title, poster: m.poster, film: m.film, details: details.data };
+  const title = { id: m.id, title: m.title, poster: m.poster, film: m.film, card: details.data };
   const film = m.film || {};
   const d = details.data;
   const summary = fromDevice ? device.summary : listing.data;
   // A room with nobody in it is not one to join: it is kept a while after the last person leaves.
   const room = (rooms.data || []).find((r) => r.titleId === m.id && r.participants > 0);
-  const backdrop = (d && d.backdropUrl) || posterUrl(title);
+  const backdrop = (d && d.backdrop) || posterUrl(title);
+  const certificate = certificateOf(d);
   const progress = summary && summary.progress && !summary.progress.finished && summary.progress.positionSeconds > 0
     ? summary.progress : null;
   const played = summary && summary.lastPlayed;
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
 
-  const facts = [
-    ["Original title", d ? originalTitle(d.title, d.originalTitle) : null],
-    ["Released", d && d.releaseDate ? new Date(d.releaseDate).getFullYear() : film.year],
-    ["Language", d && d.languages.length ? d.languages.join(", ") : null],
-    ["Country", d && d.countries.length ? d.countries.join(", ") : null],
-    ["Budget", d && dollars(d.budget)],
-    ["Box office", d && dollars(d.revenue)],
+  const facts = titleFacts(d, [
     ["Picture", pictureClass(m.video), true],
     ["Added", summary && summary.addedAt ? since(summary.addedAt) : null],
-    ["IMDb", film.imdbId, true],
-  ];
+  ]);
 
   return (
     <div className="kc-page kc-title">
       <TitleHero art={backdrop} eyebrow={kindWord("film", shelved === ANIME)} title={(d && d.title) || film.name || m.title}
-        trailer={d && d.trailers && d.trailers[0]}
-        facts={<TitleFacts rating={d && d.rating} votes={d && d.votes} ratedBy={d && d.ratedBy} kind="film" category={shelved}
-          parts={[film.year || (d && d.year), d && d.certification && { cert: d.certification }, clock(m.durationSeconds)]}
+        trailer={d && d.trailers[0]}
+        facts={<TitleFacts rating={d && d.rating && d.rating.value} votes={d && d.rating && d.rating.votes} ratedBy={d && d.rating && d.rating.by}
+          kind="film" category={shelved} parts={[film.year || (d && d.year), certificate && { cert: certificate }, clock(m.durationSeconds)]}
           genres={d ? d.genres : []} />}>
-        {d && <TitleHonours awards={d.awards} basedOn={d.basedOn} />}
-        <TitleAbout overview={d && d.overview}
-          credits={d || (film.starring ? { directors: [], writers: [], cast: film.starring.split(", ").map((name) => ({ name })) } : null)} />
+        {d && <TitleHonours facts={d.facts} />}
+        <TitleAbout overview={d && (d.overview || d.plot)} credits={d} />
         <HeroGroup>
           <div className="kc-actions">
             {m.status !== "failed" && driving && (
@@ -135,28 +128,7 @@ export function Title({ id, category = null, fromDevice = false }) {
         </HeroGroup>
       </TitleHero>
 
-      {d && d.cast.length > 0 && (
-        <section className="kc-section">
-          <h2>Cast</h2>
-          <CastGrid cast={d.cast} />
-        </section>
-      )}
-
-      {d && film.imdbId && !fromDevice && (
-        <TitleShelves kind="film" imdbId={film.imdbId}
-          directors={d.directors.map((name) => ({ name, personId: (d.personIds || {})[name] }))} stars={d.cast.slice(0, 2)} />
-      )}
-
-      {d && <TitleAwards awards={d.awards} />}
-
-      <section className="kc-section">
-        <h2>Details</h2>
-        <FactGrid facts={facts} />
-      </section>
-
-      {d && <Keywords tags={d.keywords} />}
-
-      {d && <p className="kc-attribution-note">Film details and artwork from TMDB.</p>}
+      <TitleSections page={d} facts={facts} shelves={!fromDevice && !!film.imdbId} />
     </div>
   );
 }

@@ -62,7 +62,7 @@ const UNSAVED = titles.find((t) => !t.episode && t.id !== FILM && t.id !== (UNDE
 let EPISODE = null;
 let SHOW = null;
 for (const t of titles.filter((x) => x.episode && x.status === "ready" && x.film && x.film.imdbId)) {
-  const show = await ask(`/api/shows/${encodeURIComponent(t.film.imdbId)}`);
+  const show = await ask(`/api/me/shows/${encodeURIComponent(t.film.imdbId)}`);
   if (show && show.seasons.some((x) => x.episodes.length > 1)) {
     EPISODE = t;
     SHOW = show;
@@ -78,7 +78,7 @@ const SHOW_EPISODES = SHOW.seasons.find((x) => x.number === EPISODE.episode.seas
 /** What the saver writes for a title, in the layout src/offline/CLAUDE.md sets out. */
 function metaFor(t, { complete }) {
   const film = t.film || {};
-  const d = t.details || {};
+  const card = t.card || null;
   const video = { name: "v0.mp4", role: "video", rendition: "v0", bytes: 4096 };
   const audio = { name: "a0.mp4", role: "audio", rendition: "a0", language: "eng", label: "English", bytes: 2048 };
   const poster = { name: "poster.jpg", role: "poster", type: "image/jpeg", bytes: 0 };
@@ -93,8 +93,9 @@ function metaFor(t, { complete }) {
     imdbId: film.imdbId || null,
     show: t.episode ? { imdbId: film.imdbId, name: film.name } : null,
     episode: t.episode ? { season: t.episode.season, number: t.episode.number, name: t.episode.name || null } : null,
-    overview: d.overview || null,
-    genres: d.genres || [],
+    overview: (card && card.plot) || null,
+    category: (card && card.category) || null,
+    card,
     durationSeconds: t.durationSeconds,
     quality: { rendition: "v0", width: 1280, height: 720, label: "720p" },
     files,

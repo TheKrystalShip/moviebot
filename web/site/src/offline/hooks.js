@@ -2,11 +2,11 @@
 // in another tab.
 
 import React from "react";
-import { api } from "../api.js";
+import { libraryApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { useSession } from "../session.js";
 import { artworkUrl, listSaves, listShows, onSavesChanged, readSave, readShow, showFile, space } from "./store.js";
-import { deviceEpisode, deviceFilm, deviceShow, deviceShowSummary, showFromSaves } from "./library.js";
+import { deviceEpisode, deviceFilm, deviceShow, deviceShowSummary, pageOf, showFromSaves } from "./library.js";
 import { progressOnDevice } from "./progress.js";
 
 /** Reads `load` now and on every change to the saves: `{ data, error, loading }`. */
@@ -142,8 +142,9 @@ export function useDeviceLibrary(enabled = true) {
 }
 
 /**
- * A show's page as the device holds it, in the shape `GET /api/shows/{imdbId}` answers (`deviceShow`):
- * from the kept show, else from its saved episodes alone; null when the device has neither.
+ * A show's page as the device holds it, `{ page, mine }`: its catalogue page and
+ * `GET /api/me/shows/{imdbId}` (`deviceShow`), from the kept show, else from its saved episodes alone;
+ * null when the device has neither.
  */
 export function useKeptShow(imdbId, enabled = true) {
   const session = useSession();
@@ -170,14 +171,14 @@ export function useKeptShow(imdbId, enabled = true) {
   if (!made || made.source !== read.data) return { data: null, error: null, loading: true };
   const { kept, saves } = read.data;
   const onDevice = new Set(saves.filter((s) => s.complete).map((s) => s.titleId));
-  const show = kept ? deviceShow(kept, made.value, onDevice) : showFromSaves(imdbId, saves);
+  const show = kept ? deviceShow(kept, made.value, onDevice, saves) : showFromSaves(imdbId, saves);
   return { data: show, error: null, loading: false };
 }
 
 /**
  * A title's page as its finished download on this device draws it, in the shapes the API answers:
- * `manifest` as `GET /api/titles/{id}`, `details` as `GET /api/films/{imdbId}` and `summary` as its
- * entry in `GET /api/titles`, each `{ data, error, loading }`. `manifest.data` is null when the title
+ * `manifest` as `GET /api/titles/{id}`, `page` as its catalogue page as far as its card tells it
+ * (`pageOf`) and `summary` as its entry in `GET /api/titles`, each `{ data, error, loading }`. `manifest.data` is null when the title
  * is not downloaded here.
  */
 export function useDeviceTitle(titleId, enabled = true) {
@@ -188,7 +189,7 @@ export function useDeviceTitle(titleId, enabled = true) {
   const poster = useArtwork(done, "poster");
   const backdrop = useArtwork(done, "backdrop");
   const shape = (data) => ({ data, error: null, loading: save.loading, reload: () => {} });
-  if (!done) return { manifest: shape(null), details: shape(null), summary: null };
+  if (!done) return { manifest: shape(null), page: shape(null), summary: null };
   const progress = progressOnDevice(sub, () => done.meta.durationSeconds);
   const film = deviceFilm(done, { poster, backdrop }, progress);
   const { meta } = done;
@@ -197,7 +198,7 @@ export function useDeviceTitle(titleId, enabled = true) {
     film: { ...film.film, imdbId: meta.imdbId },
     video: meta.quality && meta.quality.width ? { width: meta.quality.width, height: meta.quality.height } : null,
   };
-  return { manifest: shape(manifest), details: shape(film.details), summary: { progress: film.progress, addedAt: null } };
+  return { manifest: shape(manifest), page: shape(pageOf(film.card)), summary: { card: film.card, progress: film.progress, addedAt: null } };
 }
 
 /**
@@ -205,7 +206,7 @@ export function useDeviceTitle(titleId, enabled = true) {
  * does), `useLoad`'s way: the API's, or with `fromDevice` the ones this device holds.
  */
 export function useLibrary(kind, fromDevice) {
-  const listed = useLoad(() => (fromDevice ? Promise.resolve(null) : kind === "show" ? api.shows() : api.titles()), [kind, fromDevice]);
+  const listed = useLoad(() => (fromDevice ? Promise.resolve(null) : kind === "show" ? libraryApi.shows() : libraryApi.titles()), [kind, fromDevice]);
   const device = useDeviceLibrary(fromDevice);
   if (!fromDevice) return listed;
   const data = device.data ? (kind === "show" ? device.data.shows : device.data.films) : null;

@@ -146,7 +146,7 @@ repository beside the toolchain (`~/Android/jdk`, a JDK 21, and `~/Android/Sdk` 
 
 ```bash
 A=~/Android/Sdk/platform-tools/adb
-web/site/verify/mobile/scratch.sh                        # the scratch site, with MOVIEBOT_VERIFY_TMDB_TOKEN_FILE
+web/site/verify/mobile/scratch.sh                        # the scratch site, with MOVIEBOT_VERIFY_CATALOGUE
 $A reverse tcp:8299 tcp:8299; $A reverse tcp:8300 tcp:8300
 tv/build.sh --debug --install --open http://127.0.0.1:8299/
 $A forward tcp:9333 localabstract:webview_devtools_remote_$($A shell pidof com.thekrystalship.cinema.debug)

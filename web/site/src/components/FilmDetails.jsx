@@ -1,6 +1,6 @@
 import React from "react";
 import { Avatar, Button, Icon, Pill, Skeleton } from "@thekrystalship/krystal";
-import { discoverPersonPath } from "../paths.js";
+import { discoverListPath, discoverPersonPath } from "../paths.js";
 import { linkProps } from "../router.js";
 
 /** A count of votes the way the design prints one: 8,740 is 8.7K. */
@@ -50,13 +50,15 @@ export function Tagline({ text }) {
   return text ? <p className="kc-tt__tagline">{text}</p> : null;
 }
 
-/** The film database's keywords for a title (`{id, name}`), as a section of quiet chips; none, no section. */
+/** A title's keywords (`{id, name}`), as a section of quiet chips each leading to every title with it; none, no section. */
 export function Keywords({ tags }) {
   if (!tags || tags.length === 0) return null;
   return (
     <section className="kc-section">
       <h2>Keywords</h2>
-      <div className="kc-keywords">{tags.map((k) => <Pill key={k.id} tone="muted">{k.name}</Pill>)}</div>
+      <div className="kc-keywords">
+        {tags.map((k) => <a key={k.id} className="kc-keyword" {...linkProps(discoverListPath({ keyword: k.id }, k.name))}><Pill tone="muted">{k.name}</Pill></a>)}
+      </div>
     </section>
   );
 }
@@ -71,21 +73,28 @@ export function Genres({ names }) {
   return <div className="kc-genres">{names.map((g) => <span key={g} className="kc-genre">{g}</span>)}</div>;
 }
 
+/** The jobs a page's Writers row names. */
+const WRITING = ["Screenplay", "Writer", "Story", "Novel", "Characters", "Author"];
+
 /**
- * Director, writers and the top of the billing, as the design lays them out; a show names its
- * creators in the director's place. Each person the film database has an id for leads to their work
- * in Discover.
+ * Director, writers and the top of the billing, from a title's catalogue page (`film`: its `crew` and
+ * `cast`), as the design lays them out; a show names its creators in the director's place. Each person
+ * leads to their work in Discover.
  */
 export function Credits({ film }) {
-  const ids = film.personIds || {};
-  const named = (names) => (names || []).map((name) => ({ name, personId: ids[name] }));
-  const creators = named(film.creators);
-  const directors = named(film.directors);
+  const crew = film.crew || [];
+  const doing = (jobs, most) => {
+    const seen = new Set();
+    const key = (c) => c.personId || c.name;
+    return crew.filter((c) => jobs.includes(c.job) && !seen.has(key(c)) && seen.add(key(c))).slice(0, most);
+  };
+  const creators = doing(["Creator"], 3);
+  const directors = doing(["Director"], 3);
   const rows = [
     [creators.length > 1 ? "Creators" : "Creator", creators, ", "],
     [directors.length > 1 ? "Directors" : "Director", directors, ", "],
-    ["Writers", named(film.writers), ", "],
-    ["Stars", film.cast.slice(0, 4), " · "],
+    ["Writers", doing(WRITING, 3), ", "],
+    ["Stars", (film.cast || []).slice(0, 4), " · "],
   ].filter(([, people]) => people.length > 0);
   if (rows.length === 0) return null;
   return (
@@ -108,7 +117,7 @@ export function Credits({ film }) {
 }
 
 function Portrait({ person }) {
-  return <Avatar src={person.portraitUrl} name={person.name} tone="muted" size="css" className="kc-cast__face" />;
+  return <Avatar src={person.portrait} name={person.name} tone="muted" size="css" className="kc-cast__face" />;
 }
 
 /**
@@ -143,7 +152,7 @@ export function PersonCard({ person, line, tag, dot, face, href, onClick, presse
   return <div className={classes}>{body}</div>;
 }
 
-/** The billing, each person the film database has an id for leading to their work in Discover. */
+/** The billing, each person leading to their work in Discover. */
 export function CastGrid({ cast }) {
   return (
     <div className="kc-cast">

@@ -10,7 +10,7 @@
  */
 
 import { createStore, useStore } from "@thekrystalship/krystal";
-import { api } from "./api.js";
+import { libraryApi } from "./api/index.js";
 import { currentRemoteRoom, subscribeRemoteRoom } from "./remoteRoom.js";
 import { followFilm } from "./remoteSettings.js";
 import { freshToken } from "./session.js";
@@ -25,17 +25,18 @@ let sheetUrl = null;
 const pad = (n) => String(n).padStart(2, "0");
 
 /**
- * The picture that stands for what is playing: an episode's still, a film's backdrop. The API keeps them
- * beside the descriptions (`docs/api-contract.md`); a title with no description has none, and the list
- * names the next place to look.
+ * The picture that stands for what is playing: an episode's still, else its show's backdrop; a film's
+ * backdrop, else its poster. The catalogue serves each by the title's IMDb id
+ * (`/images/titles/{imdbId}/{name}`, `docs/api-contract.md`); a title it does not list has none, and the
+ * list names the next place to look.
  */
 export function stillSources(manifest) {
   const imdbId = manifest && manifest.film && manifest.film.imdbId;
   if (!imdbId) return manifest && manifest.poster ? [`/media/${encodeURIComponent(manifest.id)}/${encodeURIComponent(manifest.poster)}`] : [];
   const id = encodeURIComponent(imdbId);
   return manifest.episode
-    ? [`/shows/${id}/s${pad(manifest.episode.season)}e${pad(manifest.episode.number)}.jpg`, `/shows/${id}/backdrop.jpg`]
-    : [`/films/${id}/backdrop.jpg`, `/films/${id}/poster.jpg`];
+    ? [`/images/titles/${id}/s${pad(manifest.episode.season)}e${pad(manifest.episode.number)}`, `/images/titles/${id}/backdrop`]
+    : [`/images/titles/${id}/backdrop`, `/images/titles/${id}/poster`];
 }
 
 async function sheetOf(manifest) {
@@ -61,7 +62,7 @@ function release() {
 async function read(titleId, sessionId) {
   const mine = ++reading;
   try {
-    const [manifest, around] = await Promise.all([api.title(titleId), api.around(sessionId).catch(() => null)]);
+    const [manifest, around] = await Promise.all([libraryApi.title(titleId), libraryApi.around(sessionId).catch(() => null)]);
     if (mine !== reading) return;
     filmStore.setState({ titleId, sessionId, manifest, around, thumbnails: null });
     const thumbnails = await sheetOf(manifest);
@@ -84,7 +85,7 @@ async function read(titleId, sessionId) {
 export async function refreshRemoteFilm() {
   const { titleId } = filmStore.getState();
   if (!titleId) return;
-  const manifest = await api.title(titleId);
+  const manifest = await libraryApi.title(titleId);
   if (filmStore.getState().titleId === titleId) filmStore.setState({ manifest });
 }
 

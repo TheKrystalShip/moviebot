@@ -1,5 +1,5 @@
 import { TvCard, TvRow, TvSpotlight, TvTile } from "@thekrystalship/krystal";
-import { api, posterUrl } from "../../api.js";
+import { libraryApi, posterUrl } from "../../api/index.js";
 import { ANIME, discoverGenrePath, moviePath, showPath } from "../../paths.js";
 import { linkProps } from "../../router.js";
 import { Empty, Failed } from "../../components/Film.jsx";
@@ -25,8 +25,8 @@ export function TvLibrary({ kind, category = null }) {
   const { store, pageRef, regionRef, focusOn } = useSpotlight();
   // A film that could not be prepared cannot be played, so a television leaves it off.
   const filter = useListedFilter(
-    (params) => api.libraryPage(scope, { ...params, shelf: anime ? "anime" : "general" })
-      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets })),
+    (params) => libraryApi.page(scope, { ...params, shelf: anime ? "anime" : "general" })
+      .then((page) => ({ titles: page.items.map((i) => i.film || i.show), total: page.total, facets: page.facets, sorts: page.sorts })),
     { surface: films ? SORTED.films : SORTED.shows, keys: films ? FILM_KEYS : SHOW_KEYS, fixed: anime ? [] : ["kind"],
       passes: (t) => t.status !== "failed", deps: [scope] });
   // On Anime every title is anime, so its Kind offers films and series alone; a television picks no state.
@@ -38,8 +38,8 @@ export function TvLibrary({ kind, category = null }) {
   if (!filter.titles) return <div className="kc-tv-page" />;
 
   const items = filter.titles.map((t) => (t.kind === "show" || t.seasons
-    ? { key: "show:" + (t.imdbId || t.firstTitleId), genres: (t.details && t.details.genres) || [], show: t }
-    : { key: t.id, genres: (t.details && t.details.genres) || [], film: t }));
+    ? { key: "show:" + (t.imdbId || t.firstTitleId), genres: (t.card && t.card.genres) || [], show: t }
+    : { key: t.id, genres: (t.card && t.card.genres) || [], film: t }));
   const label = anime ? "Anime" : kind === "show" ? "TV Shows" : "Movies";
   const unit = anime ? ["title", "titles"] : kind === "show" ? ["show", "shows"] : ["film", "films"];
   if (filter.total === 0) return <div className="kc-tv-page kc-tv-pad"><Empty title={anime ? "No anime yet" : kind === "show" ? "No shows yet" : "No movies yet"} /></div>;
@@ -58,10 +58,10 @@ export function TvLibrary({ kind, category = null }) {
   // The page opens on its first card, the field above it a press of Up away.
   const first = rows.length > 0 ? rows[0].list[0] : null;
   const card = (item, row, genre) => item.show
-    ? <TvCard key={item.key} art={item.show.details && item.show.details.posterUrl} label={item.show.title} data-tv-initial={item === first && row === 0 ? "" : undefined}
-      {...linkProps(showPath(item.show.imdbId, { category: item.show.category }))} {...focusOn(row, showSpot(item.show, genre || label))} />
+    ? <TvCard key={item.key} art={item.show.card && item.show.card.poster} label={item.show.title} data-tv-initial={item === first && row === 0 ? "" : undefined}
+      {...linkProps(showPath(item.show.imdbId, { category: item.show.card && item.show.card.category }))} {...focusOn(row, showSpot(item.show, genre || label))} />
     : <TvCard key={item.key} art={posterUrl(item.film)} label={item.film.title} data-tv-initial={item === first && row === 0 ? "" : undefined}
-      {...linkProps(moviePath(item.film.id, item.film.category))} {...focusOn(row, titleSpot(item.film, genre || label))} />;
+      {...linkProps(moviePath(item.film.id, item.film.card && item.film.card.category))} {...focusOn(row, titleSpot(item.film, genre || label))} />;
 
   return (
     <div className="kc-tv-page kc-tvl" ref={pageRef}>

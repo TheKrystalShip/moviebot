@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
     - A long list is trimmed to the best-known credits with a count of the rest; all true lists every credit.
     - Several people with the name: returns them, each with what they are known for; ask, or pick the one the question makes obvious.
     """)]
-internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<PersonCreditsTool.Args, Caller>
+internal sealed partial class PersonCreditsTool(CinemaApi api, TimeProvider clock) : AssistantTool<PersonCreditsTool.Args, Caller>
 {
     public sealed record Args(
         [property: Description("The person's name.")] string Person,
@@ -30,6 +30,12 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
 
     /// <summary>A list this long or shorter is listed whole.</summary>
     internal const int Whole = 25;
+
+    /// <summary>The most credits one call reads: the newest, which the API gives a page at most of.</summary>
+    internal const int Read = 100;
+
+    /// <summary>How many of a person's best-known titles are named to tell them from another of the name.</summary>
+    private const int KnownShown = 3;
 
     /// <summary>The department the database files a person under, by the role asked for.</summary>
     private static readonly Dictionary<string, string> Departments = new()
@@ -50,6 +56,8 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
         string? kind = args.Kind.Wire();
         int? from = args.From;
         int? to = args.To;
+        if (from > to)
+            throw new ToolRefusal("from is after to.");
 
         string name = said;
         string? known = null;
@@ -59,30 +67,29 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
             known = m.Groups["known"].Value;
         }
 
-        PeopleResult found = await database.PeopleAsync(name, ct);
-        if (found.People.Count == 0)
+        (PersonMatch? person, string? note) = await FindAsync(database, name, known, role, ct);
+        if (person is null)
             return ToolResult.Ok($"The film database has nobody named '{name}'.");
 
-        (PersonMatch person, string? note) = Pick(found.People, name, known, role);
-        PersonCredits credits = await database.CreditsAsync(person.PersonId, from, to, role, kind, ct);
+        Credits credits = await CreditsAsync(database, person, from, to, role, kind, Today(clock), ct);
 
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append("\n\n");
-        text.Append("Credits of ").Append(credits.Name);
-        if (credits.KnownFor is { Length: > 0 } department) text.Append(" (known for ").Append(department).Append(')');
-        text.Append(", ").Append(Scope(role, kind, from, to)).Append(", as of ").Append(credits.AsOf).Append(". ");
+        text.Append("Credits of ").Append(person.Name);
+        if (person.KnownFor is { Length: > 0 } department) text.Append(" (known for ").Append(department).Append(')');
+        text.Append(", ").Append(Scope(role, kind, from, to)).Append(". ");
 
-        if (credits.Credits.Count == 0)
+        if (credits.List.Count == 0)
         {
             text.Append("None.");
             return ToolResult.Ok(text.ToString());
         }
 
-        (List<Credit> listed, int minor, int lesser) = args.All == true ? (credits.Credits, 0, 0) : Trim(credits.Credits);
-        text.Append(credits.Credits.Count).Append(credits.Credits.Count == 1 ? " credit" : " credits").Append(", oldest first.");
-        if (credits.Total > credits.Credits.Count)
-            text.Append($" The database holds {credits.Total}; these are the newest {credits.Credits.Count}.");
-        if (listed.Count < credits.Credits.Count)
+        (List<Credit> listed, int minor, int lesser) = args.All == true ? (credits.List, 0, 0) : Trim(credits.List);
+        text.Append(credits.List.Count).Append(credits.List.Count == 1 ? " credit" : " credits").Append(", oldest first.");
+        if (credits.Total > credits.List.Count)
+            text.Append($" The database holds {credits.Total}; these are the newest {credits.List.Count}.");
+        if (listed.Count < credits.List.Count)
             text.Append($" Listed: the {listed.Count} best known with a named part or job, upcoming and announced ones included.")
                 .Append($" Not listed: {Not(minor, lesser)}. Call person_credits again with all true to list every credit.");
         text.Append('\n');
@@ -90,8 +97,97 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
         foreach (Credit credit in listed)
             text.Append(Write(credit)).Append('\n');
 
-        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(listed));
+        return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(listed.Select(c => c.Card)));
     }
+
+    internal static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
+
+    /// <summary>A person the catalogue names: its id, and what tells them from another of the name.</summary>
+    internal sealed record PersonMatch(string Id, string Name, string? KnownFor)
+    {
+        /// <summary>Their best-known titles, read only where they have to be told from others.</summary>
+        public List<string> KnownForTitles { get; init; } = [];
+
+        /// <summary>Whether they are credited on the title the person was written with.</summary>
+        public bool HasKnown { get; init; }
+    }
+
+    /// <summary>One title a person is credited on, with its status on the day it was read.</summary>
+    internal sealed record Credit(CatalogueCard Card, string Status)
+    {
+        public string? Role => Card.Credit?.Role is { Length: > 0 } role ? role : null;
+        public int Votes => Card.Rating?.Votes ?? 0;
+    }
+
+    /// <summary>A person's credits, oldest first, and how many the database holds in all.</summary>
+    internal sealed record Credits(List<Credit> List, int Total);
+
+    /// <summary>
+    /// The people a name means, through the catalogue's terms, and the one to read (<see cref="Pick"/>).
+    /// Where several share the name, each one's best-known titles are read so the note can tell them
+    /// apart, and with a title written beside the name, whether each is credited on it. Null when the
+    /// catalogue names nobody so.
+    /// </summary>
+    internal static async Task<(PersonMatch? Person, string? Note)> FindAsync(
+        CinemaApi.PersonApi database, string name, string? known, string? role, CancellationToken ct)
+    {
+        List<PersonMatch> people = [.. (await database.TermsAsync(name, ct))
+            .Where(t => t.Filter == "person").Select(t => new PersonMatch(t.Value, t.Name, t.Detail))];
+        if (people.Count == 0) return (null, null);
+
+        int exact = people.Count(p => TitleText.Normal(p.Name) == TitleText.Normal(name));
+        if (exact != 1 && people.Count > 1)
+            people = [.. await Task.WhenAll(people.Select(async (p, i) =>
+                exact > 1 && TitleText.Normal(p.Name) != TitleText.Normal(name) || exact == 0 && i >= 4
+                    ? p
+                    : await DescribeAsync(database, p, exact > 1 ? known : null, ct)))];
+
+        return Pick(people, name, known, role);
+    }
+
+    private static async Task<PersonMatch> DescribeAsync(CinemaApi.PersonApi database, PersonMatch person, string? known, CancellationToken ct)
+    {
+        Task<CardPage> best = database.TitlesAsync(new TitleFilter { People = [person.Id], Sort = "votes", Size = KnownShown }, ct);
+        Task<CardPage>? on = known is null ? null : database.TitlesAsync(new TitleFilter { People = [person.Id], Words = known, Size = 1 }, ct);
+        return person with
+        {
+            KnownForTitles = [.. (await best).Titles.Select(t => TitleText.Named(t.Title, t.Year))],
+            HasKnown = on is not null && (await on).Titles.Count > 0,
+        };
+    }
+
+    /// <summary>
+    /// A person's credits in the years, the role and the kind asked for, oldest first with the undated
+    /// last. A person with more than <see cref="Read"/> is read as their newest <see cref="Read"/>: the
+    /// last pages of the oldest-first list, which end in the announced credits.
+    /// </summary>
+    internal static async Task<Credits> CreditsAsync(
+        CinemaApi.PersonApi database, PersonMatch person, int? from, int? to, string? role, string? kind, DateOnly today, CancellationToken ct)
+    {
+        var filter = new TitleFilter
+        {
+            People = [person.Id], Role = RoleWire(role), Kind = kind, From = from, To = to, Sort = "oldest", Size = Read,
+        };
+        CardPage first = await database.TitlesAsync(filter, ct);
+        List<CatalogueCard> cards = first.Titles;
+        if (first.Total > first.Titles.Count && first.Titles.Count == Read)
+        {
+            int last = (first.Total + Read - 1) / Read;
+            CardPage[] pages = await Task.WhenAll(new[] { last - 1, last }.Where(n => n > 1)
+                .Select(n => database.TitlesAsync(filter with { Page = n }, ct)));
+            cards = [.. (last - 1 == 1 ? first.Titles : []).Concat(pages.SelectMany(p => p.Titles)).TakeLast(Read)];
+        }
+
+        return new Credits([.. cards.Select(c => new Credit(c, TitleText.Status(c, today)))], first.Total);
+    }
+
+    /// <summary>The list query's word for a role: acting is the cast, and any is every credit.</summary>
+    private static string? RoleWire(string? role) => role switch
+    {
+        "acting" => "cast",
+        "directing" or "writing" => role,
+        _ => null,
+    };
 
     /// <summary>
     /// The credits worth listing from a long list, still oldest first. Every upcoming and announced credit
@@ -107,7 +203,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
         List<Credit> named = [.. credits.Where(c => !Minor(c))];
         HashSet<Credit> kept = [.. named.Where(c => c.Status != "released")];
         foreach (Credit credit in named.Where(c => c.Status == "released")
-                     .OrderByDescending(c => c.Votes).ThenByDescending(c => c.ReleaseDate, StringComparer.Ordinal).Take(Prominent))
+                     .OrderByDescending(c => c.Votes).ThenByDescending(c => c.Card.Released, StringComparer.Ordinal).Take(Prominent))
             kept.Add(credit);
 
         List<Credit> listed = [.. credits.Where(kept.Contains)];
@@ -130,10 +226,10 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
     }.Where(p => p is not null));
 
     /// <summary>
-    /// The person a name means. One exact match is the person. Where several share the name, the one the
-    /// person was written with a title of is chosen, else the one filed under the department the role
-    /// asks for, else the database's best match; the others are named in a note so the model can say so
-    /// or ask again.
+    /// The person a name means. One exact match is the person. Where several share the name, the one
+    /// credited on the title the person was written with is chosen, else the one filed under the
+    /// department the role asks for, else the most credited; the others are named in a note so the model
+    /// can say so or ask again.
     /// </summary>
     internal static (PersonMatch Person, string? Note) Pick(List<PersonMatch> people, string name, string? known, string? role)
     {
@@ -149,13 +245,12 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
             return (exact[0], null);
 
         PersonMatch chosen =
-            (known is null ? null : exact.FirstOrDefault(p =>
-                p.KnownForTitles.Any(t => t.Contains(known, StringComparison.OrdinalIgnoreCase))))
+            (known is null ? null : exact.FirstOrDefault(p => p.HasKnown))
             ?? (role is not null && Departments.TryGetValue(role, out string? department)
                 ? exact.FirstOrDefault(p => p.KnownFor == department) : null)
             ?? exact[0];
 
-        PersonMatch[] others = [.. exact.Where(p => p.PersonId != chosen.PersonId)];
+        PersonMatch[] others = [.. exact.Where(p => p.Id != chosen.Id)];
         return (chosen,
             $"Several people are named {name}. These are the credits of the one known for {Titles(chosen)}. "
             + $"The others: {Describe(others)}. If the question means another, call person_credits again with the name "
@@ -181,13 +276,14 @@ internal sealed partial class PersonCreditsTool(CinemaApi api) : AssistantTool<P
 
     private static string Write(Credit credit)
     {
+        CatalogueCard card = credit.Card;
         var text = new StringBuilder("- ");
-        text.Append(credit.ReleaseDate is { Length: > 0 } date ? date : "no date").Append(" | ").Append(TitleText.Status(credit.Status))
-            .Append(" | ").Append(TitleText.Named(credit.Title, credit.Year)).Append(", ").Append(TitleText.KindWord(credit.Kind)).Append('.');
-        if (credit.Role is { Length: > 0 } role) text.Append(" Role: ").Append(role).Append('.');
-        if (credit.Rating is not null) text.Append(' ').Append(TitleText.Rating(credit.Rating, credit.Votes));
-        if (credit.Watched && credit.Kind != "show") text.Append(" The person has watched it.");
-        text.Append(credit.ImdbId is { Length: > 0 } id ? $" id {id}." : " No IMDb id: it has no page here.");
+        text.Append(card.Released is { Length: > 0 } date ? date : "no date").Append(" | ").Append(TitleText.Status(credit.Status))
+            .Append(" | ").Append(TitleText.Named(card.Title, card.Year)).Append(", ").Append(TitleText.KindWord(card.Kind)).Append('.');
+        if (credit.Role is { } role) text.Append(" Role: ").Append(role).Append('.');
+        if (TitleText.Rating(card.Rating) is { Length: > 0 } rated) text.Append(' ').Append(rated);
+        if (card.Watched && card.Kind != "show") text.Append(" The person has watched it.");
+        text.Append(" id ").Append(card.Id).Append('.');
         return text.ToString();
     }
 }

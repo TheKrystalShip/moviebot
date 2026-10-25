@@ -22,51 +22,40 @@ which one it is under changes no URL. Left empty, the whole library is the media
 | `GET /api/sessions` | `RoomSummary[]` — every room the person may enter, what it is watching, how many are in it; every room on the service key. A private room is in nobody else's list |
 | `GET /api/sessions/{id}` | `SessionStatePush` — creates the session if new. This and every `/api/sessions/{id}/…` route lets the person into the room when it admits them, makes it for them when there is none, and is a `403` when it is private to them (Who may come in, under Hub) |
 | `GET /api/sessions/{id}/participants` | `Participant[]` |
-| `GET /api/sessions/{id}/around` | `{current?, previous?, next?}` — the episode the room holds, by its title or as it arrives, and the episodes either side, each `{season, number, name?, titleId?}`: the next of its season else the first of the next, as the film database lists the show, or as the library holds it for a show it has not described, and previous the other way. `titleId` is absent for one the library does not hold, which is named only to somebody holding `cinema:download`. All absent for a film |
+| `GET /api/sessions/{id}/around` | `{current?, previous?, next?}` — the episode the room holds, by its title or as it arrives, and the episodes either side, each `{season, number, name?, titleId?}`: the next of its season else the first of the next, as the catalogue lists the show, or as the library holds it for a show the catalogue does not list, and previous the other way. `titleId` is absent for one the library does not hold, which is named only to somebody holding `cinema:download`. All absent for a film |
 | `POST /api/sessions/{id}/title` | `SessionStatePush` — puts a film in the room, or 404 if the library has no such title. The body is `{titleId, startSeconds?}`; `startSeconds` puts the room there instead of at the beginning, held to the transcode head like a seek. Recorded as the token's person, or as MovieBot on the service key |
 | `POST /api/sessions/{id}/play` | `RoomChanged` |
 | `POST /api/sessions/{id}/pause` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek` | `RoomChanged` |
 | `POST /api/sessions/{id}/seek-relative` | `RoomChanged` |
 | `GET,HEAD /media/{id}/**` | playlists, segments, subtitles, poster. Opened by `?mt=` or the bearer token |
-| `GET /api/films/{imdbId}` | `FilmView` — a film as the film database describes it, in the library or not, with artwork at this server's addresses, and with the `awards` and `basedOn` Wikidata says of it once they are kept (Wikidata, below), and with its trailers, recommendations, reviews, logo, box office and keywords (What a description carries, below). `404` when the database holds no film under the id, `503` when it cannot be asked and nothing is kept |
-| `GET,HEAD /films/{imdbId}/{poster.jpg,backdrop.jpg,logo.png,cast-N.jpg}` | the artwork kept beside a description. Open: it is public artwork and an `<img>` carries no token |
-| `GET /api/popular` | `{films, shows, fetchedAt?}` — the films and shows the film database counts as trending this week, most first, each `{imdbId, title, year?, rating?, votes, ratedBy?, posterUrl?, category?}`, read from what is kept. Both lists are empty and `fetchedAt` absent until the database has first been asked |
-| `GET,HEAD /popular/{imdbId}.jpg` | a trending entry's poster, open like a film's artwork |
-| `GET,HEAD /glances/{imdbId}/poster.jpg` | a search result's or a catalogue title's poster from the film database, the one its page shows, fetched and kept the first time it is wanted; open like a film's artwork |
-| `GET /api/catalogue/people/{personId}?sort=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `CataloguePersonView` — `{personId, name, knownFor?, portraitUrl?, titles}`: a person by the film database's id for them (a cast member's `personId`, a director's, writer's or creator's in `personIds`), and up to 40 films and shows they are credited on, the most voted on first. `titles` are `CatalogueTitleView`s, `{imdbId, kind, title, year?, rating?, votes, ratedBy?, overview?, genres, originalLanguage?, posterUrl?, role?, category?}`, `genres` by the database's names for the title's kind and `role` the part played or the job done (`Director`, `Writer`…), several joined by ` · `. A filter's picks keep the titles that answer them (Filters and facets, below). A credit as themselves and any on a talk, news or reality show is left out, and so is a title with no IMDb id. `knownFor` is the database's department for them (`Acting`, `Directing`…). Kept a week. `404` when the database has nobody under the id, `503` when it cannot be asked and nothing is kept `sort` orders the titles: `popular` (the default and the order above), `least-popular` (its reverse), `rating` and `lowest` (the best and the lowest rated first, the more voted first among equals), `newest` and `oldest`, a title with no rating or no year last in an order by it; another is a `400`. Its facets (`/facets`) list these as `sorts`. |
-| `GET /api/catalogue/genre?kind=&name=&category=&sort=&anyGenre=&decade=&length=&minRating=&language=` | `CatalogueGenreView` — `{kind, genre, category?, titles}`, each a `CatalogueTitleView`: up to 40 of the most popular films (`kind=film`) or shows (`kind=show`) in the genre `name` names, in any case, each with at least 100 votes; `genre` is the database's own spelling. `category=anime` lists the anime among them (Categories, below), and is the one category a genre takes; `category` in the answer says so. A genre's name is the one a description's `genres` carries, so a shelf of a genre leads on to it in one call. Films and shows have separate genres (`Science Fiction` is a film's, `Sci-Fi & Fantasy` a show's). A filter's picks keep the titles that answer them; the genre and the kind are the list's own, and so is the language of its anime, and a pick in one is a `400`. Kept a day. `400` without a kind or a name, for a category that is not `anime`, or for a pick that is no option or is in a section the list fixes, `404` for a name the database has no genre by, `503` when it cannot be asked and nothing is kept `sort` orders the titles: `popular` (the default and the order above), `least-popular` (its reverse), `rating` and `lowest` (the best and the lowest rated first, the more voted first among equals), `newest` and `oldest`, a title with no rating or no year last in an order by it; another is a `400`. Its facets (`/facets`) list these as `sorts`. |
-| `GET /api/catalogue/search?q=&kind=&year=` | `CatalogueSearchView` — `{query, titles}`: films and shows by their name or words from it, best match first (a title named exactly as typed leads), at most 10, each a `TitleHitView`. `kind` is `film` or `show`; `year` keeps the titles released in it or the year either side, and drops those with no date. `400` for a blank `q` or a kind that is neither, `503` when the database cannot be asked and nothing is kept. Kept a day |
-| `GET /api/catalogue/people?q=` | `CataloguePeopleView` — `{query, people}`: the people a name could mean, best match first, each `{personId, name, knownFor?, portraitUrl?, knownForTitles}` where `knownForTitles` are up to three `Name (year)`. `portraitUrl` is set once the person's credits have been asked for. Kept a day. `400` for a blank `q` |
-| `GET /api/catalogue/people/{personId}/credits?from=&to=&role=&kind=&appearances=` | `PersonCreditsView` — `{personId, name, knownFor?, portraitUrl?, asOf, total, credits}`: everything the person is credited on, cast and crew, films and shows, **oldest first**, each a `CreditView`. `from` and `to` are years (the same year twice is that year); `role` is `acting`, `directing`, `writing` or `any` (the default, every credit including producing and the rest of the crew); `kind` is `film` or `show`. A part as oneself and any part on a talk, news or reality show is left out unless `appearances=true`. A credit with no date is an announcement and is listed whenever the years asked for reach this year or later, or have no end. At most 300 credits come back, the newest, and `total` counts every match. Kept a day. `400` for a role or kind that is not one or `from` after `to`, `404` when the database has nobody under the id, `503` when it cannot be asked and nothing is kept |
-| `GET /api/catalogue/discover?kind=&genre=&anyGenre=&exclude=&includeFamily=&from=&to=&decade=&length=&with=&about=&language=&like=&goodOnly=&minRating=&minVotes=&minRuntime=&maxRuntime=&sort=&limit=&page=&category=` | `CatalogueDiscoverView` — `{kind, resolved, titles, next?}`: a page of up to 20 films (the default), shows, or both (`kind=all`) found by what they are like, each a `TitleHitView`. `page` counts from 1 and `next` is the page that follows, absent on the last; at most 25 pages are served, and `limit` (default 500, at most 500) is the most titles across all of them, a `limit` under 20 being one page of that size. Each page is asked of the database when wanted and kept as a distinct answer. A sort by rating ranks one list of the most voted matches and every page is a slice of it, so the pages continue one order and end with that list, and `lowest` is that list last first, paged the same way; a `like` discovery pages over the narrowed similar titles and ends with them; any other sort pages the database's own pages. Every filter is optional and they combine. `genre`, `with` and `about` repeat or take commas. `genre` names genres, in any case, by the database's name, Cinema's (Filters and facets, below: `science fiction` for a show's `Sci-Fi & Fantasy`) or a word of one (`action` for a show's `Action & Adventure`), a title in all of them. A search with `genre` leaves out the titles filed under Animation, Family (and Kids, for shows) unless `genre` names one of them or `includeFamily=true`; `exclude` names further genres to leave out, and one that `genre` asks for is a `400`. `from` and `to` are release years. `with` names people, resolved to the database's best match for each and in all the results (films only). `about` is keywords by words (`time loop`, `heist`), resolved to the database's keyword of that name else its best match; a description's `keywords` lead here by name (`about=<name>`). `language` is an original language by code or English name; several are any of them. `anyGenre`, `decade` and `length` are a filter's picks, each repeating or taking commas and answered as any of its values (Filters and facets, below). `goodOnly` (default true) asks for a rating of at least 6.5 on at least 200 votes; `minRating` and `minVotes` name the floors instead; `minRuntime` and `maxRuntime` bound a film's length, or a show's episode's, in minutes; a sort by rating orders the five pages of the most voted matches by a rating weighted by votes (each average counts in proportion to its votes, the rest toward the mean of those matches, with the votes of their lower quartile as the prior), so a title a few hundred people rated 8.4 does not outrank one thousands rated 7.6; on a host that has imported IMDb's datasets it ranks by IMDb's rating instead (IMDb's datasets, below). `unwatched=true` leaves off the titles the asking person watched, page by page as on `/api/discover/shelves/{id}`. `sort` is `popular` (the default), `least-popular` (the least looked at first, with at least 25 votes behind each unless `minVotes` names the floor), `rating`, `lowest` (the titles `rating` ranks, the lowest first), `newest` (only titles already out) or `oldest`. `category=anime` keeps the anime alone: it adds Animation to `genre` and sets `language` to Japanese, which `resolved` reports, and a `language` naming another is a `400`. `like` is a title to find others similar to: an IMDb id, or a name with the year in brackets when needed; it starts from the titles the database recommends for it and counts as similar and narrows them by the other filters, in the database's order unless `sort` is named, and fixes `kind` to its own. `resolved` says what each word matched: `{genres, anyGenres, excluded, people:[{personId, name, knownFor?}], keywords, studios, language?, languages, decades, lengths, like?, minRating?, minVotes?, sort}`, `language` the one language when there is one and `languages` the several picked, `studios` being the studios a question named (`/api/catalogue/ask`), each as the database spells it. `404` when a genre, person, keyword, language or `like` title is not in the database (a genre's refusal lists the genres there are), `400` for a kind, sort, category, decade or length that is not one, a number that is not a number, a `page` under 1 or over 25, `from` after `to`, a length on shows, `minRuntime` over `maxRuntime`, `with` on shows, `like` of the other kind, or `like` with a runtime, which the titles it starts from do not carry, or with a studio, `503` when the database cannot be asked and nothing is kept. Kept a day |
-| `GET /api/catalogue/ask?q=&page=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `CatalogueQuestionView` — `{query, question, parts, kind?, resolved?, titles, next?, message?}`: the words typed into Discover read as a question of the catalogue (`top 10 horror movies from 2000`, `korean thrillers of the 2010s`, `sci-fi with keanu reeves`, `keanu reeves movies`), answered as the discovery they ask (`/api/catalogue/discover`) with `kind`, `resolved` and a page of up to 20 `TitleHitView`s; `page` and `next` are as on `/api/catalogue/discover`, and the question's count (`top 30`, at most 100) is the most titles across all its pages. `400` for a `page` under 1 or over 25. `kind`, `category`, `anyGenre`, `decade`, `length`, `minRating`, `language` and `unwatched` are a filter's picks on the question, as on `/api/catalogue/discover` (Filters and facets, below); `kind` and `category` take the place of a kind the question does not name, and a pick in a section the question names for itself (`kind` or `category`, `genre`, `years`, `runtime`, `language` among its `parts`) is a `400`. A question answered from a set Wikidata lists takes the picks over every film of the set it narrows to, at most 1,000 (Filters and facets, below); its set is of films, so a pick of a kind is a `400`. `question` is false, with no parts and no titles, when the words are a title's name: a word nothing reads (`Horror Express`), a bare year (`1917`), a person's name alone, or leading words that name no person, no keyword and no studio. `parts` is the reading in the order typed, each `{part, text}` with `part` one of `count`, `sort`, `kind`, `genre`, `exclude`, `category`, `years`, `language`, `runtime`, `person`, `about`, `studio`, `like`, `award`, `adaptation`, `place`, `subgenre` or `subject`. The reader's own grammar is counts and orders (`top 10`, `best`, `newest`), kinds, years, ranges, decades and bounds (`2000`, `the 90s`, `before 1980`, `this year`), runtime bounds (`under 90 minutes`), markers that make the words after them a name (`with`, `starring`, `by`, `about`, `like`), leaving a genre out (`not animated`) and `anime`; they may come in any order. It also reads what Wikidata lists (Wikidata, below): awards (`oscar winners`, `best picture nominees`, `palme d'or winners`), subgenres (`slasher`, `heist`, `neo-noir`, `found footage`, `cyberpunk`, `film noir`, `spaghetti western`, `zombie`, `disaster`) and subjects (`ww2`, `world war ii`) as closed phrases, an author's adaptations (`stephen king adaptations`, `adaptations of jane austen`, `based on agatha christie`) and a place (`set in paris`, `filmed in rome`) as a name to resolve. A genre is recognised from the film database's genre list for the kind asked (by name, plural or a word of a name, and a few common words it spells otherwise such as `sci-fi` and `romcom`), a language from its language list by English name, bare or after `in`. Leading words nothing reads, and a bare `with`, are a person by their exact name (a single leading word is one only before a kind or `anime`; before a genre alone it is a title's name, as `star wars` is) (or the surname of the most looked-at person called it), else a studio a production company is called exactly (`a24`), else a keyword by its exact name, else a studio named within a company's name; a studio only where no title is called exactly the words. A studio is every production company the database files under a name holding the words as whole words (`blumhouse` is Blumhouse Productions, Blumhouse Television and Blumhouse Atomic Monster), its part's text the words as the database spells them; its question keeps every title made by any of them with at least 50 votes, with no floor on rating, as the studios shelf does. Words that are no question by the reader's grammar are still a studio's alone (`blumhouse`, `a24`) when no title or person is called exactly that, nor a keyword unless a company is, and the studio's first page holds at least 10 titles; asking whether they name a studio is the one question such words put to the database, kept 30 days. A question the database refuses (a genre the kind lacks, nobody by a name) is still a question: `question` is true, `titles` empty and `message` its reason. `400` for a blank `q`, `503` when the database cannot be asked and nothing is kept. Kept as `/api/catalogue/discover` keeps an answer. A question that names a set Wikidata lists is answered from that set (Wikidata, below) and not from the film database's discovery |
-| `GET /api/discover` | `DiscoverIndexView` — `{spotlight, rows, sections, filmGenres, showGenres, languages, shelves, films}` for the asking person. `spotlight` is the shelf the page's spotlight draws from: the season's while it is in season (Halloween through October, Christmas from 1 to 26 December, Valentine's from 1 to 14 February, summer blockbusters from 21 June to 31 August), else `trending-films`. `rows` is the page's rows in order, each `{kind, shelf?}`: `shelf` a shelf `{id, title, icon, kind?}` (`icon` a Lucide name, `kind` `film` or `show`, absent for a shelf of both), or `moods`, `franchises` and `browse`, which draw those categories' shelves and the categories as tiles. The rows hold a shelf `like-<kind>-<imdbId>` of what is like each of the two titles the person most recently finished (`Because you watched <name>`), the season's shelf, `popular-here` once anybody here watched a title the library still holds in the last 30 days, one director's films, a different director each day, and `ready-here`, among the shelves the same for everybody. `sections` is the browse categories in order (`moods`, `movies`, `shows`, `genres`, `themes`, `awards`, `adaptations`, `places`, `world`, `franchises`, `studios`, `directors`; `awards`, `adaptations` and `places` are present once Wikidata's weekly cycle has kept a set for them, and `themes` gains its Wikidata shelves then; a section with no shelf is absent), each `{id, label, icon, caption, count, posters, series, shelves}`: `caption` how many shelves in words, `count` how many as a number, `posters` three from its first shelves, `series` true for the franchises, whose shelves are films of one series in release order. The franchises are the curated series, then every series of the film database with at least two released films and 10,000 votes between them, the most voted first (Franchises, `src/moviebot.settings.json`); their `shelves` is the page's row alone, at most 24, in the asking person's order (`/api/discover/sections/{id}`), and `count` counts them all. A mood's and a franchise's shelf carries `posters` (its first four), `total`, how many titles its first page holds, and `more: true` when it goes on past that page; a franchise's also `watched`, how many of its films the person watched through, and `next`, once any is, the first they have not, by the part of its name that tells it from the series (`Part II` of Back to the Future, `Chamber of Secrets` of Harry Potter). `filmGenres` and `showGenres` are the database's genres by name (a show's without talk, news and reality), and `languages` the ones the page's filter offers, `{code, name}`. `shelves` and `films` are what the page's first screen draws, so it draws it from one answer: `shelves` the spotlight's shelf and the first three shelf rows', each as `/api/discover/shelves/{id}` answers it, and `films` the spotlight's films, its shelf's first four films the person has not watched, each as `/api/films/{imdbId}` answers it. They are asked for together and carried when they answer within 400 ms, which a kept answer does; one that does not is missing from them, the page asks for it by its own route, and it is kept for the next answer all the same |
-| `GET /api/discover/shelves/{id}?page=&sort=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `ShelfView` — `{id, title, icon, section, kind?, titles, next?}`: one page of a shelf, `section` being its category's label, and up to 40 titles in its order, each `{imdbId, kind, title, year?, rating?, votes, ratedBy?, posterUrl?, starring?, inLibrary, libraryId?, watched, category?, role?, genres, originalLanguage?, runtimeMinutes?}`; `role` the part the shelf's person had on the title, `genres` by the database's names (empty while nothing names them) and `runtimeMinutes` a film's on the shelves of what the library holds; a title the database holds no IMDb id for is on no shelf. A shelf ordered by rating (the acclaimed shelves) is ranked as a discovery is. A shelf the same for everybody is a question of the film database by its own ids (a discovery, the day's trending titles, what is in cinemas, a series' films in release order, a director's films most voted first), kept as `/api/catalogue/discover` keeps an answer, and asked again every `Tmdb.ShelvesWarmMinutes` ahead of anybody, so it reads what is kept. `popular-here` is the films and shows the most people here watched in the last 30 days, the most recently watched first among as many, and names nobody and no count; `ready-here` is the library's films that play now and the person has not watched through, the best rated first; both read the library as listed and never wait on the database. `page` counts from 1 and `next` is the page that follows, absent on the last, as on `/api/catalogue/discover`; at most 25 pages are served. A discovery, a chart, the new releases and coming soon windows (each page a band of the most looked at, newest first within it), the titles like another and a director's films (the most voted first) are paged; a series, the week's trending titles, `popular-here` and `ready-here` are whole in one answer and end on their first page (`next` absent, a later page empty). The warm copy a shelf is kept fresh by is its first page, and `/api/discover` carries first pages only. A person's shelf is per person, so it is no row of `/api/discover`, is never warmed and is never kept: `directed-<personId>` (`personId` the film database's id) is the films the person directed that are out, most voted first, titled `More from <name>` with the `megaphone` icon, kind `film`, and each title's `role` is `Director`; `starring-<personId>` is the person's acting work that is out, films and shows, most voted first, titled `More from <name>` with the `user` icon and no kind, and each title's `role` is the part played; it leaves out an appearance as oneself, a part only ever credited as uncredited, and a show the person played in fewer than 3 episodes of (a show whose episodes the database does not count is left out). Both are paged and take `sort`; a person the film database holds nobody under is a shelf with no titles, and an id that is not a positive number is a shelf that does not exist. A shelf of awards, an author's adaptations, a place or a subgenre is a set Wikidata lists (Wikidata, below): it reads what the weekly cycle kept, never asks Wikidata, and is absent from `/api/discover` and empty here until its set is kept; it is paged over the set, the newest release first for an award or an adaptation and the most voted on IMDb first for the rest, at most 1,000 titles. `sort` (`rating`, `lowest`, `newest` or `oldest`; absent or `order` for the shelf's own) orders the whole shelf before it is paged, so every page continues the one before it: `rating` ranks as a discovery by rating does, `lowest` is the shelf `rating` ranks read whole and served last first, `newest` and `oldest` by release, an undated title last. A discovery and the titles like another are asked of the database in that order; a chart, and the new releases and coming soon windows, are their first 100 titles (the most looked at of a window) in that order; a series, a director's films, a Wikidata set and a shelf whole in one answer are ordered as they are held. A shelf the database has nothing under answers with no titles. `kind`, `category`, `anyGenre`, `decade`, `length`, `minRating` and `language` are a filter's picks (Filters and facets, below), and a page with picks is never the copy the shelf is warmed by. `unwatched=true` leaves off the titles the asking person watched, page by page, so a page that held some comes back shorter and `next` is as it was. A shelf that is a discovery of the database's own ids and lists at most 1,000 titles is held whole, every title with its card, by each pass that keeps the shelves fresh, and is narrowed and ordered over the titles held, asking the database nothing; one that lists more, or one no pass has held yet, is asked narrowed, by the genres of the shelf's kind. Every other shelf is read whole in the order asked, a chart and the new releases and coming soon windows to their first 100 titles and the rest to at most 1,000, then narrowed and paged. A shelf of one kind takes no pick of a kind. `404` for an id that names no shelf, `400` for a `page` under 1 or over 25, a `sort` that is none of these or a pick the shelf does not take, `503` when the database cannot be asked and nothing is kept |
-| `GET /api/catalogue/discover/facets?` (the parameters of `/api/catalogue/discover`) | `CatalogueFacetsView` — `{sections, sorts}`: which options each section of that discovery's answers holds, and the orders it is served in (Filters and facets, below). The refusals are the discovery's |
-| `GET /api/catalogue/ask/facets?q=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `CatalogueFacetsView` — the facets of a question with a filter's picks on it, leaving out the sections the question names for itself. Words that are no question and a question nothing answers have no sections; one answered from a set Wikidata lists is counted over every film of the set, and has no `kind` section. `400` for a blank `q` or a pick in a section the question names |
-| `GET /api/discover/shelves/{id}/facets?kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `CatalogueFacetsView` — the facets of a shelf with a filter's picks on it, counted over the titles it is read whole as; a discovery that is not held whole (see above) is measured of the database. A discovery held whole leaves out the genres the shelf names for itself and, on a shelf of shows, the unscripted ones. A shelf of one kind has no `kind` section. `404` for an id that names no shelf, `400` for a pick it does not take |
-| `GET /api/discover/sections/{id}?page=` | `ShelfSectionPageView` — `{id, label, icon, count, shelves, next?}`: a page of 40 of a category of series (`franchises`), each shelf drawn as `/api/discover` draws a franchise's, with `posters`, `total`, `watched` and `next`. They come in the asking person's order: the series they are partway through, then those they have not started, then those they watched through, each in the category's own order (the curated series, then the most voted); a series nothing has been answered for yet counts as not started, and one whose first page holds nothing is left off. `count` is how many series the category holds and `next` the page that follows, absent on the last. `404` for an id that names no category of series, `400` for a `page` under 1 or over 25 |
-| `GET /api/discover/sections/{id}/facets?anyGenre=&decade=&length=&minRating=&language=` | `CatalogueFacetsView` — the facets of a browse category (an id of `/api/discover`'s `sections`), each option one that any of its shelves offers, empty unless one of them holds it with the picks on it, without counts; each shelf takes the picks through `/api/discover/shelves/{id}`. Its shelves are of their own kinds, so it has no `kind` section and a pick of a kind is a `400`. Each shelf is measured in turn, and an option one shelf holds is not asked of the next. `404` for an id that names no category, `503` when a shelf cannot be measured |
-| `GET /api/catalogue/released?kind=&days=&category=` · `GET /api/catalogue/upcoming?kind=&days=&category=` | `CatalogueListView` — `{kind, from, to, titles}`: the most looked at films (`kind=film`, the default) or shows released in the last `days` days (default 45, at most 120), newest first; or with a date in the next `days` days (default 180, at most 365), soonest first; with `category=anime`, of the anime alone. At most 20 `TitleHitView`s. Kept six hours. `400` for a kind that is neither or a category that is not `anime` |
-| `GET /api/catalogue/added?kind=&category=&limit=` | `LibraryAdditionsView` — `{titles}`: the library's newest films and shows, newest first, at most `limit` (default 20, at most 50), each `{imdbId?, kind, title, year?, genres, rating?, plot?, posterUrl?, libraryId, addedAt, watched, category?}`; `category` (`anime` or `general`) keeps the titles on that shelf, a title nothing describes yet counting as general; `libraryId` is the film's title or the show's first episode and `addedAt` the film's arrival or the show's latest episode's. Read from what is kept: nothing waits on the database |
-| `GET,HEAD /catalogue/people/{personId}.jpg` | a person's portrait, kept with their credits; open like a film's artwork |
-| `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, firstYear?, lastYear?, status?, details?, seasons, episodes, seasonProgress, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId, category?}`. `seasons` are the numbers of the seasons it holds and `episodes` how many episodes; `seasonProgress` is `[{season, episodes, watched}]`, each season it holds in order, with the episodes held of it and how many of those the asking person watched through |
+| `GET /api/catalogue/titles?…` | `CardPage` — `{titles, total, next?}`: a page of cards (Catalogue, below), `next` the next page's number while there is one. The one list query: every filter of Catalogue's list query, and the asking person's `unwatched`, `inLibrary` and `here`. A parameter it does not take is refused with `400`, as is a value it cannot read. Takes `cinema:watch`, as every `/api/catalogue` route does; a catalogue that cannot be read is a `503` that says why |
+| `GET /api/catalogue/facets?…` | `Facets` — `{total, sections: [{id, options: [{value, label?, count}]}]}` over what the same filters name: `kind`, `genre`, `decade`, `length`, `rating`, `language`. A section offers its options from the query without its own picks, each counted with every other section's picks applied |
+| `GET /api/catalogue/titles/{imdbId}` | `TitlePage` — a title's card and everything the catalogue holds about it (Catalogue, below), joined with the asking person; 404 for a title it does not list |
+| `GET /api/catalogue/titles/{imdbId}/seasons/{n}` | `Season` — `{number, name?, overview?, airDate?, poster?, episodes: [{number, name?, overview?, airDate?, runtime?, still?}]}`, numbered as the film database numbers them; 404 for a season it does not hold |
+| `GET /api/catalogue/terms?q=` | `Term[]` — `[{filter, value, name, detail?}]`: the words resolved to what the list query takes, a genre, a person, a keyword, a company, a Wikidata item or a franchise, the best known first |
+| `GET /api/catalogue/ask?q=` | `CatalogueAnswer` — `{question, parts, query?, message?}`: the words read as a question (`QuestionReader`), the parts read, and `query` the list query's filters that answer it, which the site asks `/api/catalogue/titles` with. `message` says what a question names that the catalogue does not know; words that are no question answer `question: false` |
+| `GET /api/catalogue/people/{id}` | `Person` — `{id, name, portrait?, department?, titles}`; their titles are `/api/catalogue/titles?person={id}`. 404 for nobody |
+| `GET /api/catalogue/franchises?page=&size=` | `FranchisePage` — `{franchises, total, next?}`, each a `ShelfHead` (below) of the franchise in the person's order: the ones they are part way through first |
+| `GET /api/catalogue/franchises/{id}` | `Franchise` — `{card: {id, kind, name, poster?, backdrop?, titles, firstYear?, lastYear?}, parts}`: a collection (`c…`), or a Wikidata universe (`Q…`) with the collections it holds as `parts`; its titles are `/api/catalogue/titles?franchise={id}&sort=order` |
+| `GET /api/catalogue/discover` | `DiscoverPage` — `{spotlight, rows, sections, genres}`: the Discover page for the asking person. A row is `{kind, shelf?}`, `kind` `shelf` or a section's id (the moods, the franchises) or `browse`; a section is `{id, label, icon, series, count, shelves}`; a shelf head is `{id, title, icon, query, posters, total, watched?, next?}`, `query` its list query as a query string, `watched` and `next` (a card) a series' for the person. `spotlight` is the id of the shelf the page leads with |
+| `GET,HEAD /images/{size}/{file}` | an image the catalogue keeps, by the film database's file name and a size (`w185`, `w300`, `w500`, `w1280`). A file never changes under its name, so it is served immutable for a year. Open |
+| `GET,HEAD /images/titles/{imdbId}/{name}` | a `302` to a title's image by its IMDb id, `name` `poster`, `backdrop` or an episode's still `sNNeMM` (numbered as the releases number it), its location relative to this route; kept an hour, since the image a title is shown with can change. For what knows a title and not its card: the player's frame, a remote, a guest. 404 for none. Open |
+| `GET /api/shows` | `ShowSummary[]` — the shows the library holds, one entry each: `{imdbId?, title, card?, seasons, episodes, seasonProgress, addedAt?, sizeBytes, lastPlayed?, resume?, firstTitleId}`. `card` is the show's catalogue card; `seasons` are the numbers of the seasons it holds and `episodes` how many episodes; `seasonProgress` is `[{season, episodes, watched}]`, each season it holds in order, with the episodes held of it and how many of those the asking person watched through |
 | `GET /api/library/{scope}?shelf=&q=&sort=&state=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `LibraryPageView` — `{items, total, facets}`: a library page as it is shown, searched, narrowed and ordered here. `scope` is `films` (the library's films, as `/api/titles` lists them), `shows` (as `/api/shows` lists them) or `all` (both); `shelf` is `anime` for the Anime shelf's titles, `general` for every other title, and absent for both (Categories, below). `items` are `{film?, show?}`, each holding one. `q` keeps the titles whose name holds every one of its words, in any order and any case, a film's name being its name and year as its card shows it. `held` keeps the titles the asking device says it holds, only it knowing (a film by its title id, a show by its IMDb id), repeating or taking commas. `state` picks a film's state, repeating or taking commas and answered as any of them: `ready`, `preparing` or `failed`. The filter's picks are as on `/api/catalogue/discover` (Filters and facets, below), `kind` and `category` only on `all`. `sort` is `added` (the default: the newest to the library first), `first-added`, `name`, `name-desc`, `rating`, `lowest`, `newest`, `oldest`, and for `films` `shortest` and `longest`; a tie keeps the library's order. `total` is how many titles the page holds before the search, the state, `held` and the picks. `facets` is a `CatalogueFacetsView` counted over the whole page with the state picked on it and the search not, beside a `state` section of the states the page's titles are in, each counted with the picks on it, and `sorts` naming the orders above. The library is read as listed, so it never waits on a disk or the network. `404` for another scope, `400` for another shelf, sort or state, a state on `shows`, a pick of a kind on one kind, or a pick `/api/catalogue/discover` refuses. Takes `cinema:watch` |
-| `GET /api/shows/{imdbId}` | `ShowView` — a show as the film database describes it, in the library or not, every season with its episodes joined with the library and the asking person's progress. `404` when neither the database nor the library knows it, `503` when the database cannot be asked and nothing is kept |
-| `GET,HEAD /shows/{imdbId}/{poster.jpg,backdrop.jpg,logo.png,cast-N.jpg,sNNeMM.jpg}` | a show's artwork and its episodes' stills, open like a film's |
+| `GET /api/me/shows/{imdbId}` | `PersonShowView` — what the asking person has of a show, here or not: `{imdbId, seasons: [{number, name?, airDate?, overview?, poster?, episodes: [{season, number, name?, overview?, airDate?, runtime?, still?, titleId?, status?, durationSeconds?, progress?, lastPlayed?}]}], resume?, followable, follow?, nextEpisode?}`. Every episode the catalogue lists and every one the library holds, numbered as the releases number them (`Shows/EpisodeNumbering`); `titleId` the library's title for one it holds. What the show is, is its catalogue page |
 | `GET /api/me/preferences` | `ViewerPreferences` — how the token's person watches; every field absent for somebody who set nothing. |
 | `PUT /api/me/preferences` | `ViewerPreferences` → the stored `ViewerPreferences`, which is then pushed to the person's connections (`PreferencesChanged`). A blank language is stored as absent. `400` for a `qualityHeight` or `offlineQualityHeight` that is not absent (Auto) or a height from 1 to 4320, and for a `subtitleStyle` outside the ranges it keeps: `size` 50 to 200, `font` one of `sans`, `serif`, `mono`, `casual`, `edge` one of `none`, `outline`, `shadow`, `raised`, `depressed`, a colour as `#rrggbb`, `backgroundOpacity` 0 to 1, `position` 0 to 30. Nothing is kept for a refused body. `qualityHeight` is the person's default for every film, so it is held to what a picture can be and not to one film's rungs: a film with no rung at that height plays the tallest below it |
 | `GET /api/me/tracks/{titleId}` | `FilmTracks` — the subtitle and audio track the token's person watches the film with: `{titleId, subtitleId?, subtitleOff?, audioId?}`. `subtitleId` is a track id, `subtitleOff` is a chosen "no subtitles", and a film the person chose nothing for has neither and no `audioId`, so it starts on their languages (`ViewerPreferences`). The same on every device the person watches it on. `404` for a title the library does not hold |
 | `PUT /api/me/tracks/{titleId}` | `{subtitleId?, subtitleOff?, audioId?}` → the film's `FilmTracks` as they now stand, then pushed to the person's connections (`TracksChanged`). A field named is set and a field left out is kept; `subtitleId` and `subtitleOff: true` each replace the subtitle choice. `400` for a body that names nothing, for `subtitleId` together with `subtitleOff: true`, for a `subtitleId` the title's manifest does not list as a track that can be shown (`available`, with a `uri`; the subtitles fetched from outside are in it), and for an `audioId` it does not list; `404` for a title the library does not hold. A guest link and the service key name nobody and are refused |
 | `GET /api/me/sorts` | `{[page]: SortOrder}` — the order the token's person last picked on each page that sorts, `SortOrder` being `{key, direction}` with `direction` `asc` or `desc`; empty for somebody who picked none. The site names the pages and their keys, and a key a page does not offer is that page's own order |
 | `PUT /api/me/sorts/{page}` | `SortOrder` → every order the person keeps, as `GET` answers it. `400` for a page or a key that is not a lowercase name (letters, digits, `.` and `-`, starting with a letter, at most 40 characters), a direction that is neither, or a page beyond the 32 one person keeps an order for |
-| `GET /api/me/progress` | `ProgressEntry[]` — what the token's person can carry on with, newest first: `{titleId?, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?, episodeName?, stillUrl?}`. Each film they started and did not finish; and each show once, by the episode they watched last, wherever in the show they started: that episode while unfinished, and once finished the episode after it (the next of its season, else the first of the next season, as the film database lists the show, or the library holds it for a show the database has not described), from where they left it or from 0, carrying the finished episode's `lastWatchedAt`. An episode after that the library does not hold, or holds a failed copy of, is listed with no `titleId` once it has aired (from the day after its air date), to a person holding `cinema:download`: `durationSeconds` is the description's runtime (0 when it names none), and watching it is Watch now with its `episode`. A show finished to its last episode is not listed. For an episode `name` is the show's, `episode` is `{season, number}`, and `episodeName` and `stillUrl` are the description's name for it and its still where it has them. A title the library no longer holds is left out |
+| `GET /api/me/progress` | `ProgressEntry[]` — what the token's person can carry on with, newest first: `{titleId?, name, positionSeconds, durationSeconds, remainingSeconds, lastWatchedAt, episode?, showImdbId?, episodeName?, stillUrl?}`. Each film they started and did not finish; and each show once, by the episode they watched last, wherever in the show they started: that episode while unfinished, and once finished the episode after it (the next of its season, else the first of the next season, as the catalogue lists the show, or the library holds it for a show the catalogue does not list), from where they left it or from 0, carrying the finished episode's `lastWatchedAt`. An episode after that the library does not hold, or holds a failed copy of, is listed with no `titleId` once it has aired (from the day after its air date), to a person holding `cinema:download`: `durationSeconds` is the description's runtime (0 when it names none), and watching it is Watch now with its `episode`. A show finished to its last episode is not listed. For an episode `name` is the show's, `episode` is `{season, number}`, and `episodeName` and `stillUrl` are the catalogue's name for it and its still where it has them. A title the library no longer holds is left out |
 | `POST /api/me/progress` | `204` for `[{titleId, positionSeconds, watchedAt}]`, at most 500 — where a device that watched with no connection got to. Each is recorded as a room's play is, the person's entry and the film's last play, where `watchedAt` is newer than what is held; an older one, and one for a title the library no longer holds, changes nothing. A `watchedAt` ahead of the server's clock is taken as now. `400` for a position that is negative or not a number, or more than 500 entries |
 | `GET /api/me/history` | `HistoryEntry[]` — every film and episode the token's person watched, newest first: `{titleId, name, positionSeconds, durationSeconds, finished, lastWatchedAt, episode?, showImdbId?}`, named as above. `finished` is a position past 90 % of the title |
 | `DELETE /api/me/history/{titleId}` | `204` — forgets the person's entry for the film, and so their progress in it. The film's own last play stays |
-| `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, posterUrl?, since, autoDownload, nextEpisode?}`. `nextEpisode` is `{season, episode, name?, airDate}`, the episode the film database expects next |
-| `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the film database has no show under it, `409` when the show has ended or been cancelled, `503` when the database cannot be asked and nothing is kept |
+| `GET /api/me/follows` | `FollowView[]` — the shows the token's person follows, newest follow first: `{imdbId, title, card?, since, autoDownload, nextEpisode?}`. `card` is the show's catalogue card; `nextEpisode` is `{season, episode, name?, airDate}`, the episode the catalogue names next |
+| `PUT /api/me/follows/{imdbId}` | `FollowView` for `{autoDownload}` — follows the show, or changes `autoDownload` of a follow that exists, which keeps its `since`. `400` for an id that is not an IMDb id, `404` when the catalogue lists no show under it, `409` when the show has ended or been cancelled |
 | `DELETE /api/me/follows/{imdbId}` | `204` — stops following; also when the person did not |
 | `GET /api/me/screens` | `ScreenView[]` — the television screens this session is paired with, oldest pairing first, connected or not (Screens, under Hub) |
 | `POST /api/me/screens` | `ScreenView` for `{code}` — pairs this session with the screen that showed the code, and answers that screen; pairing again is no change. `404` for a code no screen showed, `410` for one that has run out, `403` for a screen of another person's, `400` for a television's token or one that belongs to no session |
@@ -128,7 +117,7 @@ the log record beside them.
 Each route names the action it needs, and a route that names none admits nobody. Without a usable token
 the answer is `401` with `WWW-Authenticate: Bearer`; with one that lacks the action, `403`. Both carry
 `{error}`. The actions are `cinema:watch` (the library, rooms, the hub, tickets and media, subtitles,
-the people a room can invite, what the film database says of a title, a person or a genre),
+the people a room can invite, the catalogue),
 `cinema:offline` (saving a film onto a device, below), `cinema:download` and `cinema:wish` (below),
 `cinema:guests` (handing out a room's guest link, below), and the self
 actions `cinema:profile.read` and `cinema:profile.write`, which every approved account holds, for a
@@ -168,10 +157,8 @@ a `HubException` (Who may come in, below). A guest's film bytes are opened by th
 A film's bytes are opened by the access token of somebody who may watch, or by a **media ticket** on
 the query string as `?mt=…`, and the ticket is what a player should use for the film itself. A title's
 `poster.jpg` is open: Discord's servers fetch it to draw an embed. It is the title's poster wherever it
-is shown: the film database's poster kept for the film, or for the show an episode belongs to, the same
-one a search result and the title's page show; the poster beside the title only when the database holds
-none. Each title's database poster is pinned to the first the API showed it with, so a title keeps one
-poster from the search that found it to the shelf that holds it.
+is shown: the catalogue's poster for the film, or for the show an episode belongs to, the one its card
+names; the poster beside the title only when the catalogue lists none.
 
 The difference is caching. A shared cache will not answer a request that carried an
 `Authorization` header. A ticket says only which film and until when, and **every viewer of a title
@@ -294,16 +281,15 @@ the device saves it once the library holds it.
     { "id": "s3", "kind": "feature", "language": "eng", "label": "English", "hearingImpaired": false,
       "forced": false, "url": "/media/coherence-2013/s3.vtt", "bytes": 81234 }
   ],
-  "details": FilmFacts,   // what /api/titles carries as `details`: the film's, or an episode's show's; absent when not described
+  "card": TitleCard,      // the catalogue's card: the film's, or an episode's show's; absent for a title the catalogue does not list
   "episode": { "season": 2, "number": 4, "name": "…", "overview": "…" },   // an episode's own; absent for a film
   "artwork": {            // each absent when there is none; open addresses but the preview sheet, which is the film's
-    "poster": "/films/tt2866360/poster.jpg",
-    "backdrop": "/films/tt2866360/backdrop.jpg",
-    "still": "/shows/tt…/s02e04.jpg",             // an episode's
+    "poster": "/images/w500/….jpg",              // the card's, else the library's own poster
+    "backdrop": "/images/w1280/….jpg",
+    "still": "/images/w300/….jpg",               // an episode's
     "thumbnails": "/media/coherence-2013/thumbs.jpg"   // the scrub preview sheet the manifest's thumbnails describe
   },
   "growing": false,       // true while the title is still being made: the tracks are what is made so far
-  "category": "anime",    // the shelf it is on (Categories); absent while nothing says
   "grant": {              // the save's grant, for the device's own downloader
     "header": "X-Cinema-Save-Grant", "value": "5c0f3b2a9e7d4c18.1760918400.…", "expiresAt": "2026-10-20T00:00:00Z"
   }
@@ -432,10 +418,7 @@ key, for the announcements the bot posts. The shapes are in
 | `GET /api/releases/suggest?q=&session=` | `ReleaseSuggestions` — picker rows for what was typed; `session` keys the debounce |
 | `GET /api/releases?q=` or `?imdb=` | `RankedOffers` — the tracker's releases for a film, best first |
 | `GET /api/releases/{torrentId}` | `ReleaseOffer` — a release a search or a picker offered, or 404 |
-| `GET /api/shows/find?q=` | `FoundTitle[]` — the shows the title index offers for a name; never a film or an episode |
 | `GET /api/shows/{imdbId}/releases` | `ShowOffers` — `{seasons: [{season, packs, episodes: [{episode, releases}]}], emptyExplanation?}`, each list a show's `ReleaseOffer`s best first, 720p ahead of 1080p. A pack is listed under every season it covers |
-| `GET /api/films/find?q=` | `FoundTitle[]` — the films the title index offers for a name; never a show |
-| `GET /api/titles/find?q=` | `FoundTitle[]` — films and shows together, in the index's own order; never an episode. Takes `cinema:download`. A `FoundTitle` is `{imdbId, title, year?, display, kind, starring?, posterUrl?, rating?, votes, ratedBy?, overview?, category?}`, `kind` `film` or `show`, `posterUrl` the poster the title's page shows, served from here, or the index's own where the film database has none, `rating` the title's one rating (A title has one rating, below) and `overview` the film database's, each absent where there is none or the database has not answered within the search. Every result leads to a page, so a suggestion with no year (a project announced and untitled) and one the film database holds nothing for are left out |
 | `GET /api/films/{imdbId}/availability` | `FilmAvailability` — `{imdbId, libraryId?, download?: {hash, progress, isWatchable, libraryId?}, hd1080?, hd720?, notOut, notOffered, emptyExplanation?, trackerUnanswered, waiting, waiters, streams: {used, limit}}`. The library first, then the torrent client, then the tracker, which is asked only for a film neither here nor arriving; `hd1080` and `hd720` are the best `ReleaseOffer` at each from a digital source up. With neither, `notOut` says the tracker holds nothing from a digital source up, a film to wait on, and `notOffered` that it does but every such release is turned down here, which `emptyExplanation` names |
 | `POST /api/watch` | `WatchNowReply` for `{imdbId, torrentId?, quality?, episodes?, room?}` — `{outcome, room?, libraryId?, streams?}`. See Watch now below |
 | `GET /api/downloads` | `DownloadView[]`: `{hash, name, release, summary, progress, isFinished, isWatchable, libraryId?, imdbId?, requestedBy?}`, `requestedBy` the account of whoever asked |
@@ -527,94 +510,47 @@ token's person's own: there is no route by which anybody reads or changes anybod
   the tracker refuses leaves them with the `episode` notice alone. An episode the library holds or is
   fetching is announced and not fetched again.
 - **An episode is announced once.** What was announced is kept, so a restart tells nobody twice.
-- **`ShowView` carries the asking person's side.** `followable` is false once the film database calls
-  the show `Ended` or `Canceled`; `follow` is `{autoDownload, since}` for a show the person follows and
-  absent otherwise; `nextEpisode` is `{season, episode, name?, airDate}` and absent when the database
-  names none.
+- **What the person has of a show carries their side** (`/api/me/shows/{imdbId}`). `followable` is false
+  once the catalogue calls the show `Ended` or `Canceled`; `follow` is `{autoDownload, since}` for a show
+  the person follows and absent otherwise; `nextEpisode` is `{season, episode, name?, airDate}` and absent
+  when the catalogue names none.
 
 ### Filters and facets
 
-A filter picks in sections, each named by an id, and its picks are query parameters:
+A filter picks in sections, each named by an id, and its picks are the list query's parameters:
 
 | Section | Picks with | Options |
 |---|---|---|
-| `kind` | `kind` (`film`, `show`, `all`) and `category=anime` | `film`, `show`, `anime` (anime of either kind, which is `kind=all&category=anime`) |
-| `genre` | `anyGenre`, a genre by name | Cinema's genres the answers hold, by name, in alphabetical order (below) |
-| `decade` | `decade`, a decade by its first year (`1990`) | the decades from this one back to the 1920s, newest first |
+| `kind` | `kind` (`film`, `show`) and `category=anime` | `film`, `show`, `anime` (anime of either kind) |
+| `genre` | `anyGenre`, a genre by IMDb's name | the genres the titles hold, in alphabetical order |
+| `decade` | `decade`, a decade by its first year (`1990`) | the decades the titles hold, newest first |
 | `length` | `length`, films only | `short` (under 90 minutes), `standard` (90 to 150), `long` (over 150) |
-| `rating` | `minRating`, one floor | `8`, `7`, `6` |
-| `language` | `language`, by ISO 639-1 code, or by English name on a discovery of the database | on a discovery, the languages `/api/discover`'s `languages` names; on an answer held whole, every language its titles were made in |
-
-Cinema has one genre vocabulary across films and shows. The film database keeps a list for each
-kind, and a show's list joins genres a film's keeps apart: here its `Action & Adventure` is `Action`
-and `Adventure`, its `Sci-Fi & Fantasy` is `Science Fiction` and `Fantasy`, and its `War & Politics` is
-`War`, and every other genre is the database's own name. A genre is picked once and answers films and
-shows that fit it (`anyGenre=Science Fiction` with `kind=all` is the films filed under Science Fiction
-and the shows under Sci-Fi & Fantasy), and a genre only one kind has (`Horror`, `Kids`, `Soap`) is an
-option only where titles of that kind hold it. The facets name genres this way everywhere, and a
-genre is also matched by the database's own name of either kind, as `genre` and `exclude` match it.
+| `rating` | `minRating`, one floor | `8`, `7`, `6`, labelled `8+` |
+| `language` | `language`, by ISO 639-1 code | the languages the titles were made in, the most held first, labelled by English name |
 
 A section with several picks is answered as any of them, and the sections combine as all of them:
-`anyGenre=Horror&anyGenre=Comedy&decade=1990&decade=2010` is horror or comedy, of the 1990s or the
-2010s. The film database takes any of several genres and of several languages in one question, but
-one window of release dates and one of runtime, and it reads genres as all of a list or any of it,
-never both; so decades or lengths that are not next to each other, and picked genres on a question
-that names genres of its own, are asked as several questions (at most 24, a `400` beyond), and
-their answers are paged as one list in the sort asked, each title once: page n reads each question's
-first n pages, each kept as that question's own answer. `kind=all` asks films and shows apart and
-pages them as one list in the same way; a genre one kind lacks narrows only the other, and a
-discovery with `with` or a length picked is of films alone. A discovery's children's-genres rule
-holds for picked genres as it does for `genre`.
+`anyGenre=Horror&anyGenre=Comedy&decade=1990&decade=2010` is horror or comedy, of the 1990s or the 2010s.
 
-`CatalogueFacetsView` is `{sections: [{id, options: [{value, label?, count?, empty?}]}], sorts}`: for the
-question and the picks asked, each section and every option it offers, in the order above, an option
-being `empty: true` when no answer holds it at the other sections' picks. The options a section offers
-do not follow the picks, so a filter that shows them all and leaves the empty ones unpickable holds
-still while somebody picks. `sorts` names
-the orders the answers are served in, as their route's `sort` takes them, the one they open in first:
-a discovery's `popular`, `least-popular`, `rating`, `lowest`, `newest` and `oldest`; a shelf's `order`
-(its own), `rating`, `lowest`, `newest` and `oldest`; and none for a question, a person, a genre or a
-browse category, which are served in one order. A section's
-options are measured with every other section's picks applied and without its own, so a second
-option of a section that has a pick can still be picked. Where the answer is a discovery of the film
-database (Discover's catalogue, a question, a shelf of the database's own ids not held whole), a section offers every
-option of its row above (a genre of the question's kind) and an option is empty unless the database
-lists at least one title for it with that option picked in its section: each option is one question
-of the database, its first page, which is that answer's own first page and is kept as it is, and no
-option carries a count. Where the API holds the answer whole (a person's titles, a genre's, a shelf held whole,
-a set Wikidata lists), a section offers the values its titles hold, whatever is picked, and
-`count` is how many titles hold each with the other sections' picks on it, `0` on an empty one; a title carries its traits as its listing does, so
-one with a trait unknown is in none of that section's options, and a section no title carries the
-trait of is not reported (a browse of the database names no runtime, so a person's titles and a
-genre's have no `length`; a title named by its card, on a shelf held whole or in a set Wikidata lists,
-carries the card's runtime, else IMDb's). A language's option names a code, and `label` its English name. A
-section the question fixes is not reported (a question's own parts, a shelf's kind), nor a `length`
-on a question of shows or one bounded by runtime, nor a `language` on a question of one language or
-of anime, nor a section any of whose options the database could not be asked about. A section with
-fewer than two options is reported as measured, and a page leaves it out.
-
-The library and a person's own lists are served whole (`/api/titles`, `/api/shows`, `/api/me/wants`,
-and `/api/me/history` joined with `/api/titles`) and have no facets route: every entry carries the
-traits the sections read (kind, `category`, genres, year, runtime, rating and `originalLanguage`),
-and the page counts the options over the answer it holds, with the same sections, values and rules
-(`web/site/src/facets.js`). A history entry for a title the library no longer holds carries none of
-them, and is in no option.
+`Facets` is `{total, sections: [{id, options: [{value, label?, count}]}]}`: `total` how many titles the
+query names with every pick, and each section's options the values held by the titles the query names
+without any section's picks, so a filter showing them all holds still while somebody picks. Each option's
+`count` is how many titles hold it with every other section's picks applied and without its own, so a
+second option of a section that has a pick can still be picked; an option counted `0` is shown and cannot
+be picked. `/api/catalogue/facets` answers them for a list query, and the library's pages
+(`/api/library/{scope}`), Want to watch (`/api/me/wants/page`) and History (`/api/me/history/page`) answer
+`facets` beside their page, counted the same way over the cards of the titles they list. A title the
+catalogue does not list is in no option. The titles saved on a device are counted where they are held,
+over their cards, with the same sections, values and rules (`web/site/src/facets.js`).
 
 ### Categories
 
 A title's kind is how it is built, a `film` or a `show` of episodes; its category is where people look
-for it: `anime` or `general`. The two are independent, so an anime film is a film on the Anime shelf
-and a show's every episode is on its show's.
+for it: `anime` or `general`. The two are independent, so an anime film is a film on the Anime shelf and
+a show's every episode is on its show's.
 
-A title is anime when the film database files it under Animation and its original language is
-Japanese (`ja`), and general otherwise. A title whose genres nothing has described has no category,
-and is shelved as general.
-
-Every view that names a title carries `category`, `anime` or `general`, absent while nothing says:
-`TitleSummary`, `ShowSummary`, `FilmView`, `ShowView`, `TitleHitView`, `CreditView`,
-`CatalogueTitleView`, a library addition, a trending entry, a `FoundTitle`, a list entry and an
-`OfflinePackage`. A catalogue answer reads it from the title's kept description where there is one,
-else from the genres and language the answer carries.
+A title is anime when its genres hold Animation and its original language is Japanese (`ja`), and general
+otherwise. It is the card's `category`, so every view carrying a card carries it; a library title the
+catalogue does not list is shelved as general.
 
 ### Wanting
 
@@ -630,11 +566,11 @@ leaving the library and is the same want when it comes back. The shapes are in
 | `GET /api/me/wants/page?q=&sort=&state=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `WantsPageView` — `{wants, total, facets}`: the person's wants as their page shows them, searched by title (`q`), narrowed by where each stands (`state`: `ready`, `fetching`, `available` or `waiting`, repeating or taking commas) and by the filter's picks, and ordered by `sort`: `added` (the default: the newest want first), `first-added`, `name`, `name-desc`, `rating`, `lowest`, `newest`, `oldest`, `most-wanted` (the most other people wanting it first) or `least-wanted`. `total`, `facets` and the refusals are as on `/api/library/{scope}`. Takes `cinema:profile.read` |
 | `GET /api/me/history/page?q=&kind=&category=&anyGenre=&decade=&length=&minRating=&language=` | `HistoryPageView` — `{entries, total, facets}`: the person's history as `/api/me/history` lists it, newest first, each `{entry, title?}` with the library's title the entry names (as `/api/titles` lists it), searched by the entry's name as `/api/library/{scope}` searches and narrowed by the filter's picks over what that title is, an episode being its show's; an entry whose title is not listed is known only as a film or a show. `total` and `facets` are as on `/api/library/{scope}`, and `sorts` is empty, the history having its one order. Takes `cinema:profile.read` |
 | `GET /api/me/together` | `TogetherView[]` — `{want: WantView, with: WanterView[]}`: the titles the person wants that somebody else visibly wants too, ready ones first and then the newest want, computed when asked. A film is together with everybody who wants it; a show with those whose next unwatched episode is the same as the person's. A film the person has watched is left out, and so is a want kept to its person on either side. Takes `cinema:profile.read` |
-| `PUT /api/me/wants/{imdbId}` | `SetWantReply` for `{kind, visible?}` — makes the want or changes `visible`. `kind` is `film` or `show`; `visible` defaults to `true` on create and leaves the want as it is when absent on an update. `400` for an id that is not an IMDb id or a kind that is neither; `404` when the film database has no title of that kind under the id; `503` when it cannot be asked. Takes `cinema:watch` |
+| `PUT /api/me/wants/{imdbId}` | `SetWantReply` for `{kind, visible?}` — makes the want or changes `visible`. `kind` is `film` or `show`; `visible` defaults to `true` on create and leaves the want as it is when absent on an update. `400` for an id that is not an IMDb id or a kind that is neither; `404` when the catalogue lists no title of that kind under the id. Takes `cinema:watch` |
 | `DELETE /api/me/wants/{imdbId}` | `204` — removes it; `404` when the person had none. Takes `cinema:watch` |
 | `GET /api/titles/{imdbId}/wanters` | `WanterView[]` — the people with a visible want on the title, the asking person left out, newest first. Takes `cinema:watch` |
 
-- **`WantView`** is `{imdbId, kind, title, year?, posterUrl?, rating?, runtimeMinutes?, genres, originalLanguage?, category?,
+- **`WantView`** is `{imdbId, kind, title, card?,
   visible, since, state?, progress?, libraryId?, inLibrary, watched, nextEpisode?, others, wish?}`.
   `state` is what is measured of the title: `ready` (the library holds it), `fetching` (the torrent
   client has it, `progress` from 0 to 1), `available` (the tracker offers a release at the source floor,
@@ -673,9 +609,8 @@ leaving the library and is the same want when it comes back. The shapes are in
   somebody who has not watched it for `Wants:HoldDays` from the want.
 - **A want ends** when the person removes it, when they finish the film, or when they finish the last
   aired episode of the show.
-- **An entry is described from what is kept.** Making a want asks the film database about a title new to
-  the person; the API then keeps every wanted title described, so reading wants never waits on the
-  network.
+- **An entry is described by its card.** `card` is the title's catalogue card, absent for a title the
+  catalogue no longer lists, whose `title` is then its IMDb id.
 - **`GET /api/anticipated`** (`AnticipatedView[]`, below in Fetching films) counts visible wants on films
   with a wish, and the asking person's own.
 
@@ -694,7 +629,7 @@ at most 6 times still ahead (`PlanRules`).
 
 | Route | Returns |
 |---|---|
-| `POST /api/plans` | `PlanView` for `{imdbId, kind, times, people, season?, number?}`. `kind` is `film` or `show`; `times` is one to six instants; `people` are accounts `/api/people` names (the maker is in the plan whether named or not, at most 20 others). A show starts at `season` and `number`, else at the maker's next episode. The maker is `in` for every time. `400` for a bad id, kind, time or count, or a show with no episode to start at; `404` for somebody unknown or a title the film database does not have; `409` for a film the tracker shows is not out digitally, or a show's episode the film database dates to a day it is not yet due on (a tracker that does not answer, or an episode with no date, refuses nothing); `503` when the film database cannot be asked. Takes `cinema:watch` |
+| `POST /api/plans` | `PlanView` for `{imdbId, kind, times, people, season?, number?}`. `kind` is `film` or `show`; `times` is one to six instants; `people` are accounts `/api/people` names (the maker is in the plan whether named or not, at most 20 others). A show starts at `season` and `number`, else at the maker's next episode. The maker is `in` for every time. `400` for a bad id, kind, time or count, or a show with no episode to start at; `404` for somebody unknown or a title the catalogue does not list; `409` for a film the tracker shows is not out digitally, or a show's episode the catalogue dates to a day it is not yet due on (a tracker that does not answer, or an episode with no date, refuses nothing). Takes `cinema:watch` |
 | `GET /api/me/plans` | `PlanView[]` — the plans the person is in, soonest first by the picked time, else the earliest time still ahead. Takes `cinema:watch` |
 | `GET /api/plans/{id}` | `PlanView`. Takes `cinema:watch` |
 | `POST /api/plans/{id}/times` | `PlanView` for `{at}` — anybody in the plan suggests another time, and is `in` for it; everybody else is told (`plan` notification `suggested`). `400` for a time not ahead as above; `409` for a time the plan has, or a plan holding its most times ahead. Takes `cinema:watch` |
@@ -703,13 +638,13 @@ at most 6 times still ahead (`PlanRules`).
 | `POST /api/plans/{id}/fix` | `PlanView` for `{at}` — the maker picks one of the plan's times, which must be ahead, or moves the pick to another; every time and its answers stay. A `proposed` plan becomes `fixed`; a `fixed` or `open` one keeps its state, and once the room is open everybody `in` or `maybe` to the new time is let in. The others are told (`plan` notification `fixed`, saying the time moved when there was one). `403` for anybody else; `404` for a time the plan does not have ahead. Takes `cinema:watch` |
 | `DELETE /api/plans/{id}` | `204` — the maker cancels the plan, whatever it is at, which deletes it; the others are told (`plan` notification `cancelled`). `403` for anybody else. Takes `cinema:watch` |
 
-- **`PlanView`** is `{id, imdbId, kind, title, year?, posterUrl?, season?, number?, state, madeBy, madeAt,
+- **`PlanView`** is `{id, imdbId, kind, title, card?, season?, number?, state, madeBy, madeAt,
   mine, fixedTime?, times, people, readiness?, progress?, libraryId?, roomId?}`. `state` is `proposed`,
   `fixed` (a time is picked) or `open`. `madeBy`, each of `people` and each time's `suggestedBy` is `{userId, name?, maker}`.
   `times` is every time put forward, earliest first, those already passed included, as
   `{at, in, mine?, suggestedBy?, answers: [{userId, name?, answer}]}` (`in` counts who said so, `mine`
   the asking person's answer). `fixedTime` is the picked one. `libraryId` is the title that plays the
-  plan's film or episode once the library holds it.
+  plan's film or episode once the library holds it, and `card` the title's catalogue card.
 - **Answers pick nothing.** However many say `in`, a time is the plan's only once the maker picks it.
 - **`readiness` is what is measured of the title, never a guess at whether it will be in time**: `ready`
   (the library holds the film, or the plan's episode), `fetching` (the torrent client has it, `progress`
@@ -862,194 +797,94 @@ A track with `available: false` is listed on purpose — a language that is simp
 menu reads as a bug. Render it disabled with its `reason`, do not hide it.
 
 `TitleSummary` is `{id, title, durationSeconds, status, kind, episode?, unit, headSeconds?, poster?,
-posterVersion?, film?, sizeBytes?, addedAt?, details?, category?, progress?, lastPlayed?}`. `kind` is `"film"` or
-`"show"`, as the manifest says; `category` is its shelf (Categories), an episode's its show's. `poster` is present whenever the title has a poster to serve, and
+posterVersion?, film?, card?, sizeBytes?, addedAt?, progress?, lastPlayed?}`. `kind` is `"film"` or
+`"show"`, as the manifest says. `poster` is present whenever the title has a poster to serve, and
 `posterVersion` is when the file it is served from was last written, in milliseconds since the epoch; a
 page asks for the poster as `/media/{id}/{poster}?v={posterVersion}`. Every episode of a show is a title of its own: `episode` is `{season, number}`, `film`
 is the show, `title` is the show's name with the episode's place (`Severance S02E04`), and `unit` is
-its season's (a film's is its own id). `details` is what the film database said, as far as a
-listing shows it — `{rating?, votes, ratedBy?, certification?, genres, runtimeMinutes?, originalLanguage?, overview?, directors,
-posterUrl?, backdropUrl?}`, `originalLanguage` an ISO 639-1 code, — and is absent for a film not yet described; the listing never waits on
-the network for it. `progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the
+its season's (a film's is its own id). `card` is the film's catalogue card, or an episode's show's
+(Catalogue), absent for a title the catalogue does not list; its `category` is the shelf the title is on.
+`progress` is `{positionSeconds, finished, lastWatchedAt}` for the person the
 token names, absent when they have not watched the film and always absent for the service key.
 `lastPlayed` is `{at, byId, byName?}`, the last time anybody played the film and who (their Discord
 id), absent when nobody has; `byName` is absent when that person's name was never heard.
-
-```jsonc
-// FilmView: GET /api/films/{imdbId}
-{
-  "imdbId": "tt0113277", "tmdbId": 949, "title": "Heat", "year": 1995, "releaseDate": "1995-12-15",
-  "runtimeMinutes": 170, "certification": "R", "genres": ["Crime", "Drama", "Action"],
-  "overview": "…", "tagline": "…", "rating": 8.3, "votes": 612000, "ratedBy": "imdb",   // IMDb's where the import holds the title, else TMDB's; the same wherever the title is shown
-  "keywords": [{ "id": 818, "name": "heist" }, { "id": 9, "name": "Los Angeles" }],   // each leads to /api/catalogue/discover?about=<name>
-  "budget": 60000000, "revenue": 187436818,                          // US dollars; absent when the database does not know
-  "trailers": [{ "key": "2LqzF5WauAw", "name": "Official Trailer", "kind": "Trailer", "language": "en" }],   // youtube-nocookie.com/embed/{key}
-  "recommendations": [],                                             // TitleHitView[], as /api/catalogue/search lists titles
-  "reviews": [{ "author": "Critic", "rating": 9.0, "excerpt": "…", "url": "https://www.themoviedb.org/review/…" }], "reviewCount": 4,
-  "logoUrl": "/films/tt0113277/logo.png",
-  "libraryId": "heat-1995", "watched": false,                       // libraryId absent when the library does not hold it; watched is the asking person's
-  "directors": ["Michael Mann"], "writers": ["Michael Mann"],
-  "personIds": { "Michael Mann": 638 },   // each director and writer by name: the id /api/catalogue/people takes
-  "cast": [{ "personId": 1158, "name": "Al Pacino", "character": "Lt. Vincent Hanna", "portraitUrl": "/films/tt0113277/cast-0.jpg" }],
-  "originalLanguage": "en", "languages": ["English", "Spanish"], "countries": ["United States of America"],
-  "posterUrl": "/films/tt0113277/poster.jpg", "backdropUrl": "/films/tt0113277/backdrop.jpg",
-  "category": "general",                  // the shelf it is on (Categories); absent while nothing says
-  "awards": { "wins": 1, "won": [{ "name": "Saturn Award for Best Action Film", "year": 1996 }], "nominations": 2 },   // Wikidata's; absent while nothing is kept
-  "basedOn": [{ "work": "The Heat Novel", "author": "Ann Writer" }]   // Wikidata's; empty when it names none
-}
-```
-
-```jsonc
-// ShowView: GET /api/shows/{imdbId}
-{
-  "imdbId": "tt11280740", "tmdbId": 95396, "title": "Severance", "firstYear": 2022, "lastYear": 2025,
-  "status": "Returning Series", "inProduction": true, "certification": "TV-MA",
-  "genres": ["Drama", "Mystery"], "overview": "…", "rating": 8.7, "votes": 98000, "ratedBy": "imdb",
-  "keywords": [{ "id": 4565, "name": "office" }],
-  "trailers": [], "recommendations": [], "reviews": [], "reviewCount": 0,   // as a film's
-  "logoUrl": "/shows/tt11280740/logo.png",
-  "creators": ["Dan Erickson"], "personIds": { "Dan Erickson": 1220098 },
-  "cast": [{ "personId": 34544, "name": "Adam Scott", "character": "Mark Scout", "portraitUrl": "/shows/tt11280740/cast-0.jpg" }],
-  "languages": ["English"], "countries": ["United States of America"], "networks": ["Apple TV+"],
-  "posterUrl": "/shows/tt11280740/poster.jpg", "backdropUrl": "/shows/tt11280740/backdrop.jpg",
-  "seasons": [{
-    "number": 2, "name": "Season 2", "airDate": "2025-01-16",
-    "episodes": [{
-      "season": 2, "number": 4, "name": "Woe's Hollow", "airDate": "2025-02-07", "runtimeMinutes": 51,
-      "rating": 8.6, "votes": 120, "stillUrl": "/shows/tt11280740/s02e04.jpg",
-      "titleId": "severance-s02e04", "status": "ready", "durationSeconds": 3080.2,  // absent when the library does not hold it
-      "progress": { "positionSeconds": 1260, "finished": false, "lastWatchedAt": "…" }
-    }]
-  }],
-  "resume": { "titleId": "severance-s02e04", "season": 2, "episode": 4, "positionSeconds": 1260, "durationSeconds": 3080.2 },
-  "followable": true,
-  "follow": { "autoDownload": false, "since": "…" },  // absent when the asking person does not follow it
-  "nextEpisode": { "season": 3, "episode": 1, "name": "…", "airDate": "2027-01-15" },  // absent when the database names none
-  "category": "general"
-}
-```
-
-`resume` is the latest episode the person watched if they did not finish it, else the one after it
-when the library holds it; absent otherwise. Seasons are the database's numbered ones and any the
-library holds that it does not list; specials are left out. Episodes are numbered as the show's
-releases number them, which is how the library, the tracker and every route that takes a season and
-an episode number them too: where the film database numbers a season differently, its names, stills,
-dates and airing episodes are put into the releases' numbering, and an episode it lists that no
-release counts is a special.
-
-A cast member's `personId` and the ids in `personIds` are the film database's own for those people,
-what `/api/catalogue/people/{personId}` takes. A kept description whose cast carries no id is asked of
-the database again the next time it is read, and until then `personId` is absent and `personIds` empty.
-
-**What a description carries.** A film's and a show's description is one call to the database, with
-`videos`, `recommendations`, `reviews` and `images` appended to the credits, release dates
-and keywords it already asked for, kept and refreshed like the rest of it (`Tmdb.RefreshDays`); a description
-kept without them is asked again at once. `trailers` are the official YouTube trailers and teasers in the
-language configured, English or none, at most six: a trailer before a teaser, the configured language
-before the others, the earliest published first among equals; one the database does not mark official is
-left out, since anybody can list a video there. Each `{key, name, kind, language?}` plays from
-`https://www.youtube-nocookie.com/embed/{key}`. `recommendations` are the
-database's first page of up to 20 titles recommended after this one, each a `TitleHitView` joined with the
-library as a search result is; `/api/films/{imdbId}` and `/api/shows/{imdbId}` carry them and the spotlight
-`films` of `/api/discover` do not. `reviews` are up to three `{author, rating?, excerpt, url?}`, each excerpt cut
-on a word at 400 characters, and `reviewCount` how many the database holds. `logoUrl` is the title set as a
-transparent PNG, English or textless, kept beside the poster and served at `/films/{imdbId}/logo.png`
-(`/shows/{imdbId}/logo.png`); it is absent when the database has none. `tagline` and a film's `budget` and
-`revenue` (US dollars, absent when unknown) come with it. `keywords` are `{id, name}`.
-
-**A title has one rating.** Every `rating` and `votes` on the wire (a film or show page, a search result,
-a person's credits, a shelf, `/api/popular`, a title's `details`, a want) is IMDb's where the host's import
-holds the title (IMDb's datasets, below), and the film database's otherwise, and it is the same number for
-a title on every surface. `ratedBy` says whose (`imdb` or `tmdb`) on a film or show page and its
-`details`, a search result, a person's credits, a shelf, a discovery, `/api/popular` and `/api/titles/find`,
-and is absent with no rating. The film database's is the newest it has given, whichever answer the view
-was built from; one with fewer than 25 votes behind it is no `rating`, and `votes` says how few. A film
-released within the last 60 days is described again after `Tmdb:RecentRefreshDays`, since its rating
-moves daily. An episode's `rating` is the film database's. A rating floor (`minRating`, the shelves held
-to one) holds for the rating shown: the film database is asked with the floor on its own, and a title it
-passes that IMDb rates under the floor is left out of the page.
-
-**IMDb's datasets.** The API imports IMDb's
-non-commercial `title.basics` and `title.ratings` every `Imdb.RefreshHours` (an unchanged day costs two
-HEAD requests) into its database: films (`movie`, `tvMovie`) and shows (`tvSeries`, `tvMiniSeries`) that
-are not adult and have at least `Imdb.MinVotes` votes. They are used to rank and to show a title's IMDb
-rating and votes, and are never served as a database. A host that has not imported rates every title by
-the film database, and everything below does what it does without IMDb.
-
-A question ordered by rating (`sort=rating`, a question asked with `best` or `top`, the acclaimed shelves)
-is ranked by IMDb where the data is held. The pool is the titles the film database lists for it; when the
-question is about kind, `genre` and years alone (no people, keywords, language, country, company, network,
-runtime, certificate or show status, no `like`, and `exclude` only the children's genres a genre search
-leaves out), it also holds up to 40 of the best rated titles IMDb files under the same genres and years
-that the database did not list, each resolved to the database's title by its IMDb id and kept like any
-answer. Genres map by name (`Science Fiction` is `Sci-Fi`, a show's `Action & Adventure` is either of
-`Action` and `Adventure`); a question naming a genre IMDb has no name for is ranked but not widened. The
-pool is ordered by IMDb's rating weighted by votes (`v / (v + m) * R + m / (v + m) * C`, `C` the votes-weighted
-mean of the ranked titles, `m` the floor) over a vote floor that scales with the question's breadth: the
-votes of the thirtieth most voted IMDb title the question names (documentaries left out unless the question names them), kept between 500 and 25,000, so one genre in
-one year ranks on a few thousand votes and the best films of all time on IMDb's own 25,000 (a `minVotes` above the
-floor raises it for the titles IMDb adds). A question IMDb cannot express takes the floor from the least
-voted of the listed titles IMDb rates. A title under the floor, or one IMDb does not rate, follows the rest in
-the film database's weighted order. The ranked pool is one answer kept a day under the day's datasets and
-every page is a slice of it.
-
-**Wikidata.** Awards, adaptations, places and subgenres come from Wikidata's query service (CC0, no key),
-asked in the background only, about once every `Wikidata.RefreshDays`, one question at a time or two
-(`Wikidata.MaxAtOnce`), identified in the User-Agent (`Cinema/<version> (<Wikidata.Contact>)`), and backed
-off for as long as Wikidata's `Retry-After` says when it answers `429`. A set is a list of films, each with
-an IMDb id, and is kept in the database with the answers; every title on a shelf is named through the film
-database by its IMDb id like any other. The fixed sets fill shelves (`best-picture-winners`,
-`best-picture-nominees`, `palme-dor-winners`; adaptations of Stephen King, Jane Austen, Agatha Christie,
-Shakespeare, Charles Dickens, Arthur Conan Doyle and Jules Verne; set in Paris, New York, London and Tokyo; neo-noir, film noir, spaghetti westerns, disaster films and World War II)
-and are asked by the weekly cycle, never by a page; a shelf is on the page once its set is kept. Wikidata's data is CC0 and
-needs no attribution. A host with `Wikidata.Enabled` false asks nothing, has none of those shelves, and answers a question that names a
-set with `message` and no titles.
-
-A question that names a set (`/api/catalogue/ask`) takes its parts from the reader: an award or a subgenre
-is a closed phrase naming its item, and an author or a place is the words typed, resolved at answer time to
-the item whose English label is exactly them (Wikidata's entity search, kept a month); words that match no
-label are a question with `message` and no titles. The set is the fixed one kept by the cycle when the
-question names one, else it is asked once at answer time and kept like any answer, trimmed after thirty days
-unasked. It is ordered by the question's sort (`best` and `top` by IMDb's rating weighted by votes as above,
-`newest`, `oldest`, a popular sort by IMDb's votes), else newest first for an award or an adaptation and by
-IMDb's votes for the rest, and the question's genres, language, anime and years narrow it: years by Wikidata's
-earliest release, genres and language by the film database's card for each film, read in order until the page is
-full and for at most 400 films, so a film Wikidata holds no database id for is left out of a narrowing that
-needs one. A question holds at most one Wikidata set; two make the words no question. Wikidata lists films, so
-a question for shows, for people, for a title like another, for subjects or for a runtime bound is answered with
-`message` and no titles.
-
-A film's `awards` and `basedOn` are Wikidata's facts about it by IMDb id, kept for `Wikidata.RefreshDays` and
-asked for in the background when a film's page is read and by the film warmer for every film it describes,
-never waited on: `awards` is `{wins, won, nominations}` with `won` the newest `{name, year?}` of at most 20
-awards and `wins` the distinct awards won, and `basedOn` the works Wikidata names, `{work, author?}`.
-
-`CatalogueTitleView` is `{imdbId, kind, title, year?, rating?, votes, ratedBy?, overview?, posterUrl?, role?, category?}`:
-`kind` is `film` or `show`, `posterUrl` the poster the title's page shows, served from here, and
-`role` is set among a person's credits only. Whether the library holds the title is the library's to
-say (`/api/titles`, `/api/shows`), joined by `imdbId`.
-
-`TitleHitView` is what a search, a discovery and the lists of the week list:
-`{imdbId?, tmdbId, kind, title, year?, releaseDate?, genres, rating?, votes, ratedBy?, plot?, madeBy, starring, originalLanguage?, posterUrl?, inLibrary, libraryId?, watched, category?}`.
-`madeBy` is a film's directors or a show's creators and `starring` the two top-billed actors; `plot` is the
-first sentence of what it is about, cut at 200 characters, and the title's page holds the rest.
-`imdbId` is absent for a title the database holds no IMDb id for, as an announced one often is: it has
-no page and no poster here, and `tmdbId`, the database's own id, is all that names it. `inLibrary`,
-`libraryId` (a film's title that plays it) and `watched` (the asking person watched the film through; never
-true for a show or for the service key) are joined from the library as listed and the watch record, and are
-never kept with the answer.
-
-`CreditView` is `{tmdbId, imdbId?, kind, title, year?, releaseDate?, status, role?, rating?, votes, ratedBy?, posterUrl?, inLibrary, libraryId?, watched, category?}`.
-`status` is `released` (its date has come), `upcoming` (dated in the future) or `announced` (no date, or one the
-database files as only planned or rumoured). `role` is the parts played and jobs done on the title, joined by
-` · `. A credit with no IMDb id has no page here, as for a `TitleHitView`.
-
-Everything here is TMDB's, and a surface showing it credits TMDB, as its terms ask.
 
 `RoomSummary` is `{sessionId, titleId?, name?, durationSeconds?, paused, positionSeconds,
 participants, open}`. `name` is what the film is called, `positionSeconds` is where the room was when
 the listing was taken, `participants` is a count: the people in a room are listed by the room
 itself, never here, and `open` says anybody who may watch can come in.
+
+## Catalogue
+
+Everything Cinema knows about a title is the catalogue's (`src/MovieBot.Catalogue/CLAUDE.md`): one entry
+per film and show, IMDb's datasets the base with TMDB and Wikidata layered over it, kept on this host with
+the images a page shows. The API reads it and reaches no source, so navigating the site never waits on
+anybody else. A title is wherever it is listed the same card, and one page.
+
+**Ids.** A title is its IMDb id (`tt0232500`), which every record a person made names too. A person is the
+catalogue's person id. A franchise is `c<collection>` for a film database collection and its Wikidata item
+(`Q642878`) for a universe; a keyword is `k<id>`, a company (studio or network) `s<id>`, a Wikidata item its
+`Q` id, and a Wikidata fact a property and an item (`P840:Q90`, set in Paris; `P144/P50:Q…`, based on a work
+by an author).
+
+**The card**, `TitleCard`, wherever a title is listed:
+
+| Field | |
+|---|---|
+| `id`, `kind`, `title`, `originalTitle?` | `kind` is `film` or `show`; `originalTitle` when it differs |
+| `year?`, `endYear?`, `released?`, `runtime?` | `endYear` a show's last; `released` `yyyy-MM-dd`; `runtime` in minutes |
+| `category` | `anime` when the genres hold Animation and the original language is Japanese, else `general` (Categories) |
+| `genres` | IMDb's genres, the one vocabulary of films and shows |
+| `language?` | the original language, an ISO 639-1 code |
+| `rating?` | `{value?, votes, by}`: IMDb's where it rates the title, else the film database's (`by` `imdb` or `tmdb`); no `value` under 25 votes |
+| `poster?`, `backdrop?` | image URLs (`/images/…`, below) |
+| `plot?` | the overview's first sentence, at most 200 characters |
+| `madeBy`, `starring` | a film's directors or a show's creators, and the two top-billed, as names |
+| `changedAt?` | when anything a page shows of it last changed |
+| `credit?` | on a list filtered by one person: `{department, role}`, their part in it |
+| `you?` | the asking person's, joined by the API: `{inLibrary, libraryId?, watched, wanted}`; `libraryId` the library's title for a film it holds |
+
+**The page**, `TitlePage`, `GET /api/catalogue/titles/{imdbId}`: the card, and `overview?`, `tagline?`,
+`status?`, `logo?`, `ratings` (`{imdb?, tmdb?}`, both sources' ratings), `certificates` (by country; a page
+shows the viewer's own, read from the browser's languages, since Cinema fixes no country), `countries`,
+`languages`, `companies` and `networks` (`{id, name}`), `keywords` (`{id, name}`), `cast`
+(`{personId, name, character?, portrait?}`), `crew` (`{personId, name, job}`), `trailers`
+(`{key, name, kind}`, each playing from `https://www.youtube-nocookie.com/embed/{key}`), `facts`
+(Wikidata's: `setIn`, `filmedIn`, `basedOn` as `{work, authors}`, `awards`, `nominations`, `subjects`, each
+named thing `{id, name}`), `franchises` (`{id, name, ordinal?}`, its place in each), `follows` and
+`followedBy` (cards), `budget?` and `revenue?` (US dollars), a show's `seasons`
+(`{number, name?, airDate?, poster?, episodes}`) and `nextEpisode?` (`{season, number, name?, airDate}`), and
+`similar` (cards).
+
+**The list query**, `GET /api/catalogue/titles`, answers every list of titles: a search, a shelf, a genre,
+a person's work, a franchise, a ranking, what is out or coming and what is like a title are all its filters,
+and they combine. `page` and `size` (20 by default, at most 100) page it.
+
+- `q`: words, matched against every name a title goes by, its English title first; the closest match
+  first, a well-known title before an obscure one of the same name.
+- `kind` (`film`, `show`), `category` (`general`, `anime`); `genre` (all of them), `anyGenre`, `notGenre`.
+- `from`, `to` (years), `decade` (`1990`); `released` and `releasedBefore` (dates); `length` (`short` under
+  90 minutes, `standard` to 150, `long`), `minRuntime`, `maxRuntime`.
+- `language` (ISO 639-1), `country` (ISO 3166).
+- `keyword` (all of them), `anyKeyword`, `company`; `person` with `role` (`cast`, `directing`, `writing`, `any`).
+- `minRating`, `maxRating`, `minVotes`, `maxVotes`; `status` (`Released`, `Ended`, `Returning Series`,
+  `Canceled`, `In Production`), `maxSeasons`.
+- `fact`: a Wikidata fact, any of them repeated.
+- `franchise`, `ranking` (`trending-films`, `popular-shows`, …), `similarTo` (an IMDb id).
+- `unwatched`, `inLibrary` (`true`, `false`), and `here` (`watched`: what the people here watched most
+  lately; `ready`: what the library holds ready, newest first): the asking person's, applied by the API.
+- `sort`: `popular`, `rating` (IMDb's weighted by votes), `lowest`, `newest`, `oldest`, `title`, `votes`, or
+  `order`, the ranking's, the franchise's or the similar titles' own, which needs one of them.
+
+`GET /api/catalogue/facets` takes the same filters (Filters and facets).
+
+**Images.** Every image is `/images/{size}/{file}`, the film database's file at the size it is kept at; a
+poster is `w500`, a backdrop `w1280`, a portrait `w185` and a still `w300`. A file never changes under its
+name, so its URL is cached for good; a title shown with another image names another URL.
+
+**Credit.** The catalogue's words and images are TMDB's, IMDb's and Wikidata's. TMDB's terms ask for the
+words "This product uses TMDB and the TMDB APIs but is not endorsed, certified, or otherwise approved by
+TMDB" wherever they are shown, and every page that shows them carries them.
 
 ## Hub
 

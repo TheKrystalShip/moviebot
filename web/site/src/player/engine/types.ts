@@ -141,17 +141,16 @@ export interface EpisodePlace {
   overview?: string;
 }
 
-/** One episode of a show as its description lists it, joined with the library and the viewer's progress. */
+/** One episode of a show as the person's show lists it, joined with the library and the viewer's progress. */
 export interface ShowEpisode {
   season: number;
   number: number;
   name?: string;
   overview?: string;
   airDate?: string;
-  runtimeMinutes?: number;
-  rating?: number;
+  runtime?: number;
   /** The episode's still, served from here. */
-  stillUrl?: string;
+  still?: string;
   /** The library's title for the episode; absent when the library does not hold it. */
   titleId?: string;
   status?: TitleStatus;
@@ -159,69 +158,65 @@ export interface ShowEpisode {
   progress?: { positionSeconds: number; finished: boolean };
 }
 
-/** A show's seasons, each with every episode the film database or the library knows of. */
-export interface ShowSeasons {
+/** What the person has of a show (`GET /api/me/shows/{imdbId}`): its seasons, each with every episode, numbered as the releases number them. */
+export interface PersonShow {
   imdbId: string;
-  title: string;
   seasons: { number: number; name?: string; episodes: ShowEpisode[] }[];
 }
 
-/** One person in a title's billing; `personId` is the film database's, which Discover takes. */
+/** A rating and whose it is: IMDb's where IMDb rates the title, the film database's otherwise; no value under 25 votes. */
+export interface Rating {
+  value?: number;
+  votes: number;
+  by: 'imdb' | 'tmdb';
+}
+
+/** One person in a title's billing, by the catalogue's id. */
 export interface CastMember {
-  personId?: number;
+  personId: number;
   name: string;
   character?: string;
   /** Served from here. */
-  portraitUrl?: string;
+  portrait?: string;
 }
 
-/** What the film database says of a film or a show, as the API keeps it; the parts the player draws. */
-export interface TitleDescription {
-  imdbId: string;
+export interface CrewMember {
+  personId: number;
+  name: string;
+  job: string;
+}
+
+/** A title's catalogue card, wherever one is listed: the parts the player draws. */
+export interface TitleCard {
+  id: string;
+  kind: 'film' | 'show';
   title: string;
   originalTitle?: string;
-  certification?: string;
+  year?: number;
+  endYear?: number;
+  released?: string;
+  runtime?: number;
+  category: string;
   genres: string[];
+  rating?: Rating;
+  poster?: string;
+  backdrop?: string;
+  plot?: string;
+  madeBy: string[];
+  starring: string[];
+}
+
+/** A title's catalogue page (`GET /api/catalogue/titles/{imdbId}`): its card and the parts the player draws. */
+export interface CataloguePage extends TitleCard {
   overview?: string;
   tagline?: string;
-  rating?: number;
-  votes: number;
-  cast: CastMember[];
+  status?: string;
+  certificates: Record<string, string>;
   languages: string[];
   countries: string[];
-  posterUrl?: string;
-  backdropUrl?: string;
-}
-
-/** A film's description: `GET /api/films/{imdbId}`. */
-export interface FilmDescription extends TitleDescription {
-  year?: number;
-  releaseDate?: string;
-  directors: string[];
-  writers: string[];
-}
-
-/** A show's description with its seasons: `GET /api/shows/{imdbId}`. */
-export interface ShowDescription extends TitleDescription, ShowSeasons {
-  firstYear?: number;
-  lastYear?: number;
-  status?: string;
-  inProduction?: boolean;
-  creators: string[];
-  networks: string[];
-}
-
-/** The part of a description a listing carries, which a saved copy's manifest keeps. */
-export interface FilmFacts {
-  rating?: number;
-  votes: number;
-  certification?: string;
-  genres: string[];
-  runtimeMinutes?: number;
-  overview?: string;
-  directors: string[];
-  posterUrl?: string;
-  backdropUrl?: string;
+  networks: { id: string; name: string }[];
+  cast: CastMember[];
+  crew: CrewMember[];
 }
 
 /** One point in the film with a name, as the container already records it. */
@@ -267,8 +262,8 @@ export interface Manifest {
   film?: FilmIdentity;
   /** An episode's place in its show, which `film` then names; absent for a film. */
   episode?: EpisodePlace;
-  /** The film's description, or an episode's show's, as far as a listing carries it: a saved copy's. */
-  details?: FilmFacts;
+  /** The film's card, or an episode's show's: a saved copy's, which the save keeps. */
+  card?: TitleCard;
   source?: SourceFingerprint;
   /** Languages the source carries that were not extracted, so an absent one is explained. */
   otherLanguages?: string[];

@@ -9,7 +9,7 @@
 // as it is made (`saver.js`). Saving the title ends the want at the API, and this side lets go of it.
 
 import { createStore, useStore } from "@thekrystalship/krystal";
-import { api } from "../api.js";
+import { libraryApi, meApi } from "../api/index.js";
 import { isOnline } from "../connectivity.js";
 import { sessionStore } from "../session.js";
 import { defaultAudio, defaultRung, defaultSubtitles, deviceName, rungFor } from "./choose.js";
@@ -85,7 +85,7 @@ export function wantOf(list, imdbId, season = null, number = null) {
  * (null for none).
  */
 export async function askDownload({ imdbId, episodes = null, height = null, audioLanguage = null, subtitleLanguage = null }) {
-  const answered = await api.wantOffline({ imdbId, episodes, height, audioLanguage, subtitleLanguage, device: deviceName() });
+  const answered = await meApi.wantOffline({ imdbId, episodes, height, audioLanguage, subtitleLanguage, device: deviceName() });
   const ids = new Set(answered.map((w) => w.id));
   wanted.setState((s) => ({
     sub: currentSub(),
@@ -97,7 +97,7 @@ export async function askDownload({ imdbId, episodes = null, height = null, audi
 
 /** Stops waiting on a want; its download on the server is the library's to keep or let go. */
 export async function letGo(want) {
-  await api.unwantOffline(want.id);
+  await meApi.unwantOffline(want.id);
   forget(want.id);
 }
 
@@ -119,8 +119,8 @@ function forget(id) {
 export async function downloadAt(titleId, height, { audioLanguage = null, subtitleLanguage = null } = {}) {
   const sub = currentSub();
   const [offer, preferences] = await Promise.all([
-    api.offlineOffer(titleId),
-    api.preferences().catch(() => keptPreferences(sub)),
+    libraryApi.offlineOffer(titleId),
+    meApi.preferences().catch(() => keptPreferences(sub)),
   ]);
   const rung = height ? rungFor(offer.rungs, height) : defaultRung(offer.rungs, preferences);
   if (!rung) throw new Error("Nothing of this title can be downloaded yet.");
@@ -148,7 +148,7 @@ async function tend() {
   let list;
   try {
     const device = deviceName();
-    list = (await api.offlineWants()).filter((w) => w.device === device);
+    list = (await meApi.offlineWants()).filter((w) => w.device === device);
   } catch {
     timer = setTimeout(() => void tendWants(), TEND_MS * 3);
     return;
@@ -161,7 +161,7 @@ async function tend() {
     starting.add(want.id);
     try {
       // A title already here is not downloaded twice; the want is let go of.
-      if (await readSave(sub, want.titleId)) await api.unwantOffline(want.id);
+      if (await readSave(sub, want.titleId)) await meApi.unwantOffline(want.id);
       else await downloadAt(want.titleId, want.height, { audioLanguage: want.audioLanguage, subtitleLanguage: want.subtitleLanguage });
       forget(want.id);
     } catch (error) {

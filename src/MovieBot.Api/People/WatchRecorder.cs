@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -25,7 +26,7 @@ public sealed class WatchRecorder(
     WatchRecord record,
     PersonDirectory people,
     WantStore wants,
-    ShowStore shows,
+    CatalogueTitles shows,
     LibraryListing listing,
     TimeProvider clock) : IHostedService
 {
@@ -70,7 +71,7 @@ public sealed class WatchRecorder(
 
         var finished = ShowProgress.Finished(listing.Titles(), record.Entries(userId)).GetValueOrDefault(imdbId);
         if (want.Kind == WantKinds.Show
-            && ShowProgress.FinishedAired(shows.Held(imdbId), finished, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)))
+            && ShowProgress.FinishedAired(shows.Show(imdbId), finished, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)))
             wants.Remove(userId, imdbId);
     }
 }

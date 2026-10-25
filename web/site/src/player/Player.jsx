@@ -81,15 +81,15 @@ function filmLine(manifest, around) {
 const episodeCode = (episode) => `S${episode.season} · E${episode.number}`;
 
 /**
- * The artwork behind the frame, always from this server: the title's poster as the API serves it,
- * else the copy the API keeps from the film database for the film, or for the show an episode belongs to.
+ * The artwork behind the frame, always from this server: the title's poster as the library serves it,
+ * else the catalogue's poster for the film, or for the show an episode belongs to, by its IMDb id.
  */
 function posterOf(manifest) {
   if (!manifest) return null;
   if (manifest.poster) return environment().mediaUrl(manifest.id, manifest.poster);
   const imdbId = manifest.film && manifest.film.imdbId;
   if (!imdbId) return null;
-  return environment().apiUrl(`/${manifest.episode ? "shows" : "films"}/${encodeURIComponent(imdbId)}/poster.jpg`);
+  return environment().apiUrl(`/images/titles/${encodeURIComponent(imdbId)}/poster`);
 }
 
 /** An episode either side, as a button names it: "S2 · E5 · Defiant Jazz". */

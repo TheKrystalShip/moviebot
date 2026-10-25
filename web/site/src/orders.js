@@ -17,6 +17,8 @@ export const ORDER_WORDS = {
   added: { label: "Recently added", key: "added", dir: "desc" },
   "first-added": { label: "First added", key: "added", dir: "asc" },
   name: { label: "Name A–Z", key: "name", dir: "asc" },
+  title: { label: "Name A–Z", key: "name", dir: "asc" },
+  votes: { label: "Most voted", key: "votes", dir: "desc" },
   "name-desc": { label: "Name Z–A", key: "name", dir: "desc" },
   rating: { label: "Highest rated", key: "rating", dir: "desc" },
   lowest: { label: "Lowest rated", key: "rating", dir: "asc" },

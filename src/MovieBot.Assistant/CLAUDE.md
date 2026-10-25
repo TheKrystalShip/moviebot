@@ -24,11 +24,19 @@ service says otherwise.
   is exactly what the model reads, over an `Args` record that is its schema. A tool runs for a signed-in
   person, as that person; `ToolRefusal` is what it throws for a reason the model should read, and any
   other failure is answered as "could not finish". `TitleText` writes what the API said, one title to a
-  line; `TitleCards` the structured result beside it, serialized through `CardJson`.
+  line; `TitleCards` the structured result beside it, serialized through `CardJson`. `Vocabulary` turns
+  what a person says into what the list filters take: a genre or a language into the catalogue's own (read
+  from its facets), a plot word into a keyword and a name into a person (through its terms), a title into
+  its IMDb id.
 - **`CinemaGuards.cs`** the reply guards, and the speech vocabulary in `Program.cs`: code, declared on
   the plugin builder.
 - **`Api/`** the API as the asking person: `CinemaApi` (the routes the tools read, every refusal
-  worded for the model as a `ToolRefusal`) and the DTOs (only the fields a tool reads).
+  worded for the model as a `ToolRefusal`) and the DTOs (only the fields a tool reads, read through the
+  source-generated `ApiJson`). Every list a tool gives is one `/api/catalogue/titles` query (`TitleFilter`):
+  a search, a discovery, a person's credits, a ranking, a window of release dates, what the library holds
+  ready. A title is its page at `/api/catalogue/titles/{imdbId}`; names resolve through
+  `/api/catalogue/terms`, genres and languages through `/api/catalogue/facets`; the person's own are
+  `/api/me/*` and `/api/anticipated`.
 - **`Callers.cs`** sign-in: the access token on the request, validated as the API validates it. No token
   or a foreign one is `401`; the provider's token without `cinema:watch` is `403`; a provider whose keys
   cannot be fetched is `502`.
@@ -42,7 +50,7 @@ service says otherwise.
 `anticipated`: all `read`, all always loaded. Nothing acts. Watching, getting a film, wanting a title and follows are buttons on a
 title's page; the assistant answers with cards that open it. `find_by_clues` is where a half-remembered
 film is found: the model extracts the clues and the tool resolves the people, reads their dated credits,
-runs `discover` on the look and the plot words, reads the best candidates' database pages, and ranks by how
+lists what has the look and the plot words, reads the best candidates' database pages, and ranks by how
 many clues each fits, with the clues it fits, the ones it does not, and the ones it could not check.
 `anticipated` lists the films people are waiting on, with how many wait on each and whether the asking
 person is one of them; it needs the right to wait on films (`cinema:wish`) and says so when refused.
@@ -53,8 +61,9 @@ There are no room controls: whoever is in a room has the player.
 - **Every call is the person's.** The tools reach the API with the access token the turn carries, so what
   a person sees is exactly what the API lets them, and `watched` is theirs. The service holds no key of
   the API's and no state of its own: the plugin keeps no data directory and announces nothing.
-- **Facts come from the film database, never from the model.** A value the API left out is not written.
-  A title the database holds no IMDb id for is named in words and has no card.
+- **Facts come from the film database, never from the model.** A value the API left out is not written,
+  and a word the catalogue holds nothing for is said back with what it does hold, never dropped from the
+  question.
 - **A card is a title with a page.** Every tool that names titles returns a `titles` card:
   `{kind: "titles", titles: [{imdbId, kind, title, year?, posterUrl?, inLibrary, watched}]}`. A result
   with no title to show carries none. The site draws a card only for a title the reply names.

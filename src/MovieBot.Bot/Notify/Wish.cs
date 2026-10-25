@@ -34,8 +34,8 @@ public sealed record Wish
     {
         ImdbId = view.ImdbId,
         Title = view.Title,
-        Year = view.Year,
-        PosterUrl = view.PosterUrl switch
+        Year = view.Card?.Year,
+        PosterUrl = view.Card?.Poster switch
         {
             ['/', ..] url => publicBaseUrl is { Length: > 0 } root ? root.TrimEnd('/') + url : null,
             { } url when Uri.TryCreate(url, UriKind.Absolute, out var absolute) && absolute.Scheme is "https" or "http" => url,

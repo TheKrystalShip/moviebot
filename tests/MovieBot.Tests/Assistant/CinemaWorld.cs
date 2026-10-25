@@ -9,9 +9,9 @@ using TheKrystalShip.MovieBot.Assistant.Tools;
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
 
 /// <summary>
-/// The film database and the library as the API answers them, in an invented world: a person with the
+/// The catalogue and the library as the API answers them, in an invented world: a person with the
 /// same name twice, a silent film and ones that are not, early-2000s horror, announced
-/// titles with and without an IMDb id, a person's history, lists and follows. It is a table of answers
+/// titles with no date, a person's history, lists and follows. It is a table of answers
 /// behind the same HTTP client the tools use, so a recording of the live API replays the same way.
 /// </summary>
 internal static class CinemaWorld
@@ -19,295 +19,227 @@ internal static class CinemaWorld
     public const string Today = "2026-10-09";
     public const string Token = "a-person's-access-token";
 
-    public static TitleHit Hit(
-        string id, string title, int year, string kind = "film", string[]? genres = null, double rating = 7.2, int votes = 5400,
-        bool inLibrary = false, bool watched = false, string? plot = null, string[]? madeBy = null, string[]? starring = null) =>
+    public static CatalogueCard Card(
+        string id, string title, int? year, string kind = "film", string[]? genres = null, double rating = 7.2, int votes = 5400,
+        bool inLibrary = false, bool watched = false, string? plot = null, string[]? madeBy = null, string[]? starring = null,
+        string? released = "", string? role = null, string department = "cast", string category = "general", string? language = "en") =>
         new()
         {
-            ImdbId = id.Length == 0 ? null : id, TmdbId = Math.Abs(HashCode.Combine(id, title)) % 100000, Kind = kind,
-            Title = title, Year = year, ReleaseDate = $"{year}-03-05", Genres = [.. genres ?? ["Drama"]], Rating = rating,
-            Votes = votes, Plot = plot, MadeBy = [.. madeBy ?? []], Starring = [.. starring ?? []],
-            PosterUrl = id.Length == 0 ? null : $"/glances/{id}/poster.jpg", InLibrary = inLibrary, Watched = watched,
-            LibraryId = inLibrary ? title.ToLowerInvariant().Replace(' ', '-') + $"-{year}" : null,
+            Id = id, Kind = kind, Title = title, Year = year,
+            Released = released == "" ? (year is { } y ? $"{y}-03-05" : null) : released,
+            Genres = [.. genres ?? ["Drama"]], Rating = votes == 0 ? null : new CardRating(votes < 25 ? null : rating, votes, "imdb"),
+            Plot = plot, MadeBy = [.. madeBy ?? []], Starring = [.. starring ?? []], Poster = $"/images/w500/{id}.jpg",
+            Category = category, Language = language,
+            Credit = role is null && department == "cast" ? null : new CardCredit(department, role ?? ""),
+            You = new Viewer(inLibrary, inLibrary ? title.ToLowerInvariant().Replace(' ', '-') + $"-{year}" : null, watched, false),
         };
 
-    public static Credit Credit(
-        string? id, string title, string? date, string status, string kind = "film", string? role = null, bool watched = false) =>
-        new()
-        {
-            TmdbId = Math.Abs(title.GetHashCode()) % 100000, ImdbId = id, Kind = kind, Title = title,
-            Year = date is null ? null : int.Parse(date[..4]), ReleaseDate = date, Status = status, Role = role, Rating = date is null ? null : 6.8,
-            Votes = date is null ? 0 : 1200, PosterUrl = id is null ? null : $"/glances/{id}/poster.jpg", Watched = watched,
-        };
+    /// <summary>A credit on a list filtered by one person: its date (or none) and their part in it.</summary>
+    public static CatalogueCard Credit(
+        string id, string title, string? date, string kind = "film", string? role = null, bool watched = false, int votes = 1200) =>
+        Card(id, title, date is null ? null : int.Parse(date[..4]), kind, rating: 6.8, votes: date is null ? 0 : votes, watched: watched,
+            released: date, role: role);
 
-    public static readonly TitleHit NightHarbor = Hit("tt1000001", "Night Harbor", 1995, genres: ["Crime", "Drama"], rating: 8.3, votes: 700000,
+    public static CardPage Page(params CatalogueCard[] titles) => new() { Titles = [.. titles], Total = titles.Length };
+
+    public static readonly CatalogueCard NightHarbor = Card("tt1000001", "Night Harbor", 1995, genres: ["Crime", "Drama"], rating: 8.3, votes: 700000,
         inLibrary: true, watched: true, plot: "A detective hunts a thief across a port city.", madeBy: ["Vera Lund"], starring: ["Ada Calloway", "Theo Marsh"]);
 
-    public static readonly TitleHit NightHarborShow = Hit("tt1000002", "Night Harbor", 2012, "show", ["Crime"], 6.9, 3100,
+    public static readonly CatalogueCard NightHarborShow = Card("tt1000002", "Night Harbor", 2012, "show", ["Crime"], 6.9, 3100,
         plot: "Dockworkers uncover a smuggling ring.", madeBy: ["Imre Voss"], starring: ["Nell Aldous"]);
 
-    public static readonly TitleHit LanternKeeper = Hit("tt1000003", "The Lantern Keeper", 2019, genres: ["Drama", "Mystery"], rating: 7.5, votes: 61000,
-        plot: "Two keepers lose their grip on a lighthouse.", madeBy: ["Rowan Pike"], starring: ["Julian Rook", "Willa Dane"]);
+    public static readonly CatalogueCard LanternKeeper = Card("tt1000003", "The Lantern Keeper", 2019, genres: ["Drama", "Mystery"], rating: 7.5, votes: 61000,
+        plot: "Two keepers lose their grip on a lighthouse.", madeBy: ["Rowan Pike"], starring: ["Julian Rook", "Willa Dane"], released: "2019-10-18");
 
-    public static readonly TitleHit HollowHouse = Hit("tt1000010", "Hollow House", 2002, genres: ["Horror"], rating: 7.2, votes: 410000,
+    public static readonly CatalogueCard HollowHouse = Card("tt1000010", "Hollow House", 2002, genres: ["Horror"], rating: 7.2, votes: 410000,
         watched: true, inLibrary: true, plot: "A family hears the walls breathe.", madeBy: ["Dara Quill"], starring: ["Mina Ford", "Cass Hale"]);
 
-    public static readonly TitleHit QuietRoom = Hit("tt1000011", "The Quiet Room", 2003, genres: ["Horror", "Mystery"], rating: 6.8, votes: 2300,
+    public static readonly CatalogueCard QuietRoom = Card("tt1000011", "The Quiet Room", 2003, genres: ["Horror", "Mystery"], rating: 6.8, votes: 2300,
         plot: "A nurse finds a ward that does not exist.", madeBy: ["Oto Brandt"], starring: ["Pia Lowe"]);
 
-    public static readonly TitleHit AshRoad = Hit("tt1000012", "Ash Road", 2004, genres: ["Horror"], rating: 6.6, votes: 900,
+    public static readonly CatalogueCard AshRoad = Card("tt1000012", "Ash Road", 2004, genres: ["Horror"], rating: 6.6, votes: 900,
         inLibrary: true, plot: "A hitchhiker is not what she seems.", madeBy: ["Dara Quill"], starring: ["Cass Hale"]);
 
-    public static readonly TitleHit Unpaged = Hit("", "Untitled Harbour Project", 2027, genres: ["Drama"], rating: 0, votes: 0);
+    public static readonly CatalogueCard CoastalHours = Card("tt1000004", "Coastal Hours", 2021, rating: 6.9, votes: 800, inLibrary: true, watched: true,
+        released: "2021-06-11", language: "es");
+
+    public static readonly CatalogueCard SaltLineCard = Card("tt1000006", "The Salt Line", 2020, "show", rating: 7.9, votes: 21000, inLibrary: true);
+
+    /// <summary>A film's page, from its card.</summary>
+    public static TitlePage PageOf(CatalogueCard card) => new()
+    {
+        Id = card.Id, Kind = card.Kind, Title = card.Title, Year = card.Year, Released = card.Released, Genres = card.Genres,
+        Rating = card.Rating, Poster = card.Poster, Plot = card.Plot, Category = card.Category, Language = card.Language,
+        MadeBy = card.MadeBy, Starring = card.Starring, You = card.You,
+    };
 
     /// <summary>A film's page, with its keywords.</summary>
-    public static readonly FilmDetails LanternPage = new()
+    public static readonly TitlePage LanternPage = PageOf(LanternKeeper) with
     {
-        ImdbId = "tt1000003", Title = "The Lantern Keeper", Year = 2019, ReleaseDate = "2019-10-18", RuntimeMinutes = 109,
-        Certification = "R", Genres = ["Drama", "Mystery"], Overview = "Two keepers lose their grip on a lighthouse.",
-        Tagline = "The light is the least of it.", Keywords = ["silent film", "lighthouse", "isolation"],
-        Rating = 7.5, Votes = 61000, Directors = ["Rowan Pike"], Writers = ["Rowan Pike", "Sol Pike"],
-        Cast = [new() { Name = "Julian Rook", Character = "Thomas" }, new() { Name = "Willa Dane", Character = "Ephraim" }],
-        OriginalLanguage = "en", Countries = ["United States"], PosterUrl = "/films/tt1000003/poster.jpg", LibraryId = null, Watched = false,
+        Runtime = 109, Certificates = new() { ["US"] = "R" }, Overview = "Two keepers lose their grip on a lighthouse.",
+        Tagline = "The light is the least of it.",
+        Keywords = [new("k77", "silent film"), new("k78", "lighthouse"), new("k80", "isolation")],
+        Crew = [new(9001, "Rowan Pike", "Director"), new(9001, "Rowan Pike", "Screenplay"), new(9002, "Sol Pike", "Writer")],
+        Cast = [new(601, "Julian Rook", "Thomas"), new(9003, "Willa Dane", "Ephraim")],
+        Countries = ["US"],
     };
 
     /// <summary>A film with keywords, none of them a look.</summary>
-    public static readonly FilmDetails CoastalPage = new()
+    public static readonly TitlePage CoastalPage = PageOf(CoastalHours) with
     {
-        ImdbId = "tt1000004", Title = "Coastal Hours", Year = 2021, ReleaseDate = "2021-06-11", RuntimeMinutes = 98,
-        Genres = ["Drama"], Overview = "Three summers at one cafe.", Keywords = ["friendship", "summer"],
-        Rating = 6.9, Votes = 800, Directors = ["Ines Varga"], Cast = [new() { Name = "Ada Calloway", Character = "Lia" }],
-        OriginalLanguage = "es", Countries = ["Spain"], PosterUrl = "/films/tt1000004/poster.jpg", LibraryId = "coastal-hours-2021", Watched = true,
+        Runtime = 98, Overview = "Three summers at one cafe.", Keywords = [new("k81", "friendship"), new("k82", "summer")],
+        Crew = [new(9004, "Ines Varga", "Director")], Cast = [new(501, "Ada Calloway", "Lia")], Countries = ["ES"],
     };
 
     /// <summary>A film whose keywords have not been asked for yet.</summary>
-    public static readonly FilmDetails ColdFramePage = new()
+    public static readonly TitlePage ColdFramePage = PageOf(Card("tt1000005", "Cold Frame", 2023, genres: ["Thriller"], rating: 6.1, votes: 400,
+        released: "2023-01-20")) with { Crew = [new(9005, "Maks Ilves", "Director")] };
+
+    public static readonly TitlePage SaltLine = PageOf(SaltLineCard) with
     {
-        ImdbId = "tt1000005", Title = "Cold Frame", Year = 2023, ReleaseDate = "2023-01-20", Genres = ["Thriller"], Keywords = [],
-        Rating = 6.1, Votes = 400, Directors = ["Maks Ilves"], Cast = [],
+        EndYear = 2022, Status = "Ended", Overview = "A border town runs on salt.", Keywords = [new("k83", "border")],
+        Crew = [new(9006, "Imre Voss", "Creator")], Cast = [new(801, "Nell Aldous", "Marta")], Networks = [new("s12", "Northlight")],
+        Seasons = [new(1, null, "2020-02-02", 2), new(2, null, "2021-02-02", 1)],
     };
 
-    public static readonly ShowDetails SaltLine = new()
+    /// <summary>The catalogue's genres and its most held original languages.</summary>
+    public static readonly Facets Vocabulary = new()
     {
-        ImdbId = "tt1000006", Title = "The Salt Line", FirstYear = 2020, LastYear = 2022, Status = "Ended", Genres = ["Drama"],
-        Overview = "A border town runs on salt.", Keywords = ["border"], Rating = 7.9, Votes = 21000, Creators = ["Imre Voss"],
-        Cast = [new() { Name = "Nell Aldous", Character = "Marta" }], Networks = ["Northlight"], PosterUrl = "/shows/tt1000006/poster.jpg",
-        Seasons =
+        Sections =
         [
-            new() { Number = 1, AirDate = "2020-02-02", Episodes = [new() { Number = 1, TitleId = "salt-s01e01" }, new() { Number = 2 }] },
-            new() { Number = 2, AirDate = "2021-02-02", Episodes = [new() { Number = 1 }] },
+            new("genre", [.. new[] { "Action", "Animation", "Comedy", "Crime", "Drama", "Family", "Horror", "Mystery", "Sci-Fi", "Thriller" }
+                .Select(g => new FacetOption(g, null, 10))]),
+            new("language", [new("en", "English", 100), new("ja", "Japanese", 20), new("ko", "Korean", 10)]),
         ],
-        Follow = new FollowDetails { Since = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero) },
     };
+
+    private static List<Term> People(params (int Id, string Name, string Department)[] people) =>
+        [.. people.Select(p => new Term("person", p.Id.ToString(), p.Name, p.Department))];
+
+    private static List<Term> Keyword(string id, string name) => [new("keyword", id, name, null)];
 
     /// <summary>The world, and the API client that asks it as one person.</summary>
     public static ReplayHandler Build()
     {
         var world = new ReplayHandler();
 
-        world.Answer("/api/catalogue/search?q=night harbor", new SearchResult { Query = "night harbor", Titles = [NightHarbor, NightHarborShow] });
-        world.Answer("/api/catalogue/search?q=night harbor&year=1995", new SearchResult { Query = "night harbor", Titles = [NightHarbor] });
-        world.Answer("/api/catalogue/search?q=night harbor&kind=film", new SearchResult { Query = "night harbor", Titles = [NightHarbor] });
-        world.Answer("/api/catalogue/search?q=the lantern keeper", new SearchResult { Titles = [LanternKeeper] });
-        world.Answer("/api/catalogue/search?q=the lantern keeper&year=2019", new SearchResult { Titles = [LanternKeeper] });
-        world.Answer("/api/catalogue/search?q=lantern", new SearchResult { Titles = [LanternKeeper] });
-        world.Answer("/api/catalogue/search?q=coastal hours&year=2021",
-            new SearchResult { Titles = [Hit("tt1000004", "Coastal Hours", 2021, inLibrary: true, watched: true)] });
-        world.Answer("/api/catalogue/search?q=cold frame", new SearchResult { Titles = [Hit("tt1000005", "Cold Frame", 2023)] });
-        world.Answer("/api/catalogue/search?q=the salt line", new SearchResult { Titles = [Hit("tt1000006", "The Salt Line", 2020, "show")] });
-        world.Answer("/api/catalogue/search?q=nothing like it", new SearchResult { Query = "nothing like it", Titles = [] });
-        world.Answer("/api/catalogue/search?q=harbour", new SearchResult { Titles = [Unpaged, NightHarbor] });
-        world.Answer("/api/catalogue/search?q=unborn harbour", new SearchResult { Titles = [Unpaged] });
-        world.Answer("/api/catalogue/search?q=down", "{\"error\":\"The film database could not be asked.\"}", 503);
+        world.Answer("/api/catalogue/titles?q=night harbor&size=10", Page(NightHarbor, NightHarborShow));
+        world.Answer("/api/catalogue/titles?q=night harbor&from=1994&to=1996&size=10", Page(NightHarbor));
+        world.Answer("/api/catalogue/titles?q=night harbor&kind=film&size=10", Page(NightHarbor));
+        world.Answer("/api/catalogue/titles?q=night harbor&from=1995&to=1995&size=1", Page(NightHarbor));
+        world.Answer("/api/catalogue/titles?q=the lantern keeper&size=10", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?q=the lantern keeper&from=2018&to=2020&size=10", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?q=coastal hours&from=2020&to=2022&size=10", Page(CoastalHours));
+        world.Answer("/api/catalogue/titles?q=cold frame&size=10", Page(ColdFramePage));
+        world.Answer("/api/catalogue/titles?q=the salt line&size=10", Page(SaltLineCard));
+        world.Answer("/api/catalogue/titles?q=nothing like it&size=10", Page());
+        world.Answer("/api/catalogue/titles?q=unborn harbour&size=10", Page());
+        world.Answer("/api/catalogue/titles?q=down&size=10", "{\"error\":\"The catalogue is being rebuilt.\"}", 503);
 
-        world.Answer("/api/films/tt1000001", new FilmDetails
+        world.Answer("/api/catalogue/titles/tt1000001", PageOf(NightHarbor) with
         {
-            ImdbId = "tt1000001", Title = "Night Harbor", Year = 1995, ReleaseDate = "1995-12-15", Genres = ["Crime", "Drama"],
-            Keywords = ["heist"], Rating = 8.3, Votes = 700000, Directors = ["Vera Lund"], LibraryId = "night-harbor-1995", Watched = true,
+            Released = "1995-12-15", Keywords = [new("k84", "heist")], Crew = [new(9007, "Vera Lund", "Director")],
         });
-        world.Answer("/api/films/tt1000003", LanternPage);
-        world.Answer("/api/films/tt1000004", CoastalPage);
-        world.Answer("/api/films/tt1000005", ColdFramePage);
-        world.Answer("/api/films/tt1000006", "{\"error\":\"The film database holds no film under tt1000006.\"}", 404);
-        world.Answer("/api/shows/tt1000006", SaltLine);
-
-        world.Answer("/api/catalogue/people?q=ada calloway", new PeopleResult
+        world.Answer("/api/catalogue/titles/tt1000003", LanternPage);
+        world.Answer("/api/catalogue/titles/tt1000004", CoastalPage);
+        world.Answer("/api/catalogue/titles/tt1000005", ColdFramePage);
+        world.Answer("/api/catalogue/titles/tt1000006", SaltLine);
+        world.Answer("/api/me/shows/tt1000006", new PersonShow
         {
-            Query = "ada calloway",
-            People =
-            [
-                new() { PersonId = 501, Name = "Ada Calloway", KnownFor = "Acting", KnownForTitles = ["Night Harbor (1995)", "Coastal Hours (2021)"] },
-                new() { PersonId = 502, Name = "Ada Calloway", KnownFor = "Directing", KnownForTitles = ["Small Rooms (2011)"] },
-            ],
-        });
-        world.Answer("/api/catalogue/people?q=julian rook", new PeopleResult
-        {
-            People = [new() { PersonId = 601, Name = "Julian Rook", KnownFor = "Acting", KnownForTitles = ["The Lantern Keeper (2019)"] }],
-        });
-        world.Answer("/api/catalogue/people?q=rook", new PeopleResult
-        {
-            People =
-            [
-                new() { PersonId = 601, Name = "Julian Rook", KnownFor = "Acting", KnownForTitles = ["The Lantern Keeper (2019)"] },
-                new() { PersonId = 603, Name = "Edda Rookwood", KnownFor = "Writing", KnownForTitles = [] },
-            ],
-        });
-        world.Answer("/api/catalogue/people?q=nobody here", new PeopleResult { Query = "nobody here", People = [] });
-
-        world.Answer("/api/catalogue/people/501/credits?from=2026&to=2026&role=acting", new PersonCredits
-        {
-            PersonId = 501, Name = "Ada Calloway", KnownFor = "Acting", AsOf = Today, Total = 7,
-            Credits =
-            [
-                Credit("tt1000030", "Mother Tongue", "2026-04-16", "released", role: "Anna"),
-                Credit("tt1000031", "The Wedding Party 2", "2026-04-29", "released", role: "Lead"),
-                Credit("tt1000032", "The Long Voyage", "2026-07-15", "released", role: "Helen", watched: true),
-                Credit("tt1000033", "Winter Street", "2026-12-18", "upcoming", role: "Carol"),
-                Credit("tt1000034", "Salt Marsh", null, "announced"),
-                Credit(null, "Untitled Harbour Sting", null, "announced"),
-                Credit("tt1000035", "Fear Not", null, "announced", kind: "show"),
-            ],
-        });
-        world.Answer("/api/catalogue/people/502/credits?role=directing", new PersonCredits
-        {
-            PersonId = 502, Name = "Ada Calloway", KnownFor = "Directing", AsOf = Today, Total = 1,
-            Credits = [Credit("tt1000040", "Small Rooms", "2011-05-05", "released", role: "Director")],
-        });
-        world.Answer("/api/catalogue/people/501/credits", new PersonCredits
-        {
-            PersonId = 501, Name = "Ada Calloway", KnownFor = "Acting", AsOf = Today, Total = 120,
-            Credits = [Credit("tt1000001", "Night Harbor", "1995-03-05", "released", role: "Ruth")],
-        });
-        world.Answer("/api/catalogue/people/501/credits?from=2030&to=2030", new PersonCredits
-        {
-            PersonId = 501, Name = "Ada Calloway", KnownFor = "Acting", AsOf = Today, Total = 0, Credits = [],
-        });
-        world.Answer("/api/catalogue/people/501/credits?from=2027&to=2026", "{\"error\":\"from is after to.\"}", 400);
-        world.Answer("/api/catalogue/people/601/credits", new PersonCredits
-        {
-            PersonId = 601, Name = "Julian Rook", KnownFor = "Acting", AsOf = Today, Total = 4,
-            Credits =
-            [
-                Credit("tt1000003", "The Lantern Keeper", "2019-10-18", "released", role: "Thomas"),
-                Credit("tt1000050", "The Last Ferry", "2024-03-01", "released", role: "Owen"),
-                Credit("tt1000051", "Winter Quarters", null, "announced"),
-                Credit("tt1000052", "Cinder", "2027-02-12", "upcoming", role: "Pell"),
-            ],
+            ImdbId = "tt1000006", Follow = new ShowFollow(false, new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero)),
         });
 
-        world.Answer("/api/catalogue/discover?kind=film&genre=Horror&from=2000&to=2005&goodOnly=true", new DiscoverResult
+        world.Answer("/api/catalogue/terms?q=ada calloway", People((501, "Ada Calloway", "Acting"), (502, "Ada Calloway", "Directing")));
+        world.Answer("/api/catalogue/titles?person=501&sort=votes&size=3", Page(NightHarbor, CoastalHours));
+        world.Answer("/api/catalogue/titles?person=502&sort=votes&size=3", Page(Card("tt1000040", "Small Rooms", 2011)));
+        world.Answer("/api/catalogue/titles?person=501&q=small rooms&size=1", Page());
+        world.Answer("/api/catalogue/titles?person=502&q=small rooms&size=1", Page(Card("tt1000040", "Small Rooms", 2011)));
+        world.Answer("/api/catalogue/terms?q=julian rook", People((601, "Julian Rook", "Acting")));
+        world.Answer("/api/catalogue/terms?q=rook", People((601, "Julian Rook", "Acting"), (603, "Edda Rookwood", "Writing")));
+        world.Answer("/api/catalogue/titles?person=601&sort=votes&size=3", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?person=603&sort=votes&size=3", Page());
+        world.Answer("/api/catalogue/terms?q=nell aldous", People((801, "Nell Aldous", "Acting")));
+        world.Answer("/api/catalogue/terms?q=nobody here", new List<Term>());
+
+        world.Answer("/api/catalogue/titles?person=501&role=cast&from=2026&to=2026&sort=oldest&size=100", Page(
+            Credit("tt1000030", "Mother Tongue", "2026-04-16", role: "Anna"),
+            Credit("tt1000031", "The Wedding Party 2", "2026-04-29", role: "Lead"),
+            Credit("tt1000032", "The Long Voyage", "2026-07-15", role: "Helen", watched: true),
+            Credit("tt1000033", "Winter Street", "2026-12-18", role: "Carol"),
+            Credit("tt1000034", "Salt Marsh", null),
+            Credit("tt1000036", "Harbour Sting", null),
+            Credit("tt1000035", "Fear Not", null, kind: "show")));
+        world.Answer("/api/catalogue/titles?person=502&role=directing&sort=oldest&size=100", Page(
+            Card("tt1000040", "Small Rooms", 2011, rating: 6.8, votes: 1200, released: "2011-05-05", role: "Director", department: "Directing")));
+        world.Answer("/api/catalogue/titles?person=501&sort=oldest&size=100", new CardPage
         {
-            Kind = "film",
-            Resolved = new DiscoverResolved { Genres = ["Horror"], MinRating = 6.5, MinVotes = 200, Sort = "popular" },
-            Titles = [HollowHouse, QuietRoom, AshRoad],
+            Total = 120,
+            Titles = [.. Enumerable.Range(1, 100).Select(n => Credit($"tt30{n:0000}", $"Early {n:000}", $"{1900 + n}-01-01", role: $"Part {n}"))],
         });
-        world.Answer("/api/catalogue/discover?kind=show&goodOnly=true&category=anime", new DiscoverResult
+        world.Answer("/api/catalogue/titles?person=501&sort=oldest&page=2&size=100", new CardPage
         {
-            Kind = "show",
-            Resolved = new DiscoverResolved { Genres = ["Animation"], Language = "Japanese", MinRating = 6.5, MinVotes = 200, Sort = "popular" },
-            Titles = [Hit("tt1000020", "Paper Lanterns", 2019, "show", ["Animation", "Drama"]) with { Category = "anime", OriginalLanguage = "ja" }],
+            Total = 120,
+            Titles = [.. Enumerable.Range(101, 20).Select(n => Credit($"tt30{n:0000}", $"Late {n:000}", $"{1900 + n}-01-01", role: $"Part {n}"))],
         });
-        world.Answer("/api/catalogue/added?kind=show&category=anime&limit=20", new LibraryAdditions());
-        world.Answer("/api/catalogue/discover?kind=film&genre=Horror&exclude=Crime&includeFamily=true&goodOnly=true", new DiscoverResult
-        {
-            Kind = "film",
-            Resolved = new DiscoverResolved { Genres = ["Horror"], Excluded = ["Crime"], MinRating = 6.5, MinVotes = 200, Sort = "popular" },
-            Titles = [HollowHouse],
-        });
-        world.Answer("/api/catalogue/discover?kind=film&genre=Horror&genre=Mystery&goodOnly=false&sort=rating", new DiscoverResult
-        {
-            Resolved = new DiscoverResolved { Genres = ["Horror", "Mystery"], Sort = "rating" },
-            Titles = [QuietRoom],
-        });
-        world.Answer("/api/catalogue/discover?kind=film&about=silent film&with=Julian Rook&goodOnly=false", new DiscoverResult
-        {
-            Resolved = new DiscoverResolved
-            {
-                People = [new ResolvedPerson(601, "Julian Rook", "Acting")], Keywords = ["silent film"], Sort = "popular",
-            },
-            Titles = [LanternKeeper],
-        });
-        world.Answer("/api/catalogue/discover?kind=film&like=Night Harbor (1995)&goodOnly=true", new DiscoverResult
-        {
-            Resolved = new DiscoverResolved { Like = "Night Harbor (1995)", MinRating = 6.5, MinVotes = 200, Sort = "popular" },
-            Titles = [QuietRoom],
-        });
-        world.Answer("/api/catalogue/discover?kind=film&genre=Horror&language=Korean&goodOnly=true", new DiscoverResult
-        {
-            Resolved = new DiscoverResolved { Genres = ["Horror"], Language = "ko", MinRating = 6.5, MinVotes = 200, Sort = "popular" },
-            Titles = [],
-        });
-        world.Answer("/api/catalogue/discover?kind=film&genre=Spooky&goodOnly=true",
-            "{\"error\":\"The database has no genre 'Spooky'. Its genres: Action, Comedy, Drama, Horror.\"}", 404);
-        world.Answer("/api/catalogue/discover?kind=show&genre=Drama&goodOnly=true", new DiscoverResult
-        {
-            Kind = "show", Resolved = new DiscoverResolved { Genres = ["Drama"], Sort = "popular" }, Titles = [NightHarborShow],
-        });
+        world.Answer("/api/catalogue/titles?person=501&from=2030&to=2030&sort=oldest&size=100", Page());
+        world.Answer("/api/catalogue/titles?person=601&sort=oldest&size=100", Page(
+            Credit("tt1000003", "The Lantern Keeper", "2019-10-18", role: "Thomas") with { Rating = LanternKeeper.Rating, Plot = LanternKeeper.Plot },
+            Credit("tt1000050", "The Last Ferry", "2024-03-01", role: "Owen"),
+            Credit("tt1000052", "Cinder", "2027-02-12", role: "Pell"),
+            Credit("tt1000051", "Winter Quarters", null)));
+
+        world.Answer("/api/catalogue/facets", Vocabulary);
+        world.Answer("/api/catalogue/terms?q=silent film", Keyword("k77", "silent film"));
+        world.Answer("/api/catalogue/terms?q=lighthouse", Keyword("k78", "lighthouse"));
+        world.Answer("/api/catalogue/terms?q=ghost story", Keyword("k90", "ghost story"));
+        world.Answer("/api/catalogue/terms?q=zzz", new List<Term>());
+
+        world.Answer("/api/catalogue/titles?kind=film&genre=Horror&notGenre=Animation&notGenre=Family&from=2000&to=2005&minRating=6.5&minVotes=200",
+            Page(HollowHouse, QuietRoom, AshRoad));
+        world.Answer("/api/catalogue/titles?kind=show&category=anime&minRating=6.5&minVotes=200",
+            Page(Card("tt1000020", "Paper Lanterns", 2019, "show", ["Animation", "Drama"], category: "anime", language: "ja")));
+        world.Answer("/api/catalogue/titles?kind=show&category=anime&here=ready&size=20", Page());
+        world.Answer("/api/catalogue/titles?kind=film&genre=Horror&notGenre=Crime&minRating=6.5&minVotes=200", Page(HollowHouse));
+        world.Answer("/api/catalogue/titles?kind=film&genre=Horror&genre=Mystery&notGenre=Animation&notGenre=Family&sort=rating", Page(QuietRoom));
+        world.Answer("/api/catalogue/titles?kind=film&keyword=k77&person=601", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?kind=film&similarTo=tt1000001&minRating=6.5&minVotes=200", Page(QuietRoom));
+        world.Answer("/api/catalogue/titles?kind=film&genre=Horror&notGenre=Animation&notGenre=Family&language=ko&minRating=6.5&minVotes=200", Page());
+        world.Answer("/api/catalogue/titles?kind=show&genre=Drama&notGenre=Animation&notGenre=Family&minRating=6.5&minVotes=200", Page(NightHarborShow));
+        world.Answer("/api/catalogue/titles?kind=show&person=801&minRating=6.5&minVotes=200", Page(NightHarborShow));
 
         // find_by_clues: the look alone, the plot word alone, a person's work from 2024, and the pages that settle the clues.
-        world.Answer("/api/catalogue/discover?kind=film&about=silent film&goodOnly=false", new DiscoverResult
+        world.Answer("/api/catalogue/titles?kind=film&keyword=k77", Page(
+            LanternKeeper, Card("tt1000060", "Moth Light", 2008, rating: 6.1, votes: 150, plot: "A projectionist chases a moth.")));
+        world.Answer("/api/catalogue/titles?kind=film&keyword=k78", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?kind=film&keyword=k78&person=601", Page(LanternKeeper));
+        world.Answer("/api/catalogue/titles?person=601&from=2024&sort=oldest&size=100", Page(
+            Credit("tt1000050", "The Last Ferry", "2024-03-01", role: "Owen"),
+            Credit("tt1000052", "Cinder", "2027-02-12", role: "Pell"),
+            Credit("tt1000051", "Winter Quarters", null)));
+        world.Answer("/api/catalogue/titles/tt1000050", PageOf(Card("tt1000050", "The Last Ferry", 2024, votes: 900)) with
         {
-            Resolved = new DiscoverResolved { Keywords = ["silent film"], Sort = "popular" },
-            Titles = [LanternKeeper, Hit("tt1000060", "Moth Light", 2008, rating: 6.1, votes: 150, plot: "A projectionist chases a moth.")],
+            Overview = "A ferry crosses the last night of winter.", Keywords = [new("k85", "ferry"), new("k86", "winter")],
         });
-        world.Answer("/api/catalogue/discover?kind=film&about=lighthouse&goodOnly=false", new DiscoverResult
+        world.Answer("/api/catalogue/titles/tt1000052", PageOf(Card("tt1000052", "Cinder", 2027, genres: ["Thriller"], votes: 0)) with
         {
-            Resolved = new DiscoverResolved { Keywords = ["lighthouse"], Sort = "popular" }, Titles = [LanternKeeper],
+            Overview = "A fire watcher on a lighthouse island.", Keywords = [new("k87", "fire")],
         });
-        world.Answer("/api/catalogue/discover?kind=film&about=zzz&goodOnly=false", "{\"error\":\"The database has no keyword 'zzz'.\"}", 404);
-        world.Answer("/api/catalogue/people/601/credits?from=2024", new PersonCredits
+        world.Answer("/api/catalogue/titles/tt1000060", PageOf(Card("tt1000060", "Moth Light", 2008, votes: 150)) with
         {
-            PersonId = 601, Name = "Julian Rook", KnownFor = "Acting", AsOf = Today, Total = 3,
-            Credits =
-            [
-                Credit("tt1000050", "The Last Ferry", "2024-03-01", "released", role: "Owen"),
-                Credit("tt1000051", "Winter Quarters", null, "announced"),
-                Credit("tt1000052", "Cinder", "2027-02-12", "upcoming", role: "Pell"),
-            ],
-        });
-        world.Answer("/api/films/tt1000050", new FilmDetails
-        {
-            ImdbId = "tt1000050", Title = "The Last Ferry", Year = 2024, Genres = ["Drama"], Overview = "A ferry crosses the last night of winter.",
-            Keywords = ["ferry", "winter"], Votes = 900,
-        });
-        world.Answer("/api/films/tt1000052", new FilmDetails
-        {
-            ImdbId = "tt1000052", Title = "Cinder", Year = 2027, Genres = ["Thriller"], Overview = "A fire watcher on a lighthouse island.",
-            Keywords = ["fire"], Votes = 0,
-        });
-        world.Answer("/api/films/tt1000060", new FilmDetails
-        {
-            ImdbId = "tt1000060", Title = "Moth Light", Year = 2008, Genres = ["Drama"], Overview = "A projectionist chases a moth.",
-            Keywords = ["silent film", "projectionist"], Votes = 150,
+            Overview = "A projectionist chases a moth.", Keywords = [new("k77", "silent film"), new("k88", "projectionist")],
         });
 
-        world.Answer("/api/popular", new Popular
-        {
-            FetchedAt = new DateTimeOffset(2026, 10, 9, 6, 0, 0, TimeSpan.Zero),
-            Films = [new() { ImdbId = "tt1000060", Title = "Rain Check", Year = 2026, Rating = 7.0, Votes = 9000, PosterUrl = "/glances/tt1000060/poster.jpg" }],
-            Shows = [new() { ImdbId = "tt1000061", Title = "Doorbell", Year = 2026, PosterUrl = "/glances/tt1000061/poster.jpg" }],
-        });
-        world.Answer("/api/catalogue/released?kind=film", new TitleList
-        {
-            Kind = "film", From = "2026-08-25", To = Today, Titles = [Hit("tt1000070", "Late Bloom", 2026, rating: 6.4, votes: 300)],
-        });
-        world.Answer("/api/catalogue/released?kind=show", new TitleList { Kind = "show", From = "2026-08-25", To = Today, Titles = [] });
-        world.Answer("/api/catalogue/upcoming?kind=film", new TitleList
-        {
-            Kind = "film", From = Today, To = "2027-04-07", Titles = [Hit("tt1000071", "Clay Face", 2026, rating: 0, votes: 0)],
-        });
-        world.Answer("/api/catalogue/upcoming?kind=show", new TitleList { Kind = "show", From = Today, To = "2027-04-07", Titles = [] });
-        world.Answer("/api/catalogue/added?limit=20", new LibraryAdditions
-        {
-            Titles =
-            [
-                new()
-                {
-                    ImdbId = "tt1000004", Kind = "film", Title = "Coastal Hours", Year = 2021, Genres = ["Drama"], Rating = 6.9,
-                    LibraryId = "coastal-hours-2021", AddedAt = new DateTimeOffset(2026, 10, 8, 12, 0, 0, TimeSpan.Zero), Watched = true,
-                },
-            ],
-        });
+        world.Answer("/api/catalogue/titles?ranking=trending-films&size=20", Page(
+            Card("tt1000060", "Rain Check", 2026, rating: 7.0, votes: 9000)));
+        world.Answer("/api/catalogue/titles?ranking=trending-shows&size=20", Page(Card("tt1000061", "Doorbell", 2026, "show", votes: 0)));
+        world.Answer("/api/catalogue/titles?kind=film&released=2026-08-25&releasedBefore=2026-10-10&sort=popular&size=20", Page(
+            Card("tt1000072", "Old Lamp", 2026, rating: 6.0, votes: 120, released: "2026-09-01"),
+            Card("tt1000070", "Late Bloom", 2026, rating: 6.4, votes: 300, released: "2026-09-30")));
+        world.Answer("/api/catalogue/titles?kind=show&released=2026-08-25&releasedBefore=2026-10-10&sort=popular&size=20", Page());
+        world.Answer("/api/catalogue/titles?kind=film&released=2026-10-09&releasedBefore=2027-04-08&sort=popular&size=20", Page(
+            Card("tt1000071", "Clay Face", 2026, votes: 0, released: "2026-12-01")));
+        world.Answer("/api/catalogue/titles?kind=show&released=2026-10-09&releasedBefore=2027-04-08&sort=popular&size=20", Page());
+        world.Answer("/api/catalogue/titles?here=ready&size=20", Page(CoastalHours));
 
         world.Answer("/api/me/history", new List<HistoryEntry>
         {
@@ -321,14 +253,14 @@ internal static class CinemaWorld
         });
         world.Answer("/api/me/wants", new List<Want>
         {
-            new() { ImdbId = "tt1000003", Kind = "film", Title = "The Lantern Keeper", Year = 2019, Rating = 7.5, Genres = ["Drama"],
-                    Since = new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero), PosterUrl = "/films/tt1000003/poster.jpg", State = "waiting" },
+            new() { ImdbId = "tt1000003", Kind = "film", Title = "The Lantern Keeper", Card = LanternKeeper,
+                    Since = new DateTimeOffset(2026, 9, 30, 0, 0, 0, TimeSpan.Zero), State = "waiting" },
             new() { ImdbId = "tt1000006", Kind = "show", Title = "The Salt Line", Since = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero),
                     InLibrary = true, State = "ready", NextEpisode = new WantNext(1, 3) },
         });
         world.Answer("/api/me/follows", new List<Follow>
         {
-            new() { ImdbId = "tt1000006", Title = "The Salt Line", Since = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero),
+            new() { ImdbId = "tt1000006", Title = "The Salt Line", Card = SaltLineCard, Since = new DateTimeOffset(2026, 1, 4, 0, 0, 0, TimeSpan.Zero),
                     NextEpisode = new Airing(3, 1, null, "2026-11-02") },
         });
 
@@ -352,16 +284,18 @@ internal sealed class ToolRig
 
     public SearchTitlesTool Search => new(Api);
     public TitleDetailsTool Details => new(Api);
-    public PersonCreditsTool Credits => new(Api);
+    public PersonCreditsTool Credits => new(Api, Clock);
     public DiscoverTool Discover => new(Api);
-    public WhatsNewTool WhatsNew => new(Api);
+    public WhatsNewTool WhatsNew => new(Api, Clock);
     public MyTasteTool Taste => new(Api);
     public AnticipatedTool Anticipated => new(Api);
 
     /// <summary>The day the world is read on; the statuses of its credits are as of it.</summary>
     public static readonly DateTimeOffset Now = new(2026, 10, 9, 12, 0, 0, TimeSpan.Zero);
 
-    public FindByCluesTool Clues => new(Api, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now));
+    public static TimeProvider Clock => new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now);
+
+    public FindByCluesTool Clues => new(Api, Clock);
 
     public Caller Caller => new("u-sam", "Sam", Token, null, new HashSet<string> { "cinema:watch" });
 

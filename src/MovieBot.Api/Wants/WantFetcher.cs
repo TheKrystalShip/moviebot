@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
@@ -161,7 +162,7 @@ public sealed class WantFetcher(
     WatchRecord record,
     WatchNow watchNow,
     ShowOfferCache showOffers,
-    ShowStore shows,
+    CatalogueTitles shows,
     OfferedReleases offered,
     Downloads downloads,
     AcquisitionService acquisition,
@@ -254,7 +255,7 @@ public sealed class WantFetcher(
         EpisodeNumber? episode = null;
         if (isShow)
         {
-            var stored = shows.Held(imdb);
+            var stored = shows.Show(imdb);
             var next = candidate.Episode;
             if (next is null)
             {
@@ -280,7 +281,7 @@ public sealed class WantFetcher(
         var quality = WantFetchRules.Quality(candidate.Fetchers.Select(WatchedAt));
         var release = episode is { } wanted
             ? ShowOfferCache.Pick(await showOffers.GetAsync(imdb, ct), wanted, quality,
-                original: shows.Held(imdb)?.Details?.OriginalLanguage)
+                original: shows.Show(imdb)?.Details?.OriginalLanguage)
             : await watchNow.BestReleaseAsync(imdb, quality, ct);
         if (release is null)
         {

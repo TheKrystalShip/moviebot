@@ -24,8 +24,8 @@ export const signedInPath = "/signed-in";
 /** The API's category for a title shelved as anime, whatever its kind. */
 export const ANIME = "anime";
 
-/** Whether a title the API listed is shelved as anime. */
-export const isAnime = (title) => !!title && title.category === ANIME;
+/** Whether a title is shelved as anime: a catalogue card, or a library title or show by the card it carries. */
+export const isAnime = (title) => !!title && (title.card || title).category === ANIME;
 
 /**
  * The shelf of one kind, as the API words it (`film` or `show`), in a category: `anime`, or anything
@@ -50,10 +50,20 @@ export const discoverPath = (q) => "/discover" + (q ? "?q=" + seg(q) : "");
 export const discoverBrowsePath = (id) => "/discover?browse=" + seg(id);
 
 /**
- * Every title on one of Discover's shelves, by the shelf's id, in the shelf's own order or the one
- * `sort` names (`rating`, `newest`, `oldest`).
+ * Every title one list query names, under `name`: a shelf, a genre, a keyword, a studio, an award, a
+ * place. `query` is the list query as its string (a shelf's own) or as its parameters; the address
+ * holds it beside `list`, which is the heading, so it can be shared and reloaded.
  */
-export const discoverShelfPath = (id, sort) => "/discover?shelf=" + seg(id) + (sort ? "&sort=" + seg(sort) : "");
+export function discoverListPath(query, name) {
+  const params = new URLSearchParams(typeof query === "string" ? query : undefined);
+  if (typeof query !== "string") {
+    for (const [key, value] of Object.entries(query || {})) {
+      for (const one of Array.isArray(value) ? value : [value]) if (one != null && one !== "") params.append(key, String(one));
+    }
+  }
+  params.set("list", name || "");
+  return "/discover?" + params.toString();
+}
 
 /**
  * Discover's filter: the catalogue's films and shows at the filter drawer's picks, which the address
@@ -61,12 +71,15 @@ export const discoverShelfPath = (id, sort) => "/discover?shelf=" + seg(id) + (s
  */
 export const discoverFilterPath = () => "/discover?filter=1";
 
-/** Discover's catalogue of the films and shows one person is credited on, by the film database's id for them. */
+/** The films and shows one person is credited on, by the catalogue's id for them. */
 export const discoverPersonPath = (personId) => "/discover?person=" + seg(personId);
 
-/** Discover's catalogue of the films (`film`) or shows (`show`) in one genre, by the genre's name; of its anime alone with `anime`. */
-export const discoverGenrePath = (kind, genre, category) => "/discover?genre=" + seg(genre) + "&kind=" + (kind === "show" ? "show" : "film")
-  + (category === ANIME ? "&category=" + ANIME : "");
+/** A franchise's titles in its own order, by its id (`c<collection>` or a Wikidata item). */
+export const discoverFranchisePath = (id) => "/discover?franchise=" + seg(id);
+
+/** The films (`film`) or shows (`show`) in one genre, by its name; its anime alone with `anime`. */
+export const discoverGenrePath = (kind, genre, category) => discoverListPath(
+  { kind: kind === "show" ? "show" : "film", genre, category: category === ANIME ? ANIME : null }, genre);
 
 /** A film the library does not hold. */
 export const discoverFilmPath = (imdbId) => "/discover/film/" + seg(imdbId);

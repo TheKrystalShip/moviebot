@@ -9,8 +9,8 @@ public sealed class CatalogueOptions
     public const string Section = "Catalogue";
 
     /// <summary>
-    /// The directory the database and the images live in. Empty is the state directory systemd hands
-    /// the unit, or the working directory without one.
+    /// The directory the database and the images live in, which the API reads too. Empty is the state
+    /// directory systemd hands the unit, or the working directory without one.
     /// </summary>
     public string Directory { get; set; } = "";
 

@@ -1,6 +1,6 @@
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Auth;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Core;
@@ -29,29 +29,21 @@ public static class WantEndpoints
                 : NoPerson())
             .RequireAction(CinemaActions.ProfileRead);
 
-        // Makes the want, or changes whether it is named. A title new to the person is asked of the film
-        // database as the kind it is said to be, which is what tells a film from a show and an id from a
-        // typo, and what keeps its description for the want to show. What the server may spend on the
+        // Makes the want, or changes whether it is named. A title new to the person is looked up in the
+        // catalogue as the kind it is said to be, which is what tells a film from a show and an id from a
+        // typo. What the server may spend on the
         // want is what the token holds now. A film nothing has yet gets a wish when the token may wish.
         app.MapPut("/api/me/wants/{imdbId}", async (string imdbId, SetWantRequest body, HttpContext context,
-            WantStore wants, WantPresenter present, Wishes wishes, FilmStore films, ShowStore shows,
+            WantStore wants, WantPresenter present, Wishes wishes, CatalogueTitles titles,
             TimeProvider clock, CancellationToken ct) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
-            if (!FilmStore.IsImdbId(imdbId)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
+            if (!TheKrystalShip.MovieBot.Catalogue.TitleQuery.IsImdbId(imdbId)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
             if (!WantKinds.IsKnown(body.Kind)) return Error("A want is for a film or a show.", StatusCodes.Status400BadRequest);
 
             var existing = wants.Get(person.UserId, imdbId);
-            if (existing is null)
-            {
-                var described = body.Kind == WantKinds.Show
-                    ? await shows.GetAsync(imdbId, ct) is { } show ? show.Details is not null : (bool?)null
-                    : await films.GetAsync(imdbId, ct) is { } film ? film.Details is not null : null;
-                if (described is null)
-                    return Error("The film database could not be asked about this title.", StatusCodes.Status503ServiceUnavailable);
-                if (described is false)
-                    return Error($"The film database has no {body.Kind} under that id.", StatusCodes.Status404NotFound);
-            }
+            if (existing is null && (titles.Card(imdbId) is not { } card || card.Kind != body.Kind))
+                return Error($"The catalogue lists no {body.Kind} under that id.", StatusCodes.Status404NotFound);
 
             var mayWish = person.Holds(CinemaActions.Wish);
             var (want, created) = wants.Set(person.UserId, imdbId, body.Kind!, body.Visible,
@@ -89,7 +81,7 @@ public static class WantEndpoints
         app.MapGet("/api/titles/{imdbId}/wanters", (string imdbId, HttpContext context, WantPresenter present) =>
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
-            return FilmStore.IsImdbId(imdbId)
+            return TheKrystalShip.MovieBot.Catalogue.TitleQuery.IsImdbId(imdbId)
                 ? Results.Ok(present.Wanters(imdbId, person.UserId))
                 : Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
         }).RequireAction(CinemaActions.Watch);

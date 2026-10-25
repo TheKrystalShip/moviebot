@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { apiPicks, filterQuestion, pickCount, picksOfValues, readPicks, sectionsOf, withPicks, drawerValues } from '../src/filters.js';
+import { FILTER_BASE, apiPicks, pickCount, picksOfValues, readPicks, sectionsOf, withPicks, drawerValues } from '../src/filters.js';
 
 const none = { kind: null, genre: [], decade: [], length: [], rating: null, language: [] };
 
@@ -19,16 +19,15 @@ test('the address holds several values per section and keeps every other paramet
   assert.deepEqual(readPicks(back), picks);
 });
 
-test('the API is asked by its own names: anyGenre, and anime as every kind in the anime category', () => {
+test('the API is asked by its own names: anyGenre, and anime as the anime category of either kind', () => {
   assert.deepEqual(apiPicks({ ...none, kind: 'anime', genre: ['Drama'], rating: '8' }),
-    { kind: 'all', category: 'anime', anyGenre: ['Drama'], minRating: '8' });
+    { category: 'anime', anyGenre: ['Drama'], minRating: '8' });
   assert.deepEqual(apiPicks(none), {});
 });
 
 test("the catalogue's floor of votes is the same with a rating picked or not", () => {
-  assert.equal(filterQuestion(none).minVotes, filterQuestion({ ...none, rating: '8' }).minVotes);
-  assert.equal(filterQuestion(none).kind, 'all');
-  assert.equal(filterQuestion(none, 'newest').sort, 'newest');
+  assert.equal({ ...FILTER_BASE, ...apiPicks({ ...none, rating: '8' }) }.minVotes, FILTER_BASE.minVotes);
+  assert.equal({ ...FILTER_BASE, ...apiPicks(none) }.kind, undefined);
 });
 
 test('sections are the facets with two options or more, each pick kept to be taken off', () => {

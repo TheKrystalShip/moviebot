@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using System.Collections.Concurrent;
 using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
@@ -21,7 +22,7 @@ namespace TheKrystalShip.MovieBot.Api.Shows;
 public sealed class NextEpisodes(
     SessionStore sessions,
     TitleLibrary library,
-    ShowStore shows,
+    CatalogueTitles shows,
     ShowOfferCache offers,
     Downloads downloads,
     AcquisitionService acquisition,
@@ -73,7 +74,7 @@ public sealed class NextEpisodes(
             try
             {
                 release = ShowOfferCache.Pick(await offers.GetAsync(show, ct), next, quality,
-                    original: shows.Held(show)?.Details?.OriginalLanguage);
+                    original: shows.Show(show)?.Details?.OriginalLanguage);
             }
             catch (TrackerException ex)
             {

@@ -17,6 +17,11 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The catalogue's wire shapes (CatalogueViews.cs) are Core's, which every program shares. -->
+    <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+  </ItemGroup>
+
   <!-- GHSA-2m69-gcr7-jv3q is an advisory on the native SQLite the bundle carries, with no patched
        bundle to move to. The database runs no SQL that is not this repository's own. -->
   <ItemGroup>

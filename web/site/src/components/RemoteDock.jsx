@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast } from "@thekrystalship/krystal";
 import { WIDE } from "../railDensity.js";
-import { api, episodeCode, filmName } from "../api.js";
+import { episodeCode, filmName, libraryApi, meApi } from "../api/index.js";
 import { useLoad } from "../data.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
 import { useRoute } from "../router.js";
@@ -479,9 +479,9 @@ function TvPicker({ screen, onDone }) {
 function useShelf(open) {
   const [round, setRound] = React.useState(0);
   React.useEffect(() => { if (!open) setRound((r) => r + 1); }, [open]);
-  const titles = useLoad(() => api.titles(), [round]);
-  const progress = useLoad(() => api.progress().catch(() => []), [round]);
-  const shows = useLoad(() => api.shows().catch(() => []), [round]);
+  const titles = useLoad(() => libraryApi.titles(), [round]);
+  const progress = useLoad(() => meApi.progress().catch(() => []), [round]);
+  const shows = useLoad(() => libraryApi.shows().catch(() => []), [round]);
   return { titles, progress, shows };
 }
 

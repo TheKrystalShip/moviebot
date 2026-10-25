@@ -474,7 +474,7 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-season__note { font-size: 12.5px; color: var(--fg-3); }
 
 .kc-episode {
-  display: grid; grid-template-columns: 28px 112px minmax(0, 1fr) 120px 70px 60px 36px; gap: 14px; align-items: center;
+  display: grid; grid-template-columns: 28px 112px minmax(0, 1fr) 120px 60px 36px; gap: 14px; align-items: center;
   padding: 12px 18px; border-top: 1px solid var(--border-subtle); margin-top: -1px; color: inherit; text-decoration: none;
 }
 a.kc-episode:hover { background: var(--surface-2); color: inherit; }
@@ -496,8 +496,6 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-episode__sub { font-size: 12px; color: var(--fg-3); }
 .kc-episode__progress { height: 4px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .kc-episode__progress > span { display: block; height: 100%; background: var(--krystal-teal); }
-.kc-episode__score { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: 12px; color: var(--fg-2); }
-.kc-episode__score svg { color: var(--warning-fg); }
 .kc-episode__runtime { font-family: var(--font-mono); font-size: 12px; color: var(--fg-3); }
 .kc-episode__go {
   width: 30px; height: 30px; border-radius: var(--r-pill); border: var(--edge-strong);
@@ -512,7 +510,7 @@ button.kc-episode:disabled { cursor: progress; }
   .kc-episode-save { margin-right: 6px; }
   .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
   .kc-episode__still { width: 96px; }
-  .kc-episode__progress, .kc-episode__score, .kc-episode__runtime { display: none; }
+  .kc-episode__progress, .kc-episode__runtime { display: none; }
 }
 
 /* The bell: a sidebar row above the person on a wide screen, the top right of the front page on a

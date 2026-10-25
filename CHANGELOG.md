@@ -4,6 +4,45 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-10-25
+
+### Changed
+- Everything Cinema knows about a title is the catalogue's, and nothing the API serves asks TMDB, IMDb or
+  Wikidata: the API reads `moviebot-catalogue`'s database read-only and serves it under `/api/catalogue`.
+  A title is one card wherever it is listed (the library's listings, a show's episodes, wants, follows,
+  plans, offline saves, rooms, Watch now) and one page, `/api/catalogue/titles/{imdbId}`. Every list is
+  one list query, `/api/catalogue/titles`, with its facets beside it, and the asking person's
+  `unwatched`, `inLibrary` and `here` joined by the API. Discover's shelves are list queries, their heads
+  and every franchise's titles read in the background, so the page answers from memory.
+- What a person has of a show is `/api/me/shows/{imdbId}`: its seasons as the releases number them,
+  joined with the library and the person's progress. What the show is, is its catalogue page.
+- Images are the catalogue's, at `/images/{size}/{file}`, served immutable, and a title's by its IMDb id
+  at `/images/titles/{imdbId}/{name}`. A page names a portrait, a still or a season poster only once the
+  catalogue holds it.
+- The site has a new API client (`web/site/src/api/`), and every page, the player, the offline store and
+  the television pages read the new shapes. A save keeps its title's card, and a kept show its catalogue
+  page and the person's episodes. Discover's lists are addressed by their list query.
+- The bot finds shows through the catalogue, and the assistant plugin reads it through the same routes.
+- Search puts a title named exactly what was typed first, and weighs how well known a title is more.
+
+### Added
+- The list query takes `anyKeyword`, keywords of which a title has any one.
+- The site credits TMDB in the words its terms ask for on every page showing its data, and Wikidata on
+  About.
+
+### Removed
+- The film database, IMDb and Wikidata clients, stores and warmers in the API, and their tables, which
+  the schema step drops. `/api/films/*`, `/api/shows/{imdbId}`, `/api/discover*`, `/api/popular`,
+  `/api/catalogue/search`, `/genre`, `/released`, `/upcoming`, `/added`, the per-person credit routes,
+  `/api/titles/find`, `/api/films/find`, `/api/shows/find` and the `/films`, `/shows`, `/popular`,
+  `/glances` and `/catalogue` artwork routes.
+- The settings `Tmdb` keeps only what the catalogue reads (the token and its addresses); `Imdb`,
+  `Wikidata`, `Franchises` and `Follow:RefreshHours` are gone.
+
+### Deploying
+- The API's unit reads the catalogue's directory (`ReadWritePaths=-/var/lib/moviebot-catalogue`), which a
+  reader of its database in WAL mode needs: install the unit again before deploying.
+
 ## [3.86.0] - 2026-10-25
 
 ### Added

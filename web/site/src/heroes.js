@@ -2,15 +2,15 @@
 // there, each as a candidate; `useSlides` describes each one and hands back those ready to be shown.
 //
 // A candidate is `{ key, eyebrow, icon, kind, imdbId }` and one of: `title`, a library film (with
-// `room` when people are watching it now); `show`, a library show; or `found`, a title from a shelf of
-// the film database's, with `here` the library's film by that id and `held` whether the library holds an
-// episode of a show. `upcoming` marks a film that is not out yet.
+// `room` when people are watching it now); `show`, a library show; or `found`, a catalogue card, with
+// `here` the library's film by that id and `held` whether the library holds an episode of a show.
+// `upcoming` marks a film that is not out yet.
 
 import React from "react";
-import { api } from "./api.js";
+import { catalogue, queryParams } from "./api/index.js";
 import { LoadTracker, useLoad } from "./data.js";
 import { since } from "./time.js";
-import { filmSpot, showSpot, showViewSpot, titleSpot } from "./spots.js";
+import { cardSpot, showSpot, titleSpot } from "./spots.js";
 import { waitersWords } from "./components/TitleCards.jsx";
 
 /** The most slides a page's top turns through. */
@@ -18,7 +18,7 @@ export const MOST_SLIDES = 6;
 
 /**
  * The candidates described, each with its `spot` (`spots.js`), in the order given, and `ready` once its
- * artwork has arrived. A candidate the film database cannot describe is left out. The slides only grow:
+ * artwork has arrived. A candidate the catalogue does not list is left out. The slides only grow:
  * one is handed back once every candidate before it is described or left out, so the slide on screen
  * never moves, and every one described is laid out at once, so a top as tall as its tallest slide has
  * its height before it is shown. Only the ready ones are turned to (`readySlides`), so a slide never
@@ -85,16 +85,14 @@ export function readySlides(slides) {
 }
 
 /**
- * A candidate's spot. A library film or show is described from what the library holds, with its credits
- * from the film database's description; a description that cannot be had leaves the credits out.
+ * A candidate's spot, from the title's catalogue page, which carries its credits; a page that cannot
+ * be had describes a library title from what the library holds.
  */
 function describe(c) {
-  const film = c.title && c.title.film && c.title.film.imdbId;
-  if (c.title) return (film ? api.film(film).catch(() => null) : Promise.resolve(null)).then((view) => titleSpot(c.title, c.eyebrow, view));
-  if (c.show) return (c.show.imdbId ? api.show(c.show.imdbId).catch(() => null) : Promise.resolve(null)).then((view) => showSpot(c.show, c.eyebrow, view));
-  if (c.kind === "show") return api.show(c.imdbId).then((s) => showViewSpot(s, c.eyebrow));
-  if (c.film) return Promise.resolve(filmSpot(c.film, c.eyebrow));
-  return api.film(c.imdbId).then((f) => filmSpot(f, c.eyebrow));
+  const page = c.imdbId ? catalogue.title(c.imdbId).catch(() => null) : Promise.resolve(null);
+  if (c.title) return page.then((p) => titleSpot(c.title, c.eyebrow, p));
+  if (c.show) return page.then((p) => showSpot(c.show, c.eyebrow, p));
+  return page.then((p) => (p ? cardSpot(p, c.eyebrow, p) : c.found ? cardSpot(c.found, c.eyebrow) : null));
 }
 
 /** The artwork decoded; a slide not shown first fetches it behind what is on screen. */
@@ -107,8 +105,8 @@ function artArrives(src, first) {
 
 /**
  * What the front page turns through: the film people are watching together now, the newest film on
- * the shelf, the title most watched here lately, the film and the show the film database counts most
- * popular this week, and the film most waited on here, or else the next one out. Each one is left out
+ * the shelf, the title most watched here lately, the film and the show trending this week, and the
+ * film most waited on here, or else the next one out. Each one is left out
  * when there is none, and a title is shown once. They are chosen once everything they are chosen
  * from has answered, and kept while the page is open.
  *
@@ -116,10 +114,11 @@ function artArrives(src, first) {
  * `waitedOn` the films waited on here (`/api/anticipated`), `null` until it answers.
  */
 export function useHomeSlides({ library, shows, rooms, waitedOn }) {
-  const popularHere = useLoad(() => api.discoverShelf("popular-here").catch(() => null), []);
-  const films = useLoad(() => api.discoverShelf("trending-films").catch(() => null), []);
-  const showsWeek = useLoad(() => api.discoverShelf("trending-shows").catch(() => null), []);
-  const soon = useLoad(() => api.discoverShelf("coming-soon").catch(() => null), []);
+  const few = { size: 12 };
+  const popularHere = useLoad(() => catalogue.titles({ here: "watched", ...few }).catch(() => null), []);
+  const films = useLoad(() => catalogue.titles({ ranking: "trending-films", ...few }).catch(() => null), []);
+  const showsWeek = useLoad(() => catalogue.titles({ ranking: "trending-shows", ...few }).catch(() => null), []);
+  const soon = useLoad(() => catalogue.titles({ ranking: "upcoming", ...few }).catch(() => null), []);
   const chosen = React.useRef(null);
 
   const settled = library && shows && rooms && waitedOn
@@ -147,11 +146,12 @@ function homeCandidates({ library, shows, rooms, waitedOn, popularHere, films, s
   };
   const fromShelf = (shelf, key, eyebrow, icon, extra) => {
     const titles = shelf ? shelf.titles : [];
-    const t = titles.find((x) => !x.watched && !seen.has(x.imdbId)) || titles.find((x) => !seen.has(x.imdbId));
+    const watched = (x) => !!(x.you && x.you.watched);
+    const t = titles.find((x) => !watched(x) && !seen.has(x.id)) || titles.find((x) => !seen.has(x.id));
     if (!t) return null;
     return {
-      key, eyebrow, icon, kind: t.kind, imdbId: t.imdbId, found: t,
-      here: t.kind === "film" ? filmsHere.get(t.imdbId) : null, held: t.kind === "show" && heldShows.has(t.imdbId), ...extra,
+      key, eyebrow, icon, kind: t.kind, imdbId: t.id, found: t,
+      here: t.kind === "film" ? filmsHere.get(t.id) : null, held: t.kind === "show" && heldShows.has(t.id), ...extra,
     };
   };
 
@@ -179,7 +179,7 @@ function homeCandidates({ library, shows, rooms, waitedOn, popularHere, films, s
   if (awaited) {
     add({
       key: "anticipated", eyebrow: `Most anticipated · ${waitersWords(awaited.waiters, awaited.waiting)}`, icon: "bell",
-      kind: "film", imdbId: awaited.imdbId, found: { ...awaited, kind: "film" }, upcoming: true,
+      kind: "film", imdbId: awaited.imdbId, found: { id: awaited.imdbId, kind: "film", title: awaited.title, year: awaited.year, poster: awaited.posterUrl, genres: [], madeBy: [], starring: [], category: "general" }, upcoming: true,
     });
   } else {
     add(fromShelf(soon, "coming-soon", "Coming soon", "calendar-clock", { upcoming: true }));
@@ -198,23 +198,22 @@ export function newestFilm(films) {
 const DISCOVER_SLIDES = 4;
 
 /**
- * Discover's spotlight: the first few films on the season's shelf, or the week's popular films out of
- * season (`index.spotlight`), that the person has not watched. A different one leads each day.
- * `where` is the page's join with the library.
+ * Discover's spotlight: the first few films on the shelf the page names (`index.spotlight`: the
+ * season's, else the week's trending films) that the person has not watched. A different one leads
+ * each day. `where` is the page's join with the library.
  */
 export function useDiscoverSlides(index, where) {
-  const kept = (index.shelves || []).find((s) => s.id === index.spotlight);
-  const shelf = useLoad(() => api.discoverShelf(index.spotlight).catch(() => null), [index.spotlight], { known: kept });
+  const head = index.rows.map((r) => r.shelf).find((h) => h && h.id === index.spotlight);
+  const query = head ? { ...queryParams(head.query), kind: "film", unwatched: "true", size: 12 } : null;
+  const shelf = useLoad(() => (query ? catalogue.titles(query).catch(() => null) : Promise.resolve(null)), [index.spotlight]);
   const candidates = React.useMemo(() => {
     if (shelf.loading) return null;
     if (!shelf.data) return [];
-    const picks = shelf.data.titles.filter((t) => t.kind === "film" && !t.watched).slice(0, DISCOVER_SLIDES);
+    const picks = shelf.data.titles.slice(0, DISCOVER_SLIDES);
     const lead = picks.length ? new Date().getDate() % picks.length : 0;
-    return [...picks.slice(lead), ...picks.slice(0, lead)].map((t) => {
-      const w = where(t);
-      const film = (index.films || []).find((f) => f.imdbId === t.imdbId);
-      return { key: "spot:" + t.imdbId, eyebrow: shelf.data.title, icon: shelf.data.icon, kind: "film", imdbId: t.imdbId, found: t, here: w.here, film };
-    });
+    return [...picks.slice(lead), ...picks.slice(0, lead)].map((t) => ({
+      key: "spot:" + t.id, eyebrow: head.title, icon: head.icon, kind: "film", imdbId: t.id, found: t, here: where(t).here,
+    }));
     // `where` is joined once, when the shelf answers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shelf.loading, shelf.data]);

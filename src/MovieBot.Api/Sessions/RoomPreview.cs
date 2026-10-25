@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net;
 using System.Text;
-using TheKrystalShip.MovieBot.Api.Films;
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 
 namespace TheKrystalShip.MovieBot.Api.Sessions;
@@ -42,7 +42,7 @@ public static class RoomPreview
     /// was invited to watch it.
     /// </summary>
     public static string Tags(string room, string? linkTitle, SessionStore sessions, TitleLibrary library,
-        FilmStore films, string baseUrl, string pageUrl, bool invited = false)
+        CatalogueTitles films, string baseUrl, string pageUrl, bool invited = false)
     {
         var summary = sessions.Summaries().FirstOrDefault(r => r.SessionId == room);
         var titleId = summary is { Open: false } && !invited ? null : summary?.TitleId ?? linkTitle;
@@ -101,17 +101,15 @@ public static class RoomPreview
     private sealed record Image(string Url, int Width, int Height, bool Wide);
 
     /// <summary>
-    /// The backdrop kept from the film database, which is the wide still a large card wants, and the
-    /// library's own poster otherwise. Both are open, which an unfurl needs: it carries no token.
+    /// The catalogue's backdrop, which is the wide still a large card wants, else its poster, else the
+    /// library's own poster. All are open, which an unfurl needs: it carries no token.
     /// </summary>
-    private static Image? Artwork(Core.Manifest manifest, FilmStore films, string baseUrl)
+    private static Image? Artwork(Core.Manifest manifest, CatalogueTitles films, string baseUrl)
     {
-        if (manifest.Film?.ImdbId is { } imdbId && FilmStore.IsImdbId(imdbId))
+        if (films.Card(manifest.Film?.ImdbId) is { } card)
         {
-            if (films.HasImage(imdbId, FilmStore.Backdrop))
-                return new Image(baseUrl + FilmViews.ImageUrl(imdbId, FilmStore.Backdrop), 1280, 720, true);
-            if (films.HasImage(imdbId, FilmStore.Poster))
-                return new Image(baseUrl + FilmViews.ImageUrl(imdbId, FilmStore.Poster), 500, 750, false);
+            if (card.Backdrop is { } backdrop) return new Image(baseUrl + backdrop, 1280, 720, true);
+            if (card.Poster is { } cardPoster) return new Image(baseUrl + cardPoster, 500, 750, false);
         }
         return manifest.Poster is { } poster
             ? new Image($"{baseUrl}/media/{Uri.EscapeDataString(manifest.Id)}/{Uri.EscapeDataString(poster)}", 500, 750, false)

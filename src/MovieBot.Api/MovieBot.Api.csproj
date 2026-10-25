@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../MovieBot.Core/MovieBot.Core.csproj" />
+    <ProjectReference Include="../MovieBot.Catalogue.Store/MovieBot.Catalogue.Store.csproj" />
     <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
   </ItemGroup>
 

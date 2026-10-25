@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, Icon, Meter } from "@thekrystalship/krystal";
 import { clock } from "../time.js";
-import { discoverGenrePath, discoverPath } from "../paths.js";
+import { discoverGenrePath, discoverListPath } from "../paths.js";
 import { linkProps } from "../router.js";
 import { Credits, votes } from "./FilmDetails.jsx";
 import { TrailerPlayer } from "./TrailerPlayer.jsx";
@@ -104,33 +104,38 @@ export function TitleFacts({ rating, votes: count, ratedBy, parts = [], genres =
   );
 }
 
+/** The award an awards line leads with as Best Picture. */
+const BEST_PICTURE = "Academy Award for Best Picture";
+
 /**
- * The line an awards summary reads: the top honour where it is one everybody knows, the Academy Awards
- * among the wins where every win is listed (a list cut to its newest could undercount them), the wins
- * and the nominations. Null when it won and was nominated for nothing.
+ * The line an awards summary reads, from a title's Wikidata facts: the top honour where it is one
+ * everybody knows, the Academy Awards among the wins, the wins and the nominations. Null when it won
+ * and was nominated for nothing.
  */
-export function honoursLine(awards) {
-  if (!awards || (awards.wins === 0 && awards.nominations === 0)) return null;
-  const won = awards.won || [];
-  const lead = won.some((a) => a.name === "Academy Award for Best Picture") ? "Best Picture"
+export function honoursLine(facts) {
+  const won = (facts && facts.awards) || [];
+  const nominations = (facts && facts.nominations) || 0;
+  if (won.length === 0 && nominations === 0) return null;
+  const lead = won.some((a) => a.name === BEST_PICTURE) ? "Best Picture"
     : won.some((a) => /^Palme d'Or/.test(a.name)) ? "Palme d'Or" : null;
-  const oscars = won.length === awards.wins ? won.filter((a) => a.name.startsWith("Academy Award")).length : 0;
+  const oscars = won.filter((a) => a.name.startsWith("Academy Award")).length;
   const counts = [
     oscars > 0 ? `${oscars} Academy Award${oscars === 1 ? "" : "s"}` : null,
-    awards.wins > 0 ? `${awards.wins} ${awards.wins === 1 ? "win" : "wins"}` : null,
-    awards.nominations > 0 ? `${awards.nominations} ${awards.nominations === 1 ? "nomination" : "nominations"}` : null,
+    won.length > 0 ? `${won.length} ${won.length === 1 ? "win" : "wins"}` : null,
+    nominations > 0 ? `${nominations} ${nominations === 1 ? "nomination" : "nominations"}` : null,
   ].filter(Boolean).join(" · ");
   return { lead, counts };
 }
 
 /**
- * What a film won and what it is based on, as Wikidata says: the awards line leading to the page's
- * Awards section, and the source with its author leading to the author's adaptations. Nothing when
- * Wikidata says neither.
+ * What a title won and what it is based on, from its Wikidata facts (`facts`): the awards line leading
+ * to the page's Awards section, and the source with its author leading to the author's adaptations.
+ * Nothing when Wikidata says neither.
  */
-export function TitleHonours({ awards, basedOn = [] }) {
-  const line = honoursLine(awards);
-  const source = basedOn[0];
+export function TitleHonours({ facts }) {
+  const line = honoursLine(facts);
+  const source = facts && facts.basedOn && facts.basedOn[0];
+  const author = source && source.authors && source.authors[0];
   if (!line && !source) return null;
   return (
     <HeroGroup className="kc-tt__honours">
@@ -145,8 +150,8 @@ export function TitleHonours({ awards, basedOn = [] }) {
         <span className="kc-tt__honour">
           <Icon name="book-open" size={18} />
           <span>
-            Based on <i>{source.work}</i>
-            {source.author && <> by <a {...linkProps(discoverPath(`${source.author} adaptations`))}>{source.author}</a></>}
+            Based on <i>{source.work.name}</i>
+            {author && <> by <a {...linkProps(discoverListPath({ fact: `P144/P50:${author.id}` }, `${author.name} adaptations`))}>{author.name}</a></>}
           </span>
         </span>
       )}
@@ -192,26 +197,23 @@ export function ResumeMeter({ position, duration }) {
 }
 
 /**
- * What a film won, as its own section of the page, where the hero's awards line leads: the awards by
- * name with the year each was given, the newest first, and how many more there are when not every win
- * is listed. Nothing for a film that won nothing.
+ * What a title won, as its own section of the page, where the hero's awards line leads: the awards by
+ * name, each leading to every title that won it. Nothing for a title that won nothing.
  */
-export function TitleAwards({ awards }) {
-  if (!awards || !awards.won || awards.won.length === 0) return null;
-  const more = awards.wins - awards.won.length;
+export function TitleAwards({ facts }) {
+  const won = (facts && facts.awards) || [];
+  if (won.length === 0) return null;
   return (
     <section className="kc-section" id="awards">
       <h2>Awards</h2>
       <ul className="kc-awards">
-        {awards.won.map((a) => (
-          <li key={a.name + a.year} className="kc-awards__item">
+        {won.map((a) => (
+          <li key={a.id} className="kc-awards__item">
             <Icon name="trophy" size={15} />
-            <span className="kc-awards__name">{a.name}</span>
-            {a.year && <span className="kc-awards__year">{a.year}</span>}
+            <a className="kc-awards__name" {...linkProps(discoverListPath({ fact: `P166:${a.id}`, sort: "newest" }, a.name))}>{a.name}</a>
           </li>
         ))}
       </ul>
-      {more > 0 && <span className="kc-note">And {more} more {more === 1 ? "win" : "wins"}.</span>}
     </section>
   );
 }

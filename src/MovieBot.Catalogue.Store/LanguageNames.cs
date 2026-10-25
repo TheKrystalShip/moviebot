@@ -101,4 +101,7 @@ public static class LanguageNames
     };
 
     public static string? Of(string code) => Names.GetValueOrDefault(code);
+
+    /// <summary>Every language named here, by code.</summary>
+    public static IReadOnlyDictionary<string, string> All => Names;
 }

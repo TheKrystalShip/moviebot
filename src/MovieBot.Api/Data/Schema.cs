@@ -13,13 +13,12 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// else's.
 ///
 /// A person is the account the identity provider names them by and nothing else, so no table is
-/// keyed by anything a person typed. What the film database said about a title is kept as that
-/// database's own shape, one JSON value per row beside the columns it is looked up and aged by: it is
-/// an answer kept for its asker, never queried into, and its shape is the client's to own.
+/// keyed by anything a person typed. What a title is, is the catalogue's (moviebot-catalogue), read
+/// from its own file; a record here names a title by its IMDb id.
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued];
 
     public static int Version => Steps.Length;
 
@@ -36,6 +35,21 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Catalogued = """
+        -- What the film database, IMDb and Wikidata said is the catalogue's (moviebot-catalogue), which
+        -- this service reads, so it keeps none of it.
+        DROP TABLE IF EXISTS film_descriptions;
+        DROP TABLE IF EXISTS show_descriptions;
+        DROP TABLE IF EXISTS glances;
+        DROP TABLE IF EXISTS answers;
+        DROP TABLE IF EXISTS trending;
+        DROP TABLE IF EXISTS title_scores;
+        DROP TABLE IF EXISTS images;
+        DROP TABLE IF EXISTS poster_pins;
+        DROP TABLE IF EXISTS imdb_titles;
+        DROP TABLE IF EXISTS franchises;
+        """;
 
     private const string Franchises = """
         -- Every series of the film database as the franchise scan last measured it: its released films

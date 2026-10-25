@@ -18,16 +18,14 @@ film onto a device is `Offline/CLAUDE.md`.
 - **Everything the API keeps is one SQLite database, `Data/CinemaDatabase`** (`moviebot.db` in the
   state directory, or `Database:Path`; the tables are `Data/Schema`). Each read takes a pooled
   connection and each change is one immediate transaction, after every change before it, so a store
-  that reads before it writes (a want's flags, a notification's key, the first poster pin) decides
-  inside the transaction it writes in. A store keeps nothing in memory but what a listing reads on
-  every row (`PersonDirectory`, the film database caches), written through. What
-  the film database said is kept as its own JSON, one value per row beside the columns it is looked
-  up and aged by; what a person did is columns. Served bytes are files and nothing else is: artwork
-  under the caches' directories, with what each image came from in `images`
-  (`Films/KeptImages`), and fetched WebVTT under `Subtitles:Root`. The file is `0600`, since it holds
-  the push key pair. A file at an earlier schema version is brought forward by `Schema`'s steps, each taking
-  the file from one version to the next in one transaction and carrying across the records a changed
-  table held, and a file at a version this build does not know stops the API from starting.
+  that reads before it writes (a want's flags, a notification's key) decides inside the transaction
+  it writes in. A store keeps nothing in memory but what a listing reads on every row
+  (`PersonDirectory`), written through. What a person did is columns. Served bytes are files and
+  nothing else is: fetched WebVTT under `Subtitles:Root`, and the catalogue's images in its own
+  directory. The file is `0600`, since it holds the push key pair. A file at an earlier schema version
+  is brought forward by `Schema`'s steps, each taking the file from one version to the next in one
+  transaction and carrying across the records a changed table held, and a file at a version this build
+  does not know stops the API from starting.
 - **Resolve configuration inside the DI factory, not at the top of `Program.cs`.** Reading
   `builder.Configuration` while the builder is still being assembled misses sources added later — a
   test host's media root, for one — and the service silently points somewhere else.
@@ -61,138 +59,62 @@ film onto a device is `Offline/CLAUDE.md`.
   `/embed/`. It is the fallback rather than the default-files middleware that does this, because an
   endpoint matched ahead of the static files means they never see the request. Paths under `/api`,
   `/media` and `/hub` stay a 404.
-- **The film database is reached by this service alone, and asked once per film.** `Films/FilmStore`
-  keeps each description and, under one directory per film, every image it names; it serves its own
-  copies at `/films/{imdbId}/…`, and asks again only once a copy is
-  `Tmdb:RefreshDays` old; a database that cannot be reached then costs freshness and nothing else.
-  One description is one call: the trailers, recommendations, reviews and logos ride the same
-  `append_to_response` as the credits, so a title page never asks a second question, and a description
-  kept without them is due at once. The title's logo is kept beside its poster. Cinema is where its titles
-  are watched, so it asks nothing of where else they stream. Recommendations stay in the description as the database's list entries
-  and are named (IMDb id, makers) when a page is built, like every other list of titles.
-  `FilmWarmer` keeps every library film, every wished film and every wanted title described, so a
-  listing reads only what is kept and never waits on the network. No page talks to the database or its image store.
-  A show is kept the same way by `Shows/ShowStore`, its artwork under `shows/`, its description and every season's
-  episodes asked for together with their stills, and served at `/shows/{imdbId}/…`; the warmer keeps
-  every show the library holds described. An episode's show is never asked of the film side.
+- **Everything about a title is the catalogue's, and the API reaches no source** (`Catalogue/`;
+  `../MovieBot.Catalogue/CLAUDE.md`). `moviebot-catalogue` keeps one entry per title, IMDb's datasets
+  the base with the film database and Wikidata over it, in `catalogue.db` and `images/` under
+  `Catalogue:Directory`; the API opens it read-only through `MovieBot.Catalogue.Store`
+  (`CatalogueSetup`) and serves it under `/api/catalogue` and `/images`. Nothing the API serves asks
+  TMDB, IMDb or Wikidata, so no request waits on anybody else. A catalogue that cannot be read is
+  `CatalogueState.Problem`, a `503` that says why on the catalogue's routes and a title with no card
+  everywhere else; a title the catalogue does not list is served with no card, never with one made up.
+- **A title is one card, the same everywhere** (`docs/api-contract.md`, Catalogue). Every view naming
+  a title (the library's listings, a show's episodes, wants, follows, plans, offline packages, rooms,
+  Watch now) carries the catalogue's `TitleCard`, read through `Catalogue/CatalogueTitles`, which holds
+  each card five minutes, so a page of a hundred titles reads the catalogue once. A title's poster is
+  its card's; in the library `Library/TitlePosters` serves that poster at `/media/{id}/poster.jpg`, and
+  the poster the hand-off put beside the title only for one the catalogue does not list. A source's own
+  cover art is never extracted (`src/MovieBot.Handoff/CLAUDE.md`).
+- **Every list is the one list query, joined with the asking person** (`Catalogue/CatalogueEndpoints`,
+  `CatalogueViewers`). The person's parameters (`unwatched`, `inLibrary`, `here`) and the card's `you`
+  are joined from the library as listed, the watch record and the wants when a page is read, and are
+  never kept with the catalogue. A parameter the query does not take is refused, because a list that
+  ignores a filter answers a question nobody asked. The facets are counted from every entry's facet
+  values held in memory (`Catalogue/FacetIndex`, read again every ten minutes), since counting them
+  from the file scans every title a query names without its picks, the whole catalogue for a page with
+  no other filter.
+- **Words typed into Discover are read by `Catalogue/QuestionReader`** (pure: a closed grammar over
+  IMDb's genres and the catalogue's languages, passed in) into the list query's filters
+  (`Catalogue/CatalogueQuestions`), so a misread name is a refusal and never a wrong answer.
+- **Discover is list queries** (`Catalogue/DiscoverIndex`). Every shelf is a name and a list query by
+  the catalogue's ids (genres, keywords, companies, people, Wikidata items, franchises, rankings); the
+  heads of the shelves the same for everybody (posters, counts) are read every thirty minutes in the
+  background, so `/api/catalogue/discover` answers from memory, and the person's rows and a series'
+  progress are joined when it is read. "Popular here" names nobody and no count.
 - **An episode is numbered as its release numbers it, everywhere** (`Shows/EpisodeNumbering`). The
   tracker, the torrent's files, the library and the subtitle index agree on it; the film database
   sometimes does not, most often by counting a special or a promotion as a season's first episode.
-  `ShowStore` hands out every description already put into the releases' numbering, so no reader
-  translates. The evidence is the episode names release and file names carry after their marker,
-  from the library and from the show's torrents in the client (`EpisodeNumberingWarmer`, every ten
-  minutes): each name matching the database's episode of the same name in that season anchors the
-  two, and the offset holds until the next anchor. A database episode before the first release
-  episode is a special and leaves the season. A still is asked for by the release's numbering and
-  resolved to the database's file. A season with no names to match keeps the database's numbering.
-  `Films/PopularNow` keeps the week's trending films and shows, the list and one poster per entry
-  (under `popular/`) and nothing more, asked for every six hours and served at `/api/popular` and
-  `/popular/{imdbId}.jpg`; an entry's page asks for the rest of it when it is opened.
-  A search result's rating and overview are `Films/TitleGlances`, one lookup by IMDb id per title
-  kept: a title already described answers from its description, a search waits
-  for new lookups at most a second and a half, and a kept one is refreshed in the background, after
-  a year for a title out over a year and after a week for anything newer. A result's poster is the
-  one its page shows: the described title's kept poster, or the glance's, fetched once under
-  `glances/` and served at `/glances/{imdbId}/poster.jpg`. `Films/Catalogue` browses the database by
-  a person and by a genre, keeping each answer, a person's credits for a week and a genre's most
-  popular titles for a day, and offers every title it lists to the glances, so its poster is served
-  the same way; a person's portrait is kept with their credits, under `catalogue/`. A description whose cast carries no
-  person id is due at once, since that id is what leads from a cast member to their work.
-  `Acquisition/TitleSearch` holds the title index's answer for a name in memory for an hour.
-- **A title has one poster, the first the API showed it with.** A person finds a title by its poster,
-  and the database's answers name different posters for one title (search, trending and a description
-  can each differ, and a refresh can name another). `Films/PosterPins` pins each IMDb id to the image
-  path its poster was first shown from, and `FilmStore`, `ShowStore`, `TitleGlances`
-  and `PopularNow` all fetch the pinned path. In the library, `Library/TitlePosters` serves that poster
-  at `/media/{id}/poster.jpg` and names it on `/api/titles`; the poster the hand-off put beside the
-  title (the title index's) is served only for a title the database holds none for. A source's own
-  cover art is never extracted (`src/MovieBot.Handoff/CLAUDE.md`).
-- **A title has one rating: IMDb's where the import holds the title, else the newest the film
-  database has given.** Every view takes `rating`, `votes` and `ratedBy` from `TitleScores.Serve`,
-  given the title's IMDb id and database id. IMDb's comes from `ImdbRatings`; the film database's
-  from `title_scores`, since every answer the API keeps carries the rating from when it was asked and a
-  new release's moves daily, so each surface would show its own. `Films/TitleScores` holds one rating
-  and vote count per database id and kind, in memory and written through, and every place that
-  receives a rating from the database records it as an observation stamped with when its answer was
-  asked, kept only if newer than what is held: `AnswerKeeper` for every kept answer it serves
-  (credits, searches, discoveries, charts, lists), and `FilmStore`, `ShowStore`, `TitleGlances` and
-  `PopularNow` for theirs, each when it fetches and when it first reads a row. Only the database's
-  ratings are recorded, so a glance carries `TitleScores.Newest` and never IMDb's: a kept answer built
-  from glances is observed in turn, and IMDb's figure recorded there would stand in for the
-  database's. A database rating with fewer than `CatalogueSearch.RatedVotes` votes is served as none.
-  A rating floor holds for the rating shown (`CatalogueSearch.RatedAtLeast`). A film released within
-  sixty days is described again after `Tmdb:RecentRefreshDays`, since the observations only move as
-  fast as the database is asked.
-- **IMDb's datasets are imported daily and used to rank, never served as a database**
-  (`Films/ImdbImport.cs`). `ImdbImporter` asks after `title.basics` and `title.ratings` with HEAD and
-  reads them (streamed, gzip-decoded, never held whole or written to disk) only when either differs
-  from the versions the table was made from; it keeps `movie` and `tvMovie` as films and `tvSeries` and
-  `tvMiniSeries` as shows, not adult, with at least `Imdb:MinVotes` votes, in `imdb_titles`. The rows
-  go into a table of their own in batches and are swapped in by one transaction, so a reader sees a
-  whole import or the last one and the database's writer is never held for the length of an import. The
-  licence is personal, non-commercial use: the data ranks and gives a title its IMDb rating and
-  votes, and no route lists it. `Films/ImdbRatings` reads the table (a title looked up once is
-  remembered, nothing is loaded ahead). A host where the import never ran has no IMDb data, and
-  everything built on it does what it does without it. Tests never reach IMDb: `ImdbDatasets` is a
-  typed client a test gives a handler, and the test host sets `Imdb:Enabled` false.
-- **Wikidata is asked in the background only, and what it said is kept** (`Films/WikidataClient.cs`,
-  `WikidataSets.cs`, `WikidataFacts.cs`, `CatalogueWikidata.cs`; CC0, so no attribution is owed). It lists
-  the sets of films the shelves of awards, adaptations, places and subgenres are made of, and each film's
-  awards and the work it is based on. `WikidataWarmer` asks every fixed set again once its answer is
-  `Wikidata:RefreshDays` old, one after another and pausing twice as long as each took, and a page reads the
-  kept copy through `AnswerKeeper.Kept`, which never asks: a shelf whose set is not kept is absent from the
-  index and empty, and a film with no facts kept is served without them while `WikidataFacts.Want` asks in the
-  background. Only a question that names a set outside the fixed ones asks at answer time, once, and keeps the
-  answer like any other. Every request carries `Cinema/<version> (<Wikidata:Contact>)`, goes through
-  `WikidataGate` (at most `MaxAtOnce` in flight; after a `429` nothing is asked until `Retry-After` has passed,
-  and a third refusal gives up with an `HttpRequestException`, which the keeper treats as an unreachable
-  database), and reads its JSON through `WikidataJson`. Items are validated as `Q` numbers before they reach
-  a query. Titles are named through `TitleGlances` and the cards like every other shelf. Nothing depends on
-  Wikidata: with `Wikidata:Enabled` false or no answer kept, everything else does what it does without it. Tests
-  never reach it: `WikidataClient` is a typed client a test gives a handler.
-- **Finding is `Films/CatalogueSearch`, and every answer is kept by `Films/AnswerKeeper`.** A search by
-  name, a person by name and every dated credit they have, a discovery by genre, years, people,
-  keywords, language, a rating floor and similarity to another title, and the lists of what is out and
-  what is coming are asked of the film database once and kept (a question somebody typed is named
-  under `queries/` and trimmed after thirty days unasked), for a day or for six hours, and a database
-  that cannot be reached costs freshness and nothing else. A discovery, a question and a shelf are served a page at a time (`PageAsk`: a page of 20 titles, a shelf's of 40, at most `CatalogueSearch.PagesListed` pages, a count bounding the total); each page of the database's own order is its own kept answer, while a sort by rating keeps the one ranked list of the most voted titles and slices it, so every page continues the same order. Where `ImdbRatings` holds data that list is ranked by `Films/ImdbRanking`: the titles the database listed, and for a question of kind, genre and years alone the best rated titles IMDb files there that it did not list (resolved by IMDb id through `TitleGlances`, at most `ImdbRanking.Widened`), ordered by IMDb's rating weighted by votes over a floor that scales with the question's breadth, and kept under a name that holds the datasets' day (`docs/api-contract.md`, IMDb's datasets). A source that is whole in one answer says there is no next page. What names a title (its IMDb id, makers and
-  top-billed actors) is one call kept a week, so a title in many answers is asked about once. Every word
-  that names a genre, a person, a keyword, a studio or a language is resolved to the database's and reported in
-  `resolved`; a word the database does not know is refused (`404`) rather than dropped, because a
-  discovery that ignores a filter answers a question nobody asked. Words typed into Discover are read by `Films/QuestionReader` (pure: a closed grammar over the database's own genre and language lists, passed in) and answered through that same discovery by `CatalogueSearch.AskAsync`, so a misread name is a refusal and never a wrong answer. The library join (`LibraryShelf`) and
-  whether the asking person watched are made when an answer is read and are never kept with it. A title
-  the database holds no IMDb id for is listed by its own id with no page and no poster. The Discover page's shelves are `Films/DiscoverShelves`: each shelf the same for everybody
-  is a fixed question by the database's own ids (genres, keywords, companies, networks, collections,
-  people), answered and kept through `CatalogueSearch`, and `Films/DiscoverWarmer` asks every one of
-  them again every `Tmdb:ShelvesWarmMinutes`, which asks the database only for what is due, so a page
-  never waits on it. A tile's posters and a series' films are read from each shelf's last answer,
-  held in memory and renewed by every warmer pass, so `/api/discover` asks nothing of the database once
-  the warmer has run. Each pass also holds every question shelf of at most 1,000 titles whole in
-  memory, each title with its card (`CatalogueSearch.ShelfWholeAsync`), so a filter on it and its
-  facets are answered over the titles held and ask the database nothing; a shelf not held is
-  narrowed by the database and its facets probed, one question per option. The franchises are
-  `Films/Franchises`: the curated series, then every series the database holds with enough released
-  films and votes (`Franchises` settings). `FranchiseScanner` reads the database's daily list of series
-  ids and asks about each series that is due, slowly, keeping its released films and their votes in
-  `franchises`, a shelved series again after a week and any other after a month; the votes only rank,
-  and a series' films are asked for as its shelf, by the warmer like every other. The shelves that follow from a person read the watch record and the library as
-  listed, and "Popular here" names nobody and no count.
+  `CatalogueTitles.Show` hands out every show's seasons already put into the releases' numbering, so
+  no reader translates. The evidence is the episode names release and file names carry after their
+  marker, from the library and from the show's torrents in the client (`EpisodeNumberingWarmer`, every
+  ten minutes): each name matching the catalogue's episode of the same name in that season anchors the
+  two, and the offset holds until the next anchor. A catalogue episode before the first release
+  episode is a special and leaves the season. A still is found by the release's numbering
+  (`/images/titles/{imdbId}/sNNeMM`). A season with no names to match keeps the catalogue's numbering.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
-  ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}`, the library's
+  ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/me/shows/{imdbId}`, the library's
   pages (`/api/library/{scope}`, `Library/ListedPages`) and a title's neighbours read that list. Building it asks the filesystem about every title, and on a host short
   of memory while a transcode runs, the kernel forgets those answers within seconds and the cold
   root is a spinning disk: built per request, a listing costs a second. A change on disk reaches the
   shelf within ten seconds. What must be exact reads `TitleLibrary` directly: a title's own
   manifest, a room's head, and whether a film is here before anything is fetched.
-- **A title's category is `Library/TitleCategories`, beside its kind.** The kind is how a title is
-  built and the category where people look for it: anime is what the film database files under
-  Animation and was made in Japanese, read from the kept description, so a listing still never waits
-  on the network, and from the genres and language a catalogue answer carries. Every view naming a
-  title carries it (`docs/api-contract.md`, Categories).
+- **A title's category is its card's, beside its kind** (`Library/TitleCategories`). The kind is how a
+  title is built and the category where people look for it: anime is what holds Animation among its
+  genres and was made in Japanese (`docs/api-contract.md`, Categories); a library title with no card is
+  general.
 - **An episode is a title, and a show is its episodes grouped.** Every route that serves a title
-  serves an episode unchanged; `/api/shows` and `/api/shows/{imdbId}` group the library's episodes by
-  the show their manifest names and join them with the show's description, and an episode's
-  `details` on `/api/titles` are its show's.
+  serves an episode unchanged; `/api/shows` groups the library's episodes by the show their manifest
+  names, and `/api/me/shows/{imdbId}` joins the catalogue's seasons with the episodes the library holds
+  and the person's progress in them. An episode's `card` on `/api/titles` is its show's.
 - **A person's own settings are asked for by token, never by id.** `/api/me/preferences`,
   `/api/me/tracks/{titleId}` and `/api/me/sorts` answer for whoever the token names, so there is no route by which anybody reads or
   writes anybody else's; the service key names nobody and is refused there. Progress, history, follows and wants
@@ -218,8 +140,7 @@ film onto a device is `Offline/CLAUDE.md`.
   until `Follow:GiveUpDays` past it; only a show with an episode due is asked of the tracker, once per
   `Follow:AskMinutes` per episode. An offered episode is fetched once for every follower who wants it,
   at the best quality any of them watches at, and what was announced is kept beside the follows so a
-  restart never tells anybody twice. A followed show's description is asked of
-  the film database again after `Follow:RefreshHours`, which is what brings a new episode into view.
+  restart never tells anybody twice. A new episode comes into view as the catalogue lists it.
   The rules for who is told what are in `Notifications/CLAUDE.md`.
 - **A want is keyed by the person and the title's IMDb id, never by a library id** (`Wants/`). The
   library is what comes and goes; a film wanted outlives leaving it and is the same want when it comes

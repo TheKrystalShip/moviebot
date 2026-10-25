@@ -346,7 +346,7 @@ console.log("\nFlows");
   const { context, page } = await open();
   const problems = [];
   try {
-    await page.route(new RegExp(`/api/shows/${SHOW}$`), async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue(); });
+    await page.route(new RegExp(`/api/catalogue/titles/${SHOW}$`), async (route) => { await new Promise((r) => setTimeout(r, 2500)); await route.continue(); });
     await page.goto(base + `/discover/show/${SHOW}/season/3`, { waitUntil: "commit" });
     await page.waitForSelector(".k-breadcrumbs", { timeout: 15000 });
     const early = (await drawn(page)).trail;

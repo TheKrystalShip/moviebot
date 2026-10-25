@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "@thekrystalship/krystal";
-import { api, episodeCode } from "../api.js";
+import { certificateOf, episodeCode, libraryApi, roomsApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
 import { useCrumb } from "../crumbs.js";
@@ -9,9 +9,9 @@ import { navigate } from "../router.js";
 import { useCan, useSession } from "../session.js";
 import { ago, airDay, clock, since, timeLeft } from "../time.js";
 import { Empty, Failed, WatchButton, useWatchLink } from "../components/Film.jsx";
-import { CastGrid, FactGrid, Keywords, TitleSkeleton, originalTitle } from "../components/FilmDetails.jsx";
-import { HeroGroup, kindWord, TitleAbout, TitleFacts, TitleHero, TrailerButton } from "../components/TitleHero.jsx";
-import { TitleShelves } from "./DiscoverShelves.jsx";
+import { TitleSkeleton } from "../components/FilmDetails.jsx";
+import { TitleSections, titleFacts } from "../components/TitleSections.jsx";
+import { HeroGroup, kindWord, TitleAbout, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
 import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
@@ -23,7 +23,7 @@ import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
 import { watchOnTv } from "../remoteWatch.js";
 import { setRemoteMode } from "../remote.js";
 import { useKeptShow } from "../offline/hooks.js";
-import { refreshShow } from "../offline/shows.js";
+import { refreshShow, showAnswers } from "../offline/shows.js";
 import { Unreachable } from "./Offline.jsx";
 
 /**
@@ -31,8 +31,9 @@ import { Unreachable } from "./Offline.jsx";
  * episode, whether it plays now or once it is prepared. Works the same for a show the library holds
  * nothing of.
  *
- * What the show is comes from the film database through the API; which episodes play now and how far
- * this person got in each comes from the library.
+ * What the show is comes from its catalogue page; its episodes as the releases number them, which
+ * play now and how far this person got in each, from `GET /api/me/shows/{imdbId}`. The page reads both
+ * together (`showAnswers`).
  *
  * The address says which season is open (`season`), where the library stands (`inLibrary`: a shelf's
  * address or Discover's) and which shelf (`category`: Anime's, or TV Shows'). All three are the page's
@@ -45,16 +46,16 @@ import { Unreachable } from "./Offline.jsx";
  * Read from the API while the device keeps the show, the page writes it there again.
  */
 export function Show({ imdbId, season, inLibrary, category = null, fromDevice = false }) {
-  const fetched = useLoad(() => (fromDevice ? Promise.resolve(null) : api.show(imdbId)), [imdbId]);
+  const fetched = useLoad(() => (fromDevice ? Promise.resolve(null) : showAnswers(imdbId)), [imdbId]);
   const kept = useKeptShow(imdbId, fromDevice);
   const show = fromDevice ? kept : fetched;
   const library = useLoad(() => (fromDevice ? Promise.resolve(null)
-    : api.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null)), [imdbId]);
-  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : api.rooms()), [imdbId]);
+    : libraryApi.shows().then((all) => all.find((s) => s.imdbId === imdbId) || null).catch(() => null)), [imdbId]);
+  const rooms = useLoad(() => (fromDevice ? Promise.resolve([]) : roomsApi.list()), [imdbId]);
   const downloading = useCan("cinema:download") && !fromDevice;
   // What the tracker offers, so every episode it holds can be played; kept a few minutes by the API,
   // and asked by somebody who may fetch an episode.
-  const offers = useLoad(() => (downloading ? api.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
+  const offers = useLoad(() => (downloading ? libraryApi.showReleases(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId, downloading]);
   const [starting, setStarting] = React.useState(false);
   const session = useSession();
   const me = session && session.user;
@@ -66,12 +67,12 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
     if (!fromDevice && fetched.data) void refreshShow(sub, fetched.data);
   }, [fromDevice, sub, fetched.data]);
 
-  useCrumb(show.data ? show.data.title : show.error && show.error.status === 404 ? "No such show" : null);
+  useCrumb(show.data ? show.data.page.title : show.error && show.error.status === 404 ? "No such show" : null);
 
-  const seasonsHere = show.data ? show.data.seasons : null;
+  const seasonsHere = show.data ? show.data.mine.seasons : null;
   const episodesHere = seasonsHere ? seasonsHere.some((x) => x.episodes.some((e) => e.titleId)) : null;
   const hasSeason = seasonsHere ? seasonsHere.some((x) => x.number === season) : null;
-  const shelved = show.data ? (show.data.category === ANIME ? ANIME : null) : category;
+  const shelved = show.data ? (show.data.page.category === ANIME ? ANIME : null) : category;
   React.useEffect(() => {
     if (episodesHere === null) return;
     navigate(showPath(imdbId, { held: episodesHere, season: hasSeason ? season : undefined, category: shelved }), { replace: true });
@@ -81,12 +82,13 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
 
   if (fromDevice && !show.data) return show.loading ? <div className="kc-page" /> : <Unreachable place={inLibrary ? null : "discover"} />;
   if (show.error && show.error.status === 404) {
-    return <div className="kc-page"><Empty icon="tv" title="No such show">The film database has no show under this id.</Empty></div>;
+    return <div className="kc-page"><Empty icon="tv" title="No such show">The catalogue has no show under this id.</Empty></div>;
   }
   if (!show.data && !show.error) return <TitleSkeleton kind="TV series" />;
   if (!show.data) return <div className="kc-page"><Failed error={show.error} onRetry={show.reload} /></div>;
 
-  const s = show.data;
+  // The show as one: its catalogue page, with what this person has of it over it.
+  const s = { ...show.data.page, ...show.data.mine };
   const seasons = s.seasons;
   const held = (n) => seasons.find((x) => x.number === n)?.episodes.some((e) => e.titleId);
   // The season opened first: the one this person picks up in, then one the library holds, then the first.
@@ -109,40 +111,38 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
   const watchFirstOnTv = async () => {
     setStarting(true);
     const request = await openingRequest(s);
-    if (request) await watchOnTv({ request, name: `${s.title} · ${episodeCode({ season: opening.season, number: opening.number })}`, art: s.backdropUrl || s.posterUrl });
+    if (request) await watchOnTv({ request, name: `${s.title} · ${episodeCode({ season: opening.season, number: opening.number })}`, art: s.backdrop || s.poster });
     setStarting(false);
   };
-  const years = !s.firstYear ? null
-    : !s.inProduction && s.lastYear === s.firstYear ? String(s.firstYear)
-      : `${s.firstYear}–${s.inProduction ? "" : s.lastYear || ""}`;
+  const years = !s.year ? null
+    : s.endYear === s.year ? String(s.year)
+      : `${s.year}–${s.endYear || ""}`;
   const episodeCount = seasons.reduce((n, x) => n + x.episodes.length, 0);
+  const certificate = certificateOf(s);
 
-  const facts = [
-    ["Original title", originalTitle(s.title, s.originalTitle)],
+  const facts = titleFacts(s, [
     ["Aired", years],
     ["Status", s.status],
     ["Episodes", episodeCount || null],
-    ["Network", s.networks.join(", ") || null],
-    ["Language", s.languages.length ? s.languages.join(", ") : null],
-    ["Country", s.countries.length ? s.countries.join(", ") : null],
     ["Added", library.data && library.data.addedAt ? since(library.data.addedAt) : null],
-    ["IMDb", s.imdbId, true],
-  ];
+  ]);
 
   return (
     <div className="kc-page kc-title">
-      <TitleHero art={s.backdropUrl || s.posterUrl} eyebrow={kindWord("show", shelved === ANIME)} title={s.title}
-        trailer={s.trailers && s.trailers[0]}
-        facts={<TitleFacts rating={s.rating} votes={s.votes} ratedBy={s.ratedBy} kind="show" category={shelved}
-          parts={[years, s.certification && { cert: s.certification }, `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`]}
+      <TitleHero art={s.backdrop || s.poster} eyebrow={kindWord("show", shelved === ANIME)} title={s.title}
+        trailer={s.trailers[0]}
+        facts={<TitleFacts rating={s.rating && s.rating.value} votes={s.rating && s.rating.votes} ratedBy={s.rating && s.rating.by}
+          kind="show" category={shelved}
+          parts={[years, certificate && { cert: certificate }, `${seasons.length} ${seasons.length === 1 ? "season" : "seasons"}`]}
           genres={s.genres} />}>
         {play && <NextEpisode play={play} resume={resume} seasons={seasons} room={room} />}
-        <TitleAbout overview={s.overview} credits={{ creators: s.creators, personIds: s.personIds, cast: s.cast }} />
+        <TitleHonours facts={s.facts} />
+        <TitleAbout overview={s.overview || s.plot} credits={s} />
         <HeroGroup>
           <div className="kc-actions">
             {play && driving && (
               <WatchOnTvActions titleId={play.titleId} sessionId={room && room.sessionId} at={play.positionSeconds}
-                target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdropUrl || s.posterUrl }} />
+                target={{ name: `${s.title} · ${episodeCode({ season: play.season, number: play.episode })}`, art: s.backdrop || s.poster }} />
             )}
             {play && !driving && (
               <WatchButton variant="primary" size="xl" icon={room ? "users" : "play"}
@@ -188,28 +188,12 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
           </div>
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
-            offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdropUrl || s.posterUrl} saving={saving}
+            offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdrop || s.poster} saving={saving}
             fetching={saving && downloading} />
         </section>
       )}
 
-      {s.cast.length > 0 && (
-        <section className="kc-section">
-          <h2>Cast</h2>
-          <CastGrid cast={s.cast} />
-        </section>
-      )}
-
-      {!fromDevice && <TitleShelves kind="show" imdbId={s.imdbId} stars={s.cast.slice(0, 2)} />}
-
-      <section className="kc-section">
-        <h2>Details</h2>
-        <FactGrid facts={facts} />
-      </section>
-
-      <Keywords tags={s.keywords} />
-
-      <p className="kc-attribution-note">Show details and artwork from TMDB.</p>
+      <TitleSections page={s} facts={facts} shelves={!fromDevice} />
     </div>
   );
 }
@@ -224,11 +208,11 @@ function NextEpisode({ play, resume, seasons, room }) {
   const at = resume && resume.positionSeconds > 0 ? resume.positionSeconds : 0;
   const link = useWatchLink(play.titleId, room && room.sessionId, at);
   if (!e) return null;
-  const length = e.runtimeMinutes ? e.runtimeMinutes * 60 : e.durationSeconds || (resume && resume.durationSeconds) || 0;
+  const length = e.runtime ? e.runtime * 60 : e.durationSeconds || (resume && resume.durationSeconds) || 0;
   const meta = [length ? clock(length) : null, at && length ? timeLeft(length - at) : null].filter(Boolean).join(" · ");
   const body = (
     <>
-      <span className="kc-next__still" style={e.stillUrl ? { backgroundImage: `url("${e.stillUrl}")` } : undefined}>
+      <span className="kc-next__still" style={e.still ? { backgroundImage: `url("${e.still}")` } : undefined}>
         {at > 0 && length > 0 && <span className="kc-next__progress" style={{ width: `${Math.min(100, (at / length) * 100)}%` }} />}
       </span>
       <span className="kc-next__text">
@@ -282,8 +266,8 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
               ? <DownloadMark titleId={e.titleId || null} imdbId={showImdbId} season={e.season} number={e.number}
                   ready={e.status === "ready"} head={{
                     name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
-                    runtime: e.runtimeMinutes ? clock(e.runtimeMinutes * 60) : e.durationSeconds ? clock(e.durationSeconds) : null,
-                    still: e.stillUrl, backdrop,
+                    runtime: e.runtime ? clock(e.runtime * 60) : e.durationSeconds ? clock(e.durationSeconds) : null,
+                    still: e.still, backdrop,
                   }} />
               : <span className="kc-episode-save" />}
           </div>

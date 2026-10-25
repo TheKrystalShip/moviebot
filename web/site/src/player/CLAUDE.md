@@ -122,7 +122,7 @@ and does nothing that would be.
   like the scrub bar; a chapter's start is also a mark on the bar, and pointing names the chapter.
   Episodes asks the room for an episode, as next does. No menu explains itself: its header is its name.
 - **An episode's menu is its season, drawn as the show's page draws it** (`components/EpisodeRow.jsx`,
-  from `/api/shows/{imdbId}`, read again each time it opens): still, name, score and length, the one
+  from `/api/me/shows/{imdbId}`, read again each time it opens): still, name and length, the one
   the room's state holds marked and the list opened on it. Choosing a row is all it takes: it asks the
   room for that episode (`PlayEpisode`), and one the library lacks can be chosen by a viewer holding
   `cinema:download`. A row says nothing about where an episode stands except its download to this
@@ -206,10 +206,11 @@ and does nothing that would be.
   them less than a compact frame's width; on a compact frame it is a sheet from the bottom. The film
   plays on beside it, and no name in it leads anywhere, since following one would leave the room. An
   episode leads with itself (its still, name and story) and its show follows. A tiny frame and a
-  television have no (i). The words are the API's (`/api/films/{imdbId}`, `/api/shows/{imdbId}`, read
-  once a title), else what the manifest carries: a guest, whose link opens the room's film and nothing
-  else, and a film played alone out of reach of the server are told the name, year and stars, and
-  whatever a saved copy keeps of the description.
+  television have no (i). The words are the title's catalogue page (`/api/catalogue/titles/{imdbId}`,
+  and for an episode `/api/me/shows/{imdbId}` beside it, read once a title), else what the manifest
+  carries: a guest, whose link opens the room's film and nothing else, and a film played alone out of
+  reach of the server are told the name, year and stars, and what a saved copy keeps of the title's
+  card.
 - **A room left paused says what is playing.** Four seconds into a pause, the left of the frame holds
   the name, an episode's place and name, the facts, the story and who is in it, until the film plays
   again or anything opens over it; on a frame as short as a phone held sideways the story is two
@@ -332,7 +333,7 @@ and does nothing that would be.
 
 - **Nothing outside this server.** The artwork behind the frame is the title's poster
   (`/media/<id>/poster.jpg`, the one poster the API shows the title by everywhere), else the copy the
-  API keeps for the film or the show (`/films/<imdb>/poster.jpg`, `/shows/<imdb>/poster.jpg`). The
+  catalogue keeps for the film or the show (`/images/titles/<imdb>/poster`). The
   manifest's `posterUrl` records where the ingest took its poster from and is never loaded.
 
 - **Everything except the poster needs the token or the film's ticket, including anything CSS

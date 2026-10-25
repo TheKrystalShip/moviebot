@@ -29,62 +29,64 @@ using Xunit;
 namespace TheKrystalShip.MovieBot.Tests;
 
 /// <summary>
-/// The film database for the follow tests: shows that are set up by the test, each with the episodes
-/// and air dates it names. It counts nothing and keeps no images.
+/// The shows the follow tests set up, each with the episodes and air dates it names, kept in the test
+/// host's catalogue as the film database would describe it and kept again whenever the test changes it.
+/// A show is named <c>Show {TmdbId}</c> and each episode <c>Episode {number}</c>.
 /// </summary>
-public sealed class ShowDatabaseStub : HttpMessageHandler
+public sealed class KeptShows(SessionFixture fixture)
 {
     public sealed class FakeShow
     {
+        internal Action? Changed { get; set; }
+
+        public FakeShow() => Episodes.CollectionChanged += (_, _) => Changed?.Invoke();
+
         public required int TmdbId { get; init; }
-        public string Status { get; set; } = "Returning Series";
-        public List<(int Season, int Number, string AirDate)> Episodes { get; } = [];
-        public (int Season, int Number, string AirDate)? Next { get; set; }
+
+        public string Status
+        {
+            get;
+            set
+            {
+                field = value;
+                Changed?.Invoke();
+            }
+        } = "Returning Series";
+
+        public System.Collections.ObjectModel.ObservableCollection<(int Season, int Number, string AirDate)> Episodes { get; } = [];
+
+        public (int Season, int Number, string AirDate)? Next
+        {
+            get;
+            set
+            {
+                field = value;
+                Changed?.Invoke();
+            }
+        }
     }
 
-    public ConcurrentDictionary<string, FakeShow> Shows { get; } = new();
+    private readonly ConcurrentDictionary<string, FakeShow> _shows = new();
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+    public FakeShow this[string imdbId]
     {
-        var path = request.RequestUri!.AbsolutePath;
-        if (path.Contains("/find/", StringComparison.Ordinal))
+        get => _shows[imdbId];
+        set
         {
-            var imdb = path[(path.LastIndexOf('/') + 1)..];
-            return Json(Shows.TryGetValue(imdb, out var found)
-                ? $$"""{ "movie_results": [], "tv_results": [ { "id": {{found.TmdbId}} } ] }"""
-                : """{ "movie_results": [], "tv_results": [] }""");
+            _shows[imdbId] = value;
+            value.Changed = () => Keep(imdbId, value);
+            Keep(imdbId, value);
         }
-
-        var parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var at = Array.IndexOf(parts, "tv");
-        if (at < 0 || !int.TryParse(parts[at + 1], CultureInfo.InvariantCulture, out var id)
-            || Shows.Values.FirstOrDefault(s => s.TmdbId == id) is not { } show)
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
-
-        if (parts.Length > at + 3 && parts[at + 2] == "season" && int.TryParse(parts[at + 3], CultureInfo.InvariantCulture, out var season))
-        {
-            var episodes = show.Episodes.Where(e => e.Season == season).OrderBy(e => e.Number).Select(e =>
-                $$"""{ "season_number": {{e.Season}}, "episode_number": {{e.Number}}, "name": "Episode {{e.Number}}", "air_date": "{{e.AirDate}}" }""");
-            return Json($$"""{ "season_number": {{season}}, "name": "Season {{season}}", "episodes": [ {{string.Join(",", episodes)}} ] }""");
-        }
-
-        var seasons = show.Episodes.GroupBy(e => e.Season).OrderBy(g => g.Key).Select(g =>
-            $$"""{ "season_number": {{g.Key}}, "name": "Season {{g.Key}}", "episode_count": {{g.Count()}}, "air_date": "{{g.Min(e => e.AirDate)}}" }""");
-        var next = show.Next is { } n
-            ? $$""", "next_episode_to_air": { "season_number": {{n.Season}}, "episode_number": {{n.Number}}, "name": "Episode {{n.Number}}", "air_date": "{{n.AirDate}}" }"""
-            : "";
-        return Json($$"""
-            { "id": {{show.TmdbId}}, "name": "Show {{show.TmdbId}}", "status": "{{show.Status}}", "in_production": true,
-              "seasons": [ {{string.Join(",", seasons)}} ]{{next}} }
-            """);
     }
 
-    private static Task<HttpResponseMessage> Json(string body) =>
-        Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+    private void Keep(string imdbId, FakeShow show) =>
+        fixture.KeepShow(imdbId, show.TmdbId, $"Show {show.TmdbId}",
+            [.. show.Episodes.Select(e => new ShowEpisode(e.Season, e.Number, $"Episode {e.Number}", e.AirDate))], show.Status,
+            show.Next is { } n ? new ShowEpisode(n.Season, n.Number, $"Episode {n.Number}", n.AirDate) : null);
 }
 
 /// <summary>
-/// The API with a clock the test moves, a film database and a tracker the test sets up, and a
+/// The API with a clock the test moves, shows in its catalogue and a tracker the test sets up, and a
 /// torrent client that keeps what it is given. Episodes are offered as the season's packs, at 720p
 /// and 1080p, so which quality was picked is which torrent the tracker was asked for.
 /// </summary>
@@ -104,7 +106,7 @@ public class FollowFixture : SessionFixture
     /// <summary>The clock every service in the API reads, set to now and moved by the test.</summary>
     public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
 
-    public ShowDatabaseStub Database { get; } = new();
+    public KeptShows Shows => field ??= new(this);
 
     public TorrentClientStub Torrents { get; } = new();
 
@@ -143,7 +145,6 @@ public class FollowFixture : SessionFixture
     {
         services.RemoveAll<TimeProvider>();
         services.AddSingleton<TimeProvider>(Clock);
-        services.AddHttpClient<TmdbClient>().ConfigurePrimaryHttpMessageHandler(() => Database);
         services.RemoveAll<IShowSearch>();
         services.AddSingleton<IShowSearch>(new Search(this));
         services.AddHttpClient<QBittorrentClient>().ConfigurePrimaryHttpMessageHandler(() => Torrents);
@@ -207,14 +208,14 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     private string Day(int fromToday) =>
         DateOnly.FromDateTime(Clock.GetUtcNow().UtcDateTime).AddDays(fromToday).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
-    /// <summary>A show the film database knows, with its episodes at days from today, and a number nobody else uses.</summary>
+    /// <summary>A show the catalogue lists, with its episodes at days from today, and a number nobody else uses.</summary>
     private string Show(params (int Number, int Days)[] episodes)
     {
         var n = Interlocked.Increment(ref s_next);
         var imdb = $"tt91{n:00000}";
-        var show = new ShowDatabaseStub.FakeShow { TmdbId = 9000 + n };
+        var show = new KeptShows.FakeShow { TmdbId = 9000 + n };
         foreach (var (number, days) in episodes) show.Episodes.Add((1, number, Day(days)));
-        _fixture.Database.Shows[imdb] = show;
+        _fixture.Shows[imdb] = show;
         return imdb;
     }
 
@@ -272,12 +273,12 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     public async Task A_person_follows_a_show_and_stops()
     {
         var imdb = Show((1, -30), (2, -3));
-        _fixture.Database.Shows[imdb].Next = (1, 3, Day(5));
+        _fixture.Shows[imdb].Next = (1, 3, Day(5));
         var sam = As("7001", "Sam");
 
         var followed = await Follow(sam, imdb, autoDownload: true);
         Assert.Equal(imdb, followed.ImdbId);
-        Assert.Equal($"Show {_fixture.Database.Shows[imdb].TmdbId}", followed.Title);
+        Assert.Equal($"Show {_fixture.Shows[imdb].TmdbId}", followed.Title);
         Assert.True(followed.AutoDownload);
         Assert.Equal(new AiringView(1, 3, "Episode 3", Day(5)), followed.NextEpisode);
 
@@ -315,9 +316,9 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     {
         var sam = As("7003");
         var ended = Show((1, -3));
-        _fixture.Database.Shows[ended].Status = "Ended";
+        _fixture.Shows[ended].Status = "Ended";
         var canceled = Show((1, -3));
-        _fixture.Database.Shows[canceled].Status = "Canceled";
+        _fixture.Shows[canceled].Status = "Canceled";
 
         async Task<HttpStatusCode> Put(string id)
         {
@@ -358,16 +359,16 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
     public async Task A_shows_page_says_whether_it_can_be_followed_and_whether_the_asker_does()
     {
         var airing = Show((1, -30), (2, -3));
-        _fixture.Database.Shows[airing].Next = (1, 3, Day(4));
+        _fixture.Shows[airing].Next = (1, 3, Day(4));
         var ended = Show((1, -30));
-        _fixture.Database.Shows[ended].Status = "Ended";
+        _fixture.Shows[ended].Status = "Ended";
         var sam = As("7006");
         var jo = As("7007");
         await Follow(sam, airing, autoDownload: true);
 
         async Task<JsonElement> Page(HttpClient who, string id)
         {
-            using var response = await who.GetAsync($"/api/shows/{id}");
+            using var response = await who.GetAsync($"/api/me/shows/{id}");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement.Clone();
         }
@@ -424,7 +425,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         Clock.Advance(TimeSpan.FromDays(1));
         await Pass();
         var told = Assert.Single(Told("7011", imdb));
-        Assert.Equal("Show " + _fixture.Database.Shows[imdb].TmdbId + " S1 · E3 is out.", told.Text);
+        Assert.Equal("Show " + _fixture.Shows[imdb].TmdbId + " S1 · E3 is out.", told.Text);
         Assert.Equal($"/tv/{imdb}/season/1", told.Url);
         Assert.Equal(1, Asked(imdb));
     }
@@ -492,7 +493,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         Assert.True(restarted.IsAnnounced(imdb, 1, 3));
         var services = _fixture.Services;
         var watcher = new FollowWatcher(
-            restarted, services.GetRequiredService<ShowStore>(), services.GetRequiredService<ShowOfferCache>(),
+            restarted, services.GetRequiredService<TheKrystalShip.MovieBot.Api.Catalogue.CatalogueTitles>(), services.GetRequiredService<ShowOfferCache>(),
             services.GetRequiredService<TitleLibrary>(), services.GetRequiredService<Downloads>(),
             services.GetRequiredService<AcquisitionService>(), services.GetRequiredService<WatchRecord>(),
             services.GetRequiredService<PersonDirectory>(), services.GetRequiredService<INotifier>(),
@@ -513,7 +514,7 @@ public sealed class FollowTests : IClassFixture<FollowFixture>
         await Pass();
 
         // The database lists the next episode a day or two after the follow.
-        _fixture.Database.Shows[imdb].Episodes.Add((1, 3, Day(0)));
+        _fixture.Shows[imdb].Episodes.Add((1, 3, Day(0)));
         Clock.Advance(TimeSpan.FromDays(2));
         await Pass();
 
@@ -660,11 +661,11 @@ public sealed class FollowRefusalTests(FullDiskFixture fixture) : IClassFixture<
     public async Task A_refused_download_leaves_the_follower_told_the_episode_is_out()
     {
         var imdb = "tt9200001";
-        var show = new ShowDatabaseStub.FakeShow { TmdbId = 9201 };
+        var show = new KeptShows.FakeShow { TmdbId = 9201 };
         var today = () => DateOnly.FromDateTime(fixture.Clock.GetUtcNow().UtcDateTime);
         show.Episodes.Add((1, 1, today().AddDays(-30).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
         show.Episodes.Add((1, 3, today().AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)));
-        fixture.Database.Shows[imdb] = show;
+        fixture.Shows[imdb] = show;
         fixture.Offer(imdb);
 
         fixture.Services.GetRequiredService<PersonDirectory>().Remember("7081", "Sam");

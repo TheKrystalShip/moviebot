@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Icon } from "@thekrystalship/krystal";
-import { api, filmName } from "../api.js";
+import { filmName, libraryApi, roomsApi } from "../api/index.js";
 import { activityRoom } from "../discord/launch.js";
 import { roomPath } from "../paths.js";
 import { navigate } from "../router.js";
@@ -39,7 +39,7 @@ function useCallRoom() {
     const names = new Map();
 
     const nameOf = async (titleId) => {
-      if (!names.has(titleId)) names.set(titleId, api.title(titleId).then(filmName, () => null));
+      if (!names.has(titleId)) names.set(titleId, libraryApi.title(titleId).then(filmName, () => null));
       return names.get(titleId);
     };
 
@@ -47,7 +47,7 @@ function useCallRoom() {
       if (document.visibilityState === "visible") {
         let held;
         try {
-          held = holdingOf((await api.room(activityRoom)).state);
+          held = holdingOf((await roomsApi.get(activityRoom)).state);
         } catch {
           held = undefined;
         }

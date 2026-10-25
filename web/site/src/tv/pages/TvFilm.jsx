@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, TvBackdrop, toast } from "@thekrystalship/krystal";
-import { api, posterUrl } from "../../api.js";
+import { catalogue, certificateOf, libraryApi, posterUrl, roomsApi, runtimeText } from "../../api/index.js";
 import { useLoad } from "../../data.js";
 import { discoverFilmPath, moviePath } from "../../paths.js";
 import { navigate } from "../../router.js";
@@ -24,52 +24,51 @@ import { dollars } from "../../components/FilmDetails.jsx";
  * through, otherwise Watch, Trailer and Want, with how far they got under the buttons), then the cast,
  * the shelves of what is like it and of its director's and stars' work, and the details.
  */
-function FilmFrame({ details: d, fallback, imdbId, length, actions, progress, facts }) {
+function FilmFrame({ page: d, fallback, length, actions, progress, facts }) {
   const name = (d && d.title) || fallback.title;
   return (
     <div className="kc-tv-page kc-tvf">
-      <TvBackdrop src={(d && (d.backdropUrl || d.posterUrl)) || fallback.art} size="page" />
-      <TvTitleHero eyebrow="Movie" title={name} trailer={d && d.trailers && d.trailers[0]}
+      <TvBackdrop src={(d && (d.backdrop || d.poster)) || fallback.art} size="page" />
+      <TvTitleHero eyebrow="Movie" title={name} trailer={d && d.trailers[0]}
         facts={<SpotFacts facts={{
-          rating: d && d.rating, ratedBy: d && d.ratedBy, year: (d && d.year) || fallback.year, cert: d && d.certification,
-          length, genres: d ? d.genres : [],
+          rating: d && d.rating && d.rating.value, ratedBy: d && d.rating && d.rating.by, year: (d && d.year) || fallback.year,
+          cert: certificateOf(d), length, genres: d ? d.genres : [],
         }} />}>
-        {d && <TvHonours awards={d.awards} basedOn={d.basedOn} />}
-        <TvAbout overview={d && d.overview} credits={d} />
+        {d && <TvHonours facts={d.facts} />}
+        <TvAbout overview={d && (d.overview || d.plot)} credits={d} />
         <TvGroup>
           <div className="k-tv-spot__actions">{actions}</div>
           {progress}
         </TvGroup>
       </TvTitleHero>
       {d && <TvCast cast={d.cast} />}
-      {d && imdbId && (
-        <TvTitleShelves kind="film" imdbId={imdbId}
-          directors={d.directors.map((n) => ({ name: n, personId: (d.personIds || {})[n] }))} stars={d.cast.slice(0, 2)} />
-      )}
+      {d && <TvTitleShelves page={d} />}
       {facts && <TvFacts facts={facts} />}
       {d && <TmdbCredit />}
     </div>
   );
 }
 
+/** A film's details on a television, from its catalogue page: the names as text, since a remote reaches the buttons, not these. */
 const factsOf = (d, extra = []) => d && [
-  ["Released", d.releaseDate ? new Date(d.releaseDate).getFullYear() : d.year],
+  ["Released", d.released ? new Date(d.released).getFullYear() : d.year],
   ["Language", d.languages.length ? d.languages.join(", ") : null],
   ["Country", d.countries.length ? d.countries.join(", ") : null],
-  ["Rating", d.rating ? `${d.rating.toFixed(1)} from ${d.votes.toLocaleString("en-GB")}` : null],
+  ["Rating", d.rating && d.rating.value ? `${d.rating.value.toFixed(1)} from ${d.rating.votes.toLocaleString("en-GB")}` : null],
+  ["Studio", d.companies.slice(0, 3).map((c) => c.name).join(", ") || null],
+  ["Franchise", d.franchises.map((f) => f.name).join(", ") || null],
   ["Budget", dollars(d.budget)],
   ["Box office", dollars(d.revenue)],
-  ["Written by", d.writers.join(", ")],
   ...extra,
 ];
 
 /** A film the library holds, by its title id. */
 export function TvTitle({ id }) {
-  const manifest = useLoad(() => api.title(id), [id]);
-  const listing = useLoad(() => api.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
+  const manifest = useLoad(() => libraryApi.title(id), [id]);
+  const listing = useLoad(() => libraryApi.titles().then((all) => all.find((t) => t.id === id) || null), [id]);
   const imdbId = manifest.data && manifest.data.film && manifest.data.film.imdbId;
-  const details = useLoad(() => (imdbId ? api.film(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
-  const rooms = useLoad(() => api.rooms(), [id]);
+  const details = useLoad(() => (imdbId ? catalogue.title(imdbId).catch(() => null) : Promise.resolve(null)), [imdbId]);
+  const rooms = useLoad(() => roomsApi.list(), [id]);
 
   if (!manifest.data && !manifest.error) return <div className="kc-tv-page" />;
   if (!manifest.data) return <div className="kc-tv-page kc-tv-pad"><Failed error={manifest.error} onRetry={manifest.reload} /></div>;
@@ -112,7 +111,7 @@ export function TvTitle({ id }) {
   );
 
   return (
-    <FilmFrame details={d} imdbId={film.imdbId} fallback={{ title: film.name || m.title, year: film.year, art: posterUrl({ id: m.id, poster: m.poster, details: d }) }}
+    <FilmFrame page={d} fallback={{ title: film.name || m.title, year: film.year, art: posterUrl({ id: m.id, poster: m.poster, card: d }) }}
       length={clock(m.durationSeconds)} actions={actions} progress={shown}
       facts={factsOf(d, [["IMDb", film.imdbId, true]])} />
   );
@@ -125,7 +124,7 @@ export function TvTitle({ id }) {
  */
 export async function startFilm(imdbId) {
   try {
-    const a = await api.availability(imdbId);
+    const a = await libraryApi.availability(imdbId);
     if (a.libraryId) { navigate(watchHref(a.libraryId)); return true; }
     const offer = defaultOffer(a);
     if (!a.download && !offer) { navigate(discoverFilmPath(imdbId)); return true; }
@@ -144,11 +143,11 @@ export async function startFilm(imdbId) {
 export function TvCatalogueFilm({ imdbId }) {
   const downloading = useCan("cinema:download");
   const wishing = useCan("cinema:wish");
-  const film = useLoad(() => api.film(imdbId), [imdbId]);
-  const state = useLoad(() => (downloading || wishing ? api.availability(imdbId) : Promise.resolve(null)), [imdbId, downloading, wishing]);
+  const film = useLoad(() => catalogue.title(imdbId), [imdbId]);
+  const state = useLoad(() => (downloading || wishing ? libraryApi.availability(imdbId) : Promise.resolve(null)), [imdbId, downloading, wishing]);
   const [busy, setBusy] = React.useState(false);
 
-  const here = state.data && state.data.libraryId;
+  const here = (state.data && state.data.libraryId) || (film.data && film.data.you && film.data.you.libraryId);
   const shelved = film.data && film.data.category;
   React.useEffect(() => { if (here) navigate(moviePath(here, shelved), { replace: true }); }, [here, shelved]);
   if (here || (!film.data && !film.error)) return <div className="kc-tv-page" />;
@@ -175,8 +174,8 @@ export function TvCatalogueFilm({ imdbId }) {
   );
 
   return (
-    <FilmFrame details={d} imdbId={imdbId} fallback={{ title: d.title, year: d.year }}
-      length={d.runtimeMinutes ? clock(d.runtimeMinutes * 60) : null} actions={actions}
+    <FilmFrame page={d} fallback={{ title: d.title, year: d.year }}
+      length={runtimeText(d.runtime)} actions={actions}
       facts={factsOf(d, [["IMDb", imdbId, true]])} />
   );
 }

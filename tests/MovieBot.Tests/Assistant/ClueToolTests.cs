@@ -16,7 +16,7 @@ public sealed class ClueToolTests
         Assert.False(result.IsError);
         Assert.StartsWith("Clues: Julian Rook; silent film. Up to 8 candidates, the best fit first.", result.Text);
         string[] lines = [.. result.Text.Split('\n').Where(l => l.StartsWith("- ", StringComparison.Ordinal))];
-        Assert.StartsWith("- The Lantern Keeper (2019), film. Released 2019-03-05.", lines[0]);
+        Assert.StartsWith("- The Lantern Keeper (2019), film. Released 2019-10-18.", lines[0]);
         Assert.Contains("Matches: Julian Rook; silent film.", result.Text);
         Assert.Contains("id tt1000003.", lines[0]);
     }
@@ -90,7 +90,7 @@ public sealed class ClueToolTests
         Assert.Contains("Matches: Julian Rook; released from 2024; announced.", result.Text);
         Assert.Contains("Does not match: announced (it is upcoming, 2027)", result.Text);
         Assert.Contains("Does not match: announced (it is released, 2024)", result.Text);
-        Assert.Equal(["GET /api/catalogue/people?q=julian rook", "GET /api/catalogue/people/601/credits?from=2024"], _rig.World.Asked.Take(2));
+        Assert.Equal(["GET /api/catalogue/terms?q=julian rook", "GET /api/catalogue/titles?from=2024&person=601&size=100&sort=oldest"], _rig.World.Asked.Take(2));
     }
 
     [Fact]

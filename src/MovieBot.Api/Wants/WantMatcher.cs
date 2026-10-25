@@ -1,3 +1,4 @@
+using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
@@ -13,7 +14,7 @@ public sealed record WantMatch(StoredWant Mine, List<StoredWant> With, bool Read
 /// matches those whose next unwatched episode is the same, since two people part-way through
 /// different seasons have nothing to watch together.
 /// </summary>
-public sealed class WantMatcher(WantStore wants, LibraryListing library, WatchRecord record, ShowStore shows)
+public sealed class WantMatcher(WantStore wants, LibraryListing library, WatchRecord record, CatalogueTitles shows)
 {
     /// <summary>The person's matches, ready ones first and then the newest want. A film they have watched is not one.</summary>
     public List<WantMatch> Of(string userId)
@@ -30,7 +31,7 @@ public sealed class WantMatcher(WantStore wants, LibraryListing library, WatchRe
         {
             if (!finished.TryGetValue(w.UserId, out var byShow))
                 finished[w.UserId] = byShow = ShowProgress.Finished(titles, record.Entries(w.UserId));
-            return ShowProgress.Next(shows.Held(w.ImdbId), byShow.GetValueOrDefault(w.ImdbId)) is { } e ? (e.Season, e.Episode) : null;
+            return ShowProgress.Next(shows.Show(w.ImdbId), byShow.GetValueOrDefault(w.ImdbId)) is { } e ? (e.Season, e.Episode) : null;
         }
 
         return [.. Match(mine.Where(w => w.Kind == WantKinds.Show || !shelf.Watched.Contains(w.ImdbId)).ToList(), others, Next)

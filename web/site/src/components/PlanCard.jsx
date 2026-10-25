@@ -1,4 +1,5 @@
 import { PosterCard } from "@thekrystalship/krystal";
+import { posterArt } from "../api/index.js";
 import { planPath } from "../paths.js";
 import { navigate } from "../router.js";
 import { when } from "../time.js";
@@ -44,7 +45,7 @@ export function PlanCard({ plan }) {
   return (
     <PosterCard
       name={plan.title}
-      art={plan.posterUrl ? `url("${plan.posterUrl}")` : null}
+      art={posterArt(plan.card)}
       onPick={() => navigate(planPath(plan.id))}
       progress={plan.readiness === "fetching" ? plan.progress || 0 : undefined}
       facts={[

@@ -18,12 +18,12 @@
 #   MOVIEBOT_VERIFY_COLD        films put on the cold root     (5)
 #   MOVIEBOT_VERIFY_PORT        the API's port                 (8299)
 #   MOVIEBOT_VERIFY_DUB         the film given a second audio track, for the audio menu (coherence-2013)
-#   MOVIEBOT_VERIFY_TMDB_TOKEN_FILE  a file holding a TMDB read token; without one, films carry no
-#                                    ratings, genres or backdrops
+#   MOVIEBOT_VERIFY_CATALOGUE   a catalogue directory, catalogue.db and images/, as moviebot-catalogue
+#                               keeps it ($MOVIEBOT_VERIFY_DIR/catalogue); without one, no title has a
+#                               card, Discover is empty and nothing can be wanted
 #
-# The film database's artwork comes through artwork.mjs on the port after the issuer's, which keeps each
-# image the first time it is fetched and serves the kept bytes on every start after, so what a page
-# fetches stays what the TV performance baseline measured.
+# The API only reads the catalogue, so one copied from a host (sqlite3's VACUUM INTO, and its images/)
+# serves every start unchanged, and what a page fetches stays what the TV performance baseline measured.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -81,21 +81,16 @@ fi
 # shellcheck disable=SC1091
 source "$dir/keys.env"
 issuer_port=$((port + 1))
-artwork_port=$((port + 2))
 printf 'PORT=%s\nISSUER_PORT=%s\n' "$port" "$issuer_port" > "$dir/api.env"
 
 # The identity provider the scratch API trusts, standing in for tks-auth; the checks mint tokens with
 # its key (verify/issuer.mjs). It goes when the API does.
 node "$site/verify/issuer.mjs" serve "$dir" "$issuer_port" &
 issuer_pid=$!
-node "$here/artwork.mjs" "$dir" "$artwork_port" &
-artwork_pid=$!
-trap 'kill "$issuer_pid" "$artwork_pid" 2>/dev/null' EXIT
+trap 'kill "$issuer_pid" 2>/dev/null' EXIT
 
-tmdb=()
-if [[ -n "${MOVIEBOT_VERIFY_TMDB_TOKEN_FILE:-}" ]]; then
-  tmdb=("Tmdb__ReadAccessToken=$(cat "$MOVIEBOT_VERIFY_TMDB_TOKEN_FILE")" "Tmdb__ImageBaseUrl=http://127.0.0.1:$artwork_port/t/p")
-fi
+catalogue="${MOVIEBOT_VERIFY_CATALOGUE:-$dir/catalogue}"
+[[ -f "$catalogue/catalogue.db" ]] || echo "No catalogue at $catalogue: no title has a card." >&2
 
 echo "Scratch Cinema on http://127.0.0.1:$port: $i films, $cold_count of them on the cold root."
 cd "$dir/api"
@@ -106,11 +101,10 @@ env \
   Media__Root="$dir/library/media" \
   Media__ColdRoot="$dir/library/cold" \
   Subtitles__Root="$dir/state/subtitles" \
-  Tmdb__Directory="$dir/films" \
+  Catalogue__Directory="$catalogue" \
   Auth__MediaTicketKey="$MEDIA_TICKET_KEY" \
   Auth__ServiceKey="$SERVICE_KEY" \
   Oidc__Issuer="http://127.0.0.1:$issuer_port" \
   Selection__AllowedCategories__0=1 \
   Kestrel__Endpoints__Http__Url="http://127.0.0.1:$port" \
-  "${tmdb[@]}" \
   ./moviebot-api

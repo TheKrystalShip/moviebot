@@ -39,12 +39,12 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
         text.Append('\n');
         Section(text, "Wants to watch", await wants, limit, Wanted);
         if ((await wants).Value is { } wanted)
-            cards.AddRange(wanted.Take(limit).Select(w => new TitleCard(w.ImdbId, w.Kind, w.Title, w.Year, w.PosterUrl, w.InLibrary, w.Watched)));
+            cards.AddRange(wanted.Take(limit).Select(w => new TitleCard(w.ImdbId, w.Kind, w.Title, w.Card?.Year, w.Card?.Poster, w.InLibrary, w.Watched)));
 
         text.Append('\n');
         Section(text, "Following", await follows, limit, Followed);
         if ((await follows).Value is { } followed)
-            cards.AddRange(followed.Take(limit).Select(f => new TitleCard(f.ImdbId, "show", f.Title, null, null, false, false)));
+            cards.AddRange(followed.Take(limit).Select(f => new TitleCard(f.ImdbId, "show", f.Title, f.Card?.Year, f.Card?.Poster, f.Card?.InLibrary == true, false)));
 
         return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(cards));
     }
@@ -77,9 +77,9 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
 
     private static string Wanted(Want w)
     {
-        var text = new StringBuilder("- ").Append(TitleText.Named(w.Title, w.Year)).Append(", ").Append(TitleText.KindWord(w.Kind)).Append('.');
-        if (w.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", w.Genres)).Append('.');
-        if (w.Rating is { } r) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
+        var text = new StringBuilder("- ").Append(TitleText.Named(w.Title, w.Card?.Year)).Append(", ").Append(TitleText.KindWord(w.Kind)).Append('.');
+        if (w.Card is { Genres.Count: > 0 } card) text.Append(' ').Append(string.Join(", ", card.Genres)).Append('.');
+        if (w.Card?.Rating is { Value: { } r }) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
         text.Append(w.State switch
         {
             "ready" => " In the library.",
@@ -95,7 +95,7 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
 
     private static string Followed(Follow f)
     {
-        var text = new StringBuilder($"- {f.Title}: followed since {f.Since:yyyy-MM-dd}.");
+        var text = new StringBuilder($"- {TitleText.Named(f.Title, f.Card?.Year)}: followed since {f.Since:yyyy-MM-dd}.");
         if (f.NextEpisode is { } next)
             text.Append($" Next episode season {next.Season} episode {next.Episode}, {next.AirDate}.");
         text.Append($" id {f.ImdbId}.");

@@ -41,7 +41,7 @@ import { CallBar } from "./components/CallBar.jsx";
 import { RemoteDock } from "./components/RemoteDock.jsx";
 import { ReplaceSheet } from "./components/ReplaceSheet.jsx";
 import { activityRoom, inActivity } from "./discord/launch.js";
-import { api } from "./api.js";
+import { roomsApi } from "./api/index.js";
 import { onTv } from "./tv/tv.js";
 import { startScreenConnection, stopScreenConnection } from "./tv/screen.js";
 import { TvFrame } from "./tv/TvFrame.jsx";
@@ -368,7 +368,7 @@ function useActivity() {
 function ActivityLanding() {
   React.useEffect(() => {
     let live = true;
-    api.room(activityRoom)
+    roomsApi.get(activityRoom)
       .then((push) => !!(push && push.state && (push.state.titleId || push.state.preparing)), (error) => error.status === 403)
       .then((watching) => { if (live) navigate(watching ? roomPath(activityRoom) : homePath, { replace: true }); });
     return () => { live = false; };
