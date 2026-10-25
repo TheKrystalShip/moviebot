@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Catalogue</RootNamespace>
     <AssemblyName>moviebot-catalogue</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
 
     <!-- Compiled ahead of time, like the API and the hand-off: a process that runs for months keeps
          its code and type data in the binary rather than in memory the JIT wrote. Every comparison

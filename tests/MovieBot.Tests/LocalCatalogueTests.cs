@@ -297,16 +297,118 @@ public sealed class LocalCatalogueTests : IDisposable
     }
 
     [Fact]
-    public void Similar_titles_are_the_recommendations_the_catalogue_holds()
+    public void Similar_titles_are_the_recommendations_the_catalogue_lists_whenever_it_gains_them()
     {
         Import(FastBasics, FastRatings);
         var fast = TitleId("tt0232500");
         var two = TitleId("tt0322259");
-        Layer().Keep(two, new TmdbRef(584, "film"), TwoFast(), []);
-        Layer().Keep(fast, new TmdbRef(9799, "film"), Fast(), []);
+        List<long> Similar() => Database.Read(c => c.Query("""
+            SELECT o.id FROM similar s JOIN titles o ON o.kind = s.kind AND o.tmdb_id = s.tmdb_id AND o.listed = 1
+            WHERE s.title_id = $id ORDER BY s.rank
+            """, r => r.GetInt64(0), ("$id", fast)));
 
-        Assert.Equal([(two, 1)], Database.Read(c => c.Query("SELECT other_id, rank FROM similar WHERE title_id = $id",
-            r => (r.GetInt64(0), r.GetInt32(1)), ("$id", fast))));
+        Layer().Keep(fast, new TmdbRef(9799, "film"), Fast(), []);
+        Assert.Empty(Similar());
+
+        // 2 Fast 2 Furious arrives after the title recommending it was built, which is not built again.
+        Layer().Keep(two, new TmdbRef(584, "film"), TwoFast(), []);
+        Assert.Equal([two], Similar());
+    }
+
+    private (string? FetchedAt, string? BuiltAt, string? ChangedAt) Stamps(long id) => Database.Read(c => c.First("""
+        SELECT l.fetched_at, t.built_at, t.changed_at FROM titles t LEFT JOIN tmdb_layer l ON l.title_id = t.id WHERE t.id = $id
+        """, r => (r.GetStringOrNull(0), r.GetStringOrNull(1), r.GetStringOrNull(2)), ("$id", id)));
+
+    [Fact]
+    public void The_same_answer_again_only_says_when_it_was_asked()
+    {
+        Import(FastBasics, FastRatings);
+        var id = TitleId("tt0232500");
+        Layer().Keep(id, new TmdbRef(9799, "film"), Fast(), []);
+        var first = Stamps(id);
+
+        _clock.Advance(TimeSpan.FromDays(150));
+        Layer().Keep(id, new TmdbRef(9799, "film"), Fast(), []);
+        var again = Stamps(id);
+
+        Assert.NotEqual(first.FetchedAt, again.FetchedAt);
+        Assert.Equal(first.BuiltAt, again.BuiltAt);
+        Assert.Equal(first.ChangedAt, again.ChangedAt);
+    }
+
+    [Fact]
+    public void Votes_and_popularity_that_move_change_the_title_without_building_it()
+    {
+        Import(FastBasics, FastRatings);
+        var id = TitleId("tt0232500");
+        Layer().Keep(id, new TmdbRef(9799, "film"), Fast(), []);
+        var first = Stamps(id);
+
+        _clock.Advance(TimeSpan.FromDays(1));
+        var moved = Fast();
+        moved["vote_count"] = 11300;
+        moved["popularity"] = 40.0;
+        Layer().Keep(id, new TmdbRef(9799, "film"), moved, []);
+        var after = Stamps(id);
+
+        Assert.Equal(first.BuiltAt, after.BuiltAt);
+        Assert.NotEqual(first.ChangedAt, after.ChangedAt);
+        Assert.Equal((11300, 40.0), Database.Read(c => c.First("""
+            SELECT r.votes, t.popularity FROM titles t JOIN ratings r ON r.title_id = t.id AND r.source = 'tmdb' WHERE t.id = $id
+            """, r => (r.GetInt32(0), r.GetDouble(1)), ("$id", id))));
+    }
+
+    [Fact]
+    public void An_answer_that_moved_builds_the_entry_again()
+    {
+        Import(FastBasics, FastRatings);
+        var id = TitleId("tt0232500");
+        Layer().Keep(id, new TmdbRef(9799, "film"), Fast(), []);
+        var first = Stamps(id);
+
+        _clock.Advance(TimeSpan.FromDays(1));
+        var moved = Fast();
+        moved["overview"] = "A new overview.";
+        Layer().Keep(id, new TmdbRef(9799, "film"), moved, []);
+
+        Assert.NotEqual(first.BuiltAt, Stamps(id).BuiltAt);
+        Assert.Equal("A new overview.", Database.Read(c => c.First("SELECT overview FROM titles WHERE id = $id", r => r.GetString(0), ("$id", id))));
+    }
+
+    [Fact]
+    public void The_same_Wikidata_answer_builds_nothing()
+    {
+        Import(FastBasics, FastRatings);
+        var id = TitleId("tt0232500");
+        Layer().Keep(id, new TmdbRef(9799, "film"), Fast(), []);
+        var wikidata = new WikidataWorker(null!, Database, Builder, Options.Create(new CatalogueOptions()), _clock, NullLogger<WikidataWorker>.Instance);
+        var claims = new Dictionary<string, (string, List<WikidataClaim>)>
+        {
+            ["tt0232500"] = ("Q155476", [new("P840", "Q65", "Los Angeles", null), new("P179", "Q1576873", "Fast & Furious", "1")]),
+        };
+        wikidata.Keep([(id, "tt0232500")], claims);
+        var first = Stamps(id);
+
+        _clock.Advance(TimeSpan.FromDays(7));
+        claims["tt0232500"] = ("Q155476", [new("P179", "Q1576873", "Fast & Furious", "1"), new("P840", "Q65", "Los Angeles", null)]);
+        wikidata.Keep([(id, "tt0232500")], claims);
+
+        Assert.Equal(first.BuiltAt, Stamps(id).BuiltAt);
+    }
+
+    [Fact]
+    public void Entries_built_under_other_rules_are_all_built_again()
+    {
+        Import(FastBasics, FastRatings);
+        var worker = new BuildWorker(Database, Builder, _clock, NullLogger<BuildWorker>.Instance);
+        Assert.True(worker.QueueForRules());
+        while (worker.DrainOnce() > 0) { }
+
+        Assert.False(worker.QueueForRules());
+        Database.SetMeta(BuildWorker.RulesKey, "an older rule");
+
+        Assert.True(worker.QueueForRules());
+        Assert.Equal(2, Database.Read(c => c.Count("SELECT count(*) FROM build_due")));
     }
 
     [Fact]

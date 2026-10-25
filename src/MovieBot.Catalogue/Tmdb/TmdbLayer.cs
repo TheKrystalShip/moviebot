@@ -68,6 +68,7 @@ public sealed class TmdbLayer(CatalogueDatabase database, TmdbSource source, Ent
     {
         var now = clock.GetUtcNow();
         var pruned = Prune(description, found.Kind);
+        var hash = HashOf(pruned, seasons);
         try
         {
             database.Write(c =>
@@ -75,21 +76,32 @@ public sealed class TmdbLayer(CatalogueDatabase database, TmdbSource source, Ent
                 c.Execute("UPDATE titles SET tmdb_id = $tmdb WHERE id = $id", ("$tmdb", found.Id), ("$id", titleId));
                 if (pruned["external_ids"]?["wikidata_id"]?.GetValue<string>() is { Length: > 1 } item && item[0] == 'Q')
                     c.Execute("UPDATE titles SET wikidata_id = $item WHERE id = $id AND wikidata_id IS NULL", ("$item", item), ("$id", titleId));
-                c.Execute("""
-                    INSERT INTO tmdb_layer (title_id, fetched_at, json) VALUES ($id, $at, $json)
-                    ON CONFLICT (title_id) DO UPDATE SET fetched_at = excluded.fetched_at, json = excluded.json
-                    """, ("$id", titleId), ("$at", now), ("$json", pruned.ToJsonString()));
-                c.Execute("DELETE FROM tmdb_seasons WHERE title_id = $id", ("$id", titleId));
-                foreach (var (number, season) in seasons)
-                    c.Execute("INSERT INTO tmdb_seasons (title_id, season, fetched_at, json) VALUES ($id, $n, $at, $json)",
-                        ("$id", titleId), ("$n", number), ("$at", now), ("$json", season.ToJsonString()));
+                // The same answer as held only says when it was asked; a different one replaces the layer.
+                if (c.First("SELECT hash FROM tmdb_layer WHERE title_id = $id", r => r.GetString(0), ("$id", titleId)) == hash)
+                {
+                    c.Execute("UPDATE tmdb_layer SET fetched_at = $at WHERE title_id = $id", ("$id", titleId), ("$at", now));
+                    c.Execute("UPDATE tmdb_seasons SET fetched_at = $at WHERE title_id = $id", ("$id", titleId), ("$at", now));
+                }
+                else
+                {
+                    c.Execute("""
+                        INSERT INTO tmdb_layer (title_id, fetched_at, json, hash) VALUES ($id, $at, $json, $hash)
+                        ON CONFLICT (title_id) DO UPDATE SET fetched_at = excluded.fetched_at, json = excluded.json, hash = excluded.hash
+                        """, ("$id", titleId), ("$at", now), ("$json", pruned.ToJsonString()), ("$hash", hash));
+                    c.Execute("DELETE FROM tmdb_seasons WHERE title_id = $id", ("$id", titleId));
+                    foreach (var (number, season) in seasons)
+                        c.Execute("INSERT INTO tmdb_seasons (title_id, season, fetched_at, json) VALUES ($id, $n, $at, $json)",
+                            ("$id", titleId), ("$n", number), ("$at", now), ("$json", season.ToJsonString()));
+                }
                 c.Execute("DELETE FROM tmdb_due WHERE title_id = $id", ("$id", titleId));
                 c.Execute("DELETE FROM tmdb_missing WHERE title_id = $id", ("$id", titleId));
+
+                // What moves daily is kept beside the layer: the rating with the other source's, the
+                // popularity on the title, which only orders and is no change to the entry.
                 if (pruned["vote_count"]?.GetValue<int>() is > 0 and var votes && pruned["vote_average"]?.GetValue<double>() is { } rating)
-                    c.Execute("""
-                        INSERT INTO ratings (title_id, source, rating, votes, seen_at) VALUES ($id, 'tmdb', $rating, $votes, $at)
-                        ON CONFLICT (title_id, source) DO UPDATE SET rating = excluded.rating, votes = excluded.votes, seen_at = excluded.seen_at
-                        """, ("$id", titleId), ("$rating", Math.Round(rating, 1)), ("$votes", votes), ("$at", now));
+                    Ratings.Observe(c, titleId, "tmdb", Math.Round(rating, 1), votes, now);
+                c.Execute("UPDATE titles SET popularity = $popularity WHERE id = $id",
+                    ("$popularity", pruned["popularity"]?.GetValue<double>()), ("$id", titleId));
                 builder.Build(c, titleId);
             });
             return Outcome.Kept;
@@ -111,9 +123,25 @@ public sealed class TmdbLayer(CatalogueDatabase database, TmdbSource source, Ent
             ON CONFLICT (title_id) DO UPDATE SET asked_at = excluded.asked_at
             """, ("$id", titleId), ("$at", clock.GetUtcNow()));
         c.Execute("DELETE FROM tmdb_due WHERE title_id = $id", ("$id", titleId));
-        c.Execute("UPDATE titles SET tmdb_id = NULL WHERE id = $id", ("$id", titleId));
+        c.Execute("DELETE FROM tmdb_layer WHERE title_id = $id", ("$id", titleId));
+        c.Execute("DELETE FROM tmdb_seasons WHERE title_id = $id", ("$id", titleId));
+        c.Execute("UPDATE titles SET tmdb_id = NULL, popularity = NULL WHERE id = $id", ("$id", titleId));
+        c.Execute("DELETE FROM ratings WHERE title_id = $id AND source = 'tmdb'", ("$id", titleId));
         builder.Build(c, titleId);
     });
+
+    /// <summary>The fields that move daily, which a layer's hash leaves out.</summary>
+    private static readonly string[] Volatile = ["popularity", "vote_average", "vote_count"];
+
+    /// <summary>The hash of a pruned description and its seasons, without what moves daily.</summary>
+    public static string HashOf(JsonObject pruned, List<(int Number, JsonNode Season)> seasons)
+    {
+        var stable = pruned.DeepClone().AsObject();
+        foreach (var field in Volatile) stable.Remove(field);
+        var text = new System.Text.StringBuilder(stable.ToJsonString());
+        foreach (var (number, season) in seasons) text.Append('\n').Append(number).Append(':').Append(season.ToJsonString());
+        return Hash.Of(text.ToString());
+    }
 
     private static readonly string[] FilmFields =
     [

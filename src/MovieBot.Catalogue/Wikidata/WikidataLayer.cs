@@ -223,10 +223,19 @@ public sealed class WikidataWorker(
             foreach (var (id, imdb) in titles)
             {
                 answers.TryGetValue(imdb, out var answer);
+                var hash = HashOf(answer.Item, answer.Claims);
+
+                // The same answer as held only says when it was asked.
+                if (c.First("SELECT hash FROM wikidata_layer WHERE title_id = $id", r => r.GetString(0), ("$id", id)) == hash)
+                {
+                    c.Execute("UPDATE wikidata_layer SET fetched_at = $at WHERE title_id = $id", ("$at", now), ("$id", id));
+                    continue;
+                }
+
                 c.Execute("""
-                    INSERT INTO wikidata_layer (title_id, item, fetched_at) VALUES ($id, $item, $at)
-                    ON CONFLICT (title_id) DO UPDATE SET item = excluded.item, fetched_at = excluded.fetched_at
-                    """, ("$id", id), ("$item", answer.Item), ("$at", now));
+                    INSERT INTO wikidata_layer (title_id, item, fetched_at, hash) VALUES ($id, $item, $at, $hash)
+                    ON CONFLICT (title_id) DO UPDATE SET item = excluded.item, fetched_at = excluded.fetched_at, hash = excluded.hash
+                    """, ("$id", id), ("$item", answer.Item), ("$at", now), ("$hash", hash));
                 c.Execute("DELETE FROM wikidata_claims WHERE title_id = $id", ("$id", id));
                 foreach (var claim in answer.Claims ?? [])
                     c.Execute("""
@@ -239,4 +248,10 @@ public sealed class WikidataWorker(
             }
         });
     }
+
+    /// <summary>The hash of an answer: the item and its claims, in an order of their own.</summary>
+    public static string HashOf(string? item, List<WikidataClaim>? claims) => Hash.Of(
+        (item ?? "~") + "\n" + string.Join('\n', (claims ?? [])
+            .Select(c => $"{c.Property}|{c.Item}|{c.Label}|{c.Ordinal}")
+            .Order(StringComparer.Ordinal)));
 }

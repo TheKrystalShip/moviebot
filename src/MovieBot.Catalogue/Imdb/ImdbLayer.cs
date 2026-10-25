@@ -179,6 +179,13 @@ public static class ImdbImport
                         start_year = excluded.start_year, end_year = excluded.end_year, runtime = excluded.runtime,
                         genres = excluded.genres, edition = excluded.edition
                     """, ("$edition", edition));
+                // A rating or vote count that moved marks its title changed.
+                c.Execute("""
+                    UPDATE titles SET changed_at = $at WHERE id IN (
+                        SELECT t.id FROM imdb_next n JOIN titles t ON t.imdb_id = n.imdb_id
+                        LEFT JOIN ratings r ON r.title_id = t.id AND r.source = 'imdb'
+                        WHERE r.title_id IS NULL OR r.rating <> n.rating OR r.votes <> n.votes)
+                    """, ("$at", at));
                 c.Execute("""
                     INSERT INTO ratings (title_id, source, rating, votes, seen_at)
                     SELECT t.id, 'imdb', n.rating, n.votes, $at FROM imdb_next n JOIN titles t ON t.imdb_id = n.imdb_id

@@ -19,17 +19,30 @@ namespace TheKrystalShip.MovieBot.Catalogue.Entries;
 ///
 /// A title is listed, and so an entry, when the database gave it a poster and it is not a placeholder:
 /// an unreleased title whose English title begins <c>Untitled</c>.
+///
+/// A build is skipped when the entry was built from the same inputs (<see cref="Fingerprint"/>): the
+/// IMDb layer's fields, the hashes of the other two layers and <see cref="Rules"/>. A build that runs
+/// stamps the entry changed.
 /// </summary>
 public sealed class EntryBuilder(TimeProvider clock)
 {
+    /// <summary>
+    /// The version of the rules below. Changing what an entry is built into changes it, and every entry
+    /// is built again once (<see cref="BuildWorker"/>).
+    /// </summary>
+    public const string Rules = "2";
+
     private static readonly string[] Facts =
         ["P840", "P915", "P144", "P144/P50", "P166", "P1411", "P921", "P136", "P179", "P155", "P156", "P1434", "P8345"];
 
-    public void Build(SqliteConnection c, long titleId)
+    /// <summary>Builds a title's entry when its inputs changed since the last build; returns whether it built.</summary>
+    public bool Build(SqliteConnection c, long titleId)
     {
-        var title = c.First("SELECT imdb_id, kind, admitted FROM titles WHERE id = $id",
-            r => (Imdb: r.GetString(0), Kind: r.GetString(1)), ("$id", titleId));
-        if (title.Imdb is null) return;
+        var title = c.First("SELECT imdb_id, kind, built_from FROM titles WHERE id = $id",
+            r => (Imdb: r.GetString(0), Kind: r.GetString(1), BuiltFrom: r.GetStringOrNull(2)), ("$id", titleId));
+        if (title.Imdb is null) return false;
+        var fingerprint = Fingerprint(c, titleId);
+        if (fingerprint == title.BuiltFrom) return false;
 
         var imdb = c.First("""
             SELECT primary_title, original_title, start_year, runtime, genres FROM imdb_layer WHERE title_id = $id
@@ -54,7 +67,7 @@ public sealed class EntryBuilder(TimeProvider clock)
                 listed = $listed, english_title = $english, original_title = $original, original_language = $language,
                 year = $year, released = $released, runtime = $runtime, status = $status, overview = $overview, tagline = $tagline,
                 poster = $poster, backdrop = $backdrop, logo = $logo, seasons = $seasons, episodes = $episodes,
-                popularity = $popularity, built_at = $at
+                built_at = $at, changed_at = $at
             WHERE id = $id
             """,
             ("$id", titleId), ("$listed", listed), ("$english", english), ("$original", original),
@@ -62,7 +75,7 @@ public sealed class EntryBuilder(TimeProvider clock)
             ("$status", Text(tmdb?["status"])), ("$overview", Text(tmdb?["overview"])), ("$tagline", Text(tmdb?["tagline"])),
             ("$poster", poster), ("$backdrop", Text(tmdb?["backdrop_path"])), ("$logo", Text(tmdb?["logo_path"])),
             ("$seasons", Int(tmdb?["number_of_seasons"])), ("$episodes", Int(tmdb?["number_of_episodes"])),
-            ("$popularity", tmdb?["popularity"]?.GetValue<double>()), ("$at", clock.GetUtcNow()));
+            ("$at", clock.GetUtcNow()));
 
         Names(c, titleId, english, original, tmdb);
         Genres(c, titleId, imdb, tmdb);
@@ -84,6 +97,30 @@ public sealed class EntryBuilder(TimeProvider clock)
             WHERE title_id = $id AND property IN ({string.Join(", ", Facts.Select(f => $"'{f}'"))})
             """, ("$id", titleId));
         Search(c, titleId, listed);
+
+        // Taken again now the entry holds its English title, which the fingerprint reads.
+        c.Execute("UPDATE titles SET built_from = $from WHERE id = $id", ("$from", Fingerprint(c, titleId)), ("$id", titleId));
+        return true;
+    }
+
+    /// <summary>
+    /// The hash of everything a title's entry is built from. A title named <c>Untitled …</c> takes the
+    /// day in too, since whether it is a placeholder turns on the day it is built.
+    /// </summary>
+    public string Fingerprint(SqliteConnection c, long titleId)
+    {
+        var inputs = c.First("""
+            SELECT t.kind, coalesce(t.english_title, ''),
+                   l.primary_title, l.original_title, l.start_year, l.end_year, l.runtime, l.genres,
+                   (SELECT hash FROM tmdb_layer WHERE title_id = t.id),
+                   (SELECT hash FROM wikidata_layer WHERE title_id = t.id)
+            FROM titles t LEFT JOIN imdb_layer l ON l.title_id = t.id WHERE t.id = $id
+            """, r => string.Join('|', Enumerable.Range(0, r.FieldCount).Select(i => r.IsDBNull(i) ? "~" : r.GetValue(i).ToString())),
+            ("$id", titleId)) ?? "";
+        var untitled = inputs.Split('|') is [_, var english, ..] && english.StartsWith("Untitled", StringComparison.OrdinalIgnoreCase)
+            ? "|" + DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : "";
+        return Hash.Of(Rules + "|" + inputs + untitled);
     }
 
     /// <summary>Whether a title is a placeholder: not out yet, and named <c>Untitled …</c> for want of a name.</summary>
@@ -241,19 +278,15 @@ public sealed class EntryBuilder(TimeProvider clock)
             """, ("$f", franchiseId), ("$id", titleId));
     }
 
-    /// <summary>The database's recommendations the catalogue holds, by the kind each names.</summary>
+    /// <summary>The database's recommendations, in its order, by its own ids; a reader joins them to the titles listed.</summary>
     private static void Similar(SqliteConnection c, long titleId, JsonNode tmdb)
     {
         var rank = 0;
         foreach (var other in Items(tmdb["recommendations"]))
         {
-            rank++;
             if (Int(other["id"]) is not { } id) continue;
-            var kind = Text(other["media_type"]) == "tv" ? "show" : "film";
-            c.Execute("""
-                INSERT OR IGNORE INTO similar (title_id, other_id, rank)
-                SELECT $id, t.id, $rank FROM titles t WHERE t.kind = $kind AND t.tmdb_id = $other AND t.id <> $id
-                """, ("$id", titleId), ("$rank", rank), ("$kind", kind), ("$other", id));
+            c.Execute("INSERT OR IGNORE INTO similar (title_id, rank, kind, tmdb_id) VALUES ($id, $rank, $kind, $other)",
+                ("$id", titleId), ("$rank", ++rank), ("$kind", Text(other["media_type"]) == "tv" ? "show" : "film"), ("$other", id));
         }
     }
 

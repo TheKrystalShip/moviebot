@@ -15,8 +15,11 @@ public sealed class BuildWorker(CatalogueDatabase database, EntryBuilder builder
     private static readonly TimeSpan Idle = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan Between = TimeSpan.FromMilliseconds(250);
 
+    public const string RulesKey = "entry_rules";
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        QueueForRules();
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -36,10 +39,24 @@ public sealed class BuildWorker(CatalogueDatabase database, EntryBuilder builder
         }
     }
 
+    /// <summary>
+    /// Marks every title due when the entries were built under other rules (<see cref="EntryBuilder.Rules"/>);
+    /// returns whether it did. Each build then runs, since the rules are part of every fingerprint.
+    /// </summary>
+    public bool QueueForRules() => database.Write(c =>
+    {
+        if (c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", RulesKey)) == EntryBuilder.Rules) return false;
+        var queued = c.Execute("INSERT OR IGNORE INTO build_due (title_id) SELECT id FROM titles");
+        CatalogueDatabase.SetMeta(c, RulesKey, EntryBuilder.Rules);
+        logger.LogInformation("Entry rules {Rules}: {Count} entries due to be built again.", EntryBuilder.Rules, queued);
+        return true;
+    });
+
     /// <summary>Builds one batch of due entries; returns how many.</summary>
     public int DrainOnce() => database.Write(c =>
     {
         var due = c.Query("SELECT title_id FROM build_due LIMIT $n", r => r.GetInt64(0), ("$n", Batch));
+        // A build whose inputs did not move is skipped by the builder itself.
         foreach (var id in due)
         {
             builder.Build(c, id);

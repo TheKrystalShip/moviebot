@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.85.0] - 2026-10-25
+
+### Changed
+- The catalogue writes only what changed. Each source's layer keeps a hash of what it holds, so an
+  answer the same as the one held only records when it was asked, and an entry is built again only
+  when what it is built from moved. TMDB's popularity and votes, which move daily, are kept beside the
+  layer rather than in its hash. Every title carries `changed_at`, when anything a page shows of it
+  last changed. Similar titles are joined to the catalogue when read, so a title gained later appears
+  beside the titles recommending it.
+
 ## [3.84.0] - 2026-10-25
 
 ### Added

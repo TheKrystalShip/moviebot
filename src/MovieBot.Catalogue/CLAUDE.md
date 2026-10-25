@@ -15,6 +15,16 @@ the `Tmdb` section's, from the environment.
   so building twice from the same layers gives the same entry, whatever order the layers came in; the
   rules for which source each field comes from are its summary. Ratings are not built: each source
   writes its own row in `ratings`, and neither overrides the other.
+- **An answer that changes nothing writes nothing but when it was asked.** Each layer keeps a hash of
+  what it holds; the film database's leaves out popularity and votes, which move daily and are written
+  straight to `titles.popularity` and `ratings`. An entry keeps the fingerprint of the inputs it was
+  built from (`EntryBuilder.Fingerprint`: the IMDb layer's fields, the other layers' hashes and
+  `EntryBuilder.Rules`), and a build from the same inputs is skipped. `titles.changed_at` is when
+  anything a page shows of the title last changed: a build, or a rating that moved. Changing what an
+  entry is built into bumps `EntryBuilder.Rules`, and `BuildWorker` builds every entry again once.
+- **Similar titles are kept by the film database's ids** and joined to the titles listed when read, so
+  a title the catalogue gains later appears beside the titles that recommend it without their being
+  built again.
 - **What becomes an entry**: an IMDb film (`movie`, `tvMovie`) or show (`tvSeries`, `tvMiniSeries`),
   not adult, with `MinVotes` votes is a candidate; a ranking admits a title under the line when TMDB
   names its IMDb id. A candidate is listed once TMDB gives it a poster and it is not a placeholder (an

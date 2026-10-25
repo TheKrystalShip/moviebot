@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables];
+    private static readonly string[] Steps = [Tables, Fingerprints];
 
     public static int Version => Steps.Length;
 
@@ -32,6 +32,32 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string Fingerprints = """
+        -- What each layer holds, as a hash: an answer whose hash is the one held changes nothing but when
+        -- the layer was last asked. The film database's hash leaves out its popularity and votes, which
+        -- move daily and are kept in their own columns.
+        ALTER TABLE tmdb_layer ADD COLUMN hash TEXT NOT NULL DEFAULT '';
+        ALTER TABLE wikidata_layer ADD COLUMN hash TEXT NOT NULL DEFAULT '';
+
+        -- built_from is the hash of everything an entry was built from (EntryBuilder.Fingerprint), so a
+        -- build from the same inputs is skipped. changed_at is when anything a page shows of the title
+        -- last changed: its entry, or a rating.
+        ALTER TABLE titles ADD COLUMN built_from TEXT;
+        ALTER TABLE titles ADD COLUMN changed_at TEXT;
+
+        -- The film database's recommendations beside a title, in its order, by its own ids: a reader joins
+        -- them to the titles the catalogue lists, so a title the catalogue gains later appears without the
+        -- recommending title being built again.
+        DROP TABLE similar;
+        CREATE TABLE similar (
+            title_id INTEGER NOT NULL REFERENCES titles (id) ON DELETE CASCADE,
+            rank     INTEGER NOT NULL,
+            kind     TEXT NOT NULL CHECK (kind IN ('film', 'show')),
+            tmdb_id  INTEGER NOT NULL,
+            PRIMARY KEY (title_id, rank)
+        ) WITHOUT ROWID;
+        """;
 
     private const string Tables = """
         CREATE TABLE meta (
