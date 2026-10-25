@@ -26,8 +26,8 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// </summary>
 public sealed class LocalCatalogueTests : IDisposable
 {
-    private const string Basics = "tconst\ttitleType\tprimaryTitle\toriginalTitle\tisAdult\tstartYear\tendYear\truntimeMinutes\tgenres\n";
-    private const string Ratings = "tconst\taverageRating\tnumVotes\n";
+    internal const string Basics = "tconst\ttitleType\tprimaryTitle\toriginalTitle\tisAdult\tstartYear\tendYear\truntimeMinutes\tgenres\n";
+    internal const string Ratings = "tconst\taverageRating\tnumVotes\n";
 
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "moviebot-tests", "catalogue-" + Guid.NewGuid().ToString("n"));
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 25, 12, 0, 0, TimeSpan.Zero));
@@ -42,7 +42,7 @@ public sealed class LocalCatalogueTests : IDisposable
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
 
-    private static byte[] Gz(string text)
+    internal static byte[] Gz(string text)
     {
         using var memory = new MemoryStream();
         using (var gz = new GZipStream(memory, CompressionLevel.Fastest, leaveOpen: true)) gz.Write(Encoding.UTF8.GetBytes(text));
@@ -53,13 +53,13 @@ public sealed class LocalCatalogueTests : IDisposable
         CatalogueImdb.Load(Database, () => new MemoryStream(Gz(basics)), () => new MemoryStream(Gz(ratings)), 100, edition, edition,
             _clock.GetUtcNow(), default);
 
-    private const string FastBasics =
+    internal const string FastBasics =
         Basics
         + "tt0232500\tmovie\tThe Fast and the Furious\tThe Fast and the Furious\t0\t2001\t\\N\t106\tAction,Crime,Thriller\n"
         + "tt0322259\tmovie\t2 Fast 2 Furious\t2 Fast 2 Furious\t0\t2003\t\\N\t107\tAction,Crime,Thriller\n"
         + "tt9999998\tmovie\tFew Voted\tFew Voted\t0\t2003\t\\N\t90\tDrama\n";
 
-    private const string FastRatings =
+    internal const string FastRatings =
         Ratings
         + "tt0232500\t6.8\t468847\n"
         + "tt0322259\t5.9\t300000\n"
@@ -77,7 +77,7 @@ public sealed class LocalCatalogueTests : IDisposable
         NullLogger<TmdbSource>.Instance);
 
     /// <summary>The film database's description of The Fast and the Furious, trimmed to what a description carries that the catalogue reads, and a little it does not.</summary>
-    private static JsonNode Fast(string? poster = "/gqY0ITBgT7A82poL9jv851qdnIb.jpg", string title = "The Fast and the Furious",
+    internal static JsonNode Fast(string? poster = "/gqY0ITBgT7A82poL9jv851qdnIb.jpg", string title = "The Fast and the Furious",
         string? released = "2001-06-22", string status = "Released") => JsonNode.Parse($$"""
         {
           "id": 9799, "imdb_id": "tt0232500", "title": "{{title}}", "original_title": "The Fast and the Furious",
@@ -117,7 +117,7 @@ public sealed class LocalCatalogueTests : IDisposable
         }
         """)!;
 
-    private static JsonNode TwoFast() => JsonNode.Parse("""
+    internal static JsonNode TwoFast() => JsonNode.Parse("""
         {
           "id": 584, "imdb_id": "tt0322259", "title": "2 Fast 2 Furious", "original_title": "2 Fast 2 Furious", "release_date": "2003-06-05",
           "status": "Released", "poster_path": "/two.jpg", "vote_average": 6.4, "vote_count": 8000,

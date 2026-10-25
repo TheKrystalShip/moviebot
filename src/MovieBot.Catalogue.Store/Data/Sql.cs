@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// the instant written, and two of them compare in SQL as they do in C#, because every one has the
 /// same width and the same offset. A boolean is an integer, 0 or 1.
 /// </summary>
-internal static class Sql
+public static class Sql
 {
     private const string InstantFormat = "yyyy-MM-ddTHH:mm:ss.fffffffZ";
 

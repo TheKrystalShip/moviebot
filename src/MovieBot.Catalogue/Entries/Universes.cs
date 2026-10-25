@@ -5,10 +5,11 @@ namespace TheKrystalShip.MovieBot.Catalogue.Entries;
 
 /// <summary>
 /// The franchises Wikidata adds above the film database's collections. An item a listed title names as
-/// its fictional universe (P1434), its media franchise (P8345) or its series (P179) is a universe when
-/// the titles naming it span two collections or more, or hold both films and shows, which no collection
-/// can. A universe holds those titles, numbered where its series claim numbers them, and the
-/// collections they belong to. Built whole after every Wikidata pass, in one transaction.
+/// its fictional universe (P1434) or its media franchise (P8345) is a universe when the titles naming it
+/// span two collections or more, or hold both films and shows, which no collection can. A series (P179)
+/// only numbers a title in one: editors file lists under it too ("list of Pixar films"). A universe holds
+/// its titles and the collections they belong to. Built whole after every Wikidata pass, in one
+/// transaction.
 /// </summary>
 public static class Universes
 {
@@ -20,9 +21,10 @@ public static class Universes
                 PRIMARY KEY (item, title_id));
             DELETE FROM universe_members;
             INSERT OR IGNORE INTO universe_members (item, label, title_id, ordinal)
-            SELECT w.item, w.label, w.title_id, CASE WHEN w.property = 'P179' THEN w.ordinal END
+            SELECT w.item, w.label, w.title_id,
+                   (SELECT min(s.ordinal) FROM wikidata_claims s WHERE s.title_id = w.title_id AND s.property = 'P179' AND s.ordinal IS NOT NULL)
             FROM wikidata_claims w JOIN titles t ON t.id = w.title_id
-            WHERE t.listed = 1 AND w.property IN ('P1434', 'P8345', 'P179');
+            WHERE t.listed = 1 AND w.property IN ('P1434', 'P8345');
             """);
         var kept = c.Query("""
             SELECT m.item, max(m.label) FROM universe_members m JOIN titles t ON t.id = m.title_id

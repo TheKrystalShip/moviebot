@@ -8,7 +8,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Catalogue</RootNamespace>
     <AssemblyName>moviebot-catalogue</AssemblyName>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
 
     <!-- Compiled ahead of time, like the API and the hand-off: a process that runs for months keeps
          its code and type data in the binary rather than in memory the JIT wrote. Every comparison
@@ -26,18 +26,16 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <!-- The catalogue, in one SQLite file. Raw ADO, which is AOT-safe; the bundle carries the native
-         e_sqlite3, FTS5 with it. -->
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
   </ItemGroup>
 
-  <!-- GHSA-2m69-gcr7-jv3q is an advisory on the native SQLite the bundle carries, with no patched
-       bundle to move to. The database runs no SQL that is not this service's own. -->
+  <!-- GHSA-2m69-gcr7-jv3q is an advisory on the native SQLite the store's bundle carries, with no
+       patched bundle to move to. The database runs no SQL that is not this repository's own. -->
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../MovieBot.Catalogue.Store/MovieBot.Catalogue.Store.csproj" />
     <!-- For the settings files every MovieBot program reads, the film database's options (its token
          is in the environment) and the connection pool every long-lived client keeps. -->
     <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />

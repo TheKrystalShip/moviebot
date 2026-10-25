@@ -47,8 +47,16 @@ the `Tmdb` section's, from the environment.
   path, is fetched again inside the six months, and is deleted once no entry names it. Only a path of
   the image store's own shape becomes a file.
 - **Franchises are TMDB's collections; Wikidata adds universes** (`Entries/Universes`): an item listed
-  titles name as their universe, franchise or series, when they span two collections or more or hold
-  films and shows both. A title's place in its series is Wikidata's series ordinal where it has one.
+  titles name as their fictional universe or media franchise, when they span two collections or more or
+  hold films and shows both. A series claim only numbers a title, since editors file lists under it too.
+  The universes and `fact_items` (each Wikidata item a filter takes, with how many titles name it) are
+  built whole when the service starts and after every Wikidata pass.
+- **The catalogue is read through `MovieBot.Catalogue.Store`** (`CatalogueReader`, `CatalogueQueries`),
+  which opens the file read-only and refuses one at a schema version it does not know. It holds the
+  schema, the views (`Views.cs`: one card, one title page) and the one list query (`TitleQuery`): every
+  list is that query's filters, values a filter does not take are refused, and every value is bound,
+  never written into SQL. A reader answers listed entries alone. The person's joins (`you`, `Only`,
+  `Except`) are the caller's. No project that references the store alone can reach a source.
 - **Wikidata is asked by IMDb id, many at a time**, with `Cinema/<version> (<Contact>)` in the
   User-Agent and at most `WikidataAtOnce` questions in flight; after a `429` nothing is asked until the
   time it named. Where several items name one IMDb id, the lowest-numbered is the title's.

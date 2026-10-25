@@ -226,14 +226,87 @@ and IMDb's dataset no longer lists the title's own.
 
 ### 6·c The views
 
-The card and title-page types, one builder, and the queries: search, discover with every filter the
-site has, franchise, person, similar, rankings. The question reader (`/api/catalogue/ask`) resolves to
-the same queries.
+The catalogue's contract is designed for the entry, not kept from what the API serves today. Today's
+contract is the checklist of what the site shows; every shape in it becomes one of the shapes below.
+`docs/api-contract.md` takes this section when 6·d lands.
 
-### 6·d The API serves from it
+**Ids.** A title is its IMDb id (`tt0232500`), which every record a person made already names. A person
+is the catalogue's person id. A franchise is `c<collection>` for a TMDB collection and its Wikidata item
+(`Q642878`) for a universe; a keyword `k<id>`, a company `s<id>` (studio or network), a Wikidata item its
+`Q` id.
 
-Each endpoint moves to the catalogue, one at a time, behind its current contract; the site does not
-change while it does.
+**One card**, wherever a title is listed:
+
+| Field | |
+|---|---|
+| `id`, `kind`, `title`, `originalTitle` (when it differs) | |
+| `year`, `endYear` (a show's last), `released` (`yyyy-MM-dd`), `runtime` (minutes) | |
+| `category` | `anime` when the genres hold Animation and the original language is Japanese, else `general` |
+| `genres` | IMDb's genres, the vocabulary every entry has |
+| `language` | the original language |
+| `rating` | `{value, votes, by}`: IMDb's where it rates the title, else TMDB's; no value under 25 votes |
+| `poster`, `backdrop` | image URLs (below) |
+| `plot` | the overview's first sentence, at most 200 characters |
+| `madeBy`, `starring` | a film's directors or a show's creators, and the two top-billed, as names |
+| `changedAt` | when anything a page shows of it last changed |
+| `credit` | on a list filtered by one person: their department and role in it |
+| `you` | the asking person's, joined by the API: `inLibrary`, `libraryId`, `watched`, `wanted` |
+
+**One title page**, `GET /api/titles/{id}`: the card, and `overview`, `tagline`, `status`, `logo`,
+`ratings` (`imdb` and `tmdb` both), `certificates` (by country; the site shows the viewer's), `countries`,
+`languages`, `companies`, `networks`, `keywords`, `cast` (`personId`, `name`, `character`, `portrait`),
+`crew` (`personId`, `name`, `job`), `trailers`, `facts` (`setIn`, `filmedIn`, `basedOn` with authors,
+`awards`, `nominations`, `subjects`), `franchises` (with the title's place in each), `follows` and
+`followedBy` (cards), `budget` and `revenue`, a show's `seasons` (number, name, air date, poster,
+episode count) and `nextEpisode`, and `similar` (the first twenty cards). A season with its episodes is
+`GET /api/titles/{id}/seasons/{n}`. TMDB's reviews are not kept and not shown.
+
+**One list query**, `GET /api/titles`, answering every list: a page of cards, `{titles, total, next}`,
+`page` and `size` (20, at most 100). Search, discover, a ranking, a franchise, a person's films, a genre,
+what is out or coming and what is like a title are all its filters, and they combine:
+
+- `q`: words, matched against every name a title goes by.
+- `kind`, `category`; `genre` (all of), `anyGenre`, `notGenre`.
+- `from`, `to` (years); `decade`; `released` and `releasedBefore` (dates); `length` (short, standard,
+  long), `minRuntime`, `maxRuntime`.
+- `language`, `country`.
+- `keyword`, `company`; `person` with `role` (cast, directing, writing, any).
+- `minRating`, `minVotes`.
+- `fact`: a Wikidata property and item (`P840:Q90`, set in Paris), any of them repeated.
+- `franchise`, `ranking`, `similarTo`.
+- `unwatched`, `inLibrary`: the asking person's, applied by the API.
+- `sort`: `popular`, `rating` (IMDb's weighted by votes), `newest`, `oldest`, `title`, `votes`, or `order`
+  (the ranking's, the franchise's or the recommendations' own).
+
+`GET /api/titles/facets` takes the same filters and answers every section's options with exact counts:
+kind, genre, decade, length, rating, language.
+
+**Around it:**
+- `GET /api/terms?q` resolves words to the ids the filters take: genres, people, keywords, companies,
+  Wikidata items, franchises.
+- `GET /api/ask?q` reads a question (`QuestionReader`) into the list query's filters, and answers them with
+  the parts read; the site asks `/api/titles` with them.
+- `GET /api/people/{id}`: name, portrait, department; their titles are `/api/titles?person={id}`.
+- `GET /api/franchises` (a page of franchises: name, poster, how many titles, the person's next one) and
+  `GET /api/franchises/{id}` (a universe's collections); their titles are `/api/titles?franchise={id}&sort=order`.
+- `GET /api/discover`: the Discover page's rows and shelves, each shelf a name and a list query, which the
+  site asks `/api/titles` for.
+- `GET /images/{size}/{file}`: every image, by TMDB's file name and size. A file never changes under its
+  name, so it is served immutable and cached for a year.
+
+Landed in `MovieBot.Catalogue.Store` (`src/MovieBot.Catalogue/CLAUDE.md`): the views, the list query and
+its facets, a title's page and season, people, franchises and terms, over the file read-only. Measured on
+a 25,533-entry snapshot of hotbox's catalogue: a list page 1 to 115 ms, a title page 80 ms, terms 7 ms,
+facets 165 ms. Left of it, for 6·d: facets scan every title a query names without its drawer picks, which
+is the whole catalogue for a page with no other filter, a second or more at ~195k entries, so the API holds
+every entry's facet values in memory and counts from them; the person's joins (`you`, `unwatched`,
+`inLibrary`); `/api/ask` and `/api/discover` are the API's.
+
+### 6·d The API and the site serve from it
+
+The routes of 6·c replace every route that serves catalogue data, and the site, the bot and the
+assistant move to them in the same pass. A title's episodes keep the releases' numbering (the API's
+`EpisodeNumbering`) wherever they meet the library.
 
 ### 6·e The SPA checks
 

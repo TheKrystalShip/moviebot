@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The catalogue's file: its schema, how it is opened, and how it is read. The service that writes it
+       (MovieBot.Catalogue) and the API that reads it both reference this, and nothing here reaches a
+       source, so a project reading the catalogue holds no client that could. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <RootNamespace>TheKrystalShip.MovieBot.Catalogue</RootNamespace>
+    <AssemblyName>TheKrystalShip.MovieBot.Catalogue.Store</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.5" />
+  </ItemGroup>
+
+  <!-- GHSA-2m69-gcr7-jv3q is an advisory on the native SQLite the bundle carries, with no patched
+       bundle to move to. The database runs no SQL that is not this repository's own. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="moviebot-catalogue" />
+    <InternalsVisibleTo Include="MovieBot.Tests" />
+  </ItemGroup>
+
+</Project>

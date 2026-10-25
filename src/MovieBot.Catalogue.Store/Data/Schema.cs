@@ -13,9 +13,9 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// its ids and every table a page filters, sorts, groups or searches by, all of it built from the layers
 /// by <c>EntryBuilder</c> and nothing else, so it can be dropped and built again from them.
 /// </summary>
-internal static class Schema
+public static class Schema
 {
-    private static readonly string[] Steps = [Tables, Fingerprints];
+    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres];
 
     public static int Version => Steps.Length;
 
@@ -32,6 +32,54 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string CardGenres = """
+        -- The genres a card shows, comma-joined: IMDb's, or the film database's for a title IMDb has none
+        -- for. Built, so a list and its facets read them from the row.
+        ALTER TABLE titles ADD COLUMN genres TEXT NOT NULL DEFAULT '';
+
+        -- Every Wikidata item listed titles name in a fact a filter takes, with how many name it: what a
+        -- word is resolved against. Built with the universes (FactItems).
+        CREATE TABLE fact_items (
+            property TEXT NOT NULL,
+            item     TEXT NOT NULL,
+            label    TEXT NOT NULL,
+            titles   INTEGER NOT NULL,
+            PRIMARY KEY (property, item)
+        ) WITHOUT ROWID;
+        """;
+
+    private const string Cards = """
+        -- What a card shows that the entry did not hold. Built: a show's last year, the category (anime is
+        -- Animation made in Japanese), a film's budget and revenue, a show's next episode. Kept current by
+        -- every rating written (Ratings.Show): the rating a card shows, its votes and whose it is, IMDb's
+        -- where IMDb rates the title and the film database's otherwise, with no value under 25 votes.
+        ALTER TABLE titles ADD COLUMN end_year INTEGER;
+        ALTER TABLE titles ADD COLUMN category TEXT;
+        ALTER TABLE titles ADD COLUMN budget INTEGER;
+        ALTER TABLE titles ADD COLUMN revenue INTEGER;
+        ALTER TABLE titles ADD COLUMN next_air_date TEXT;
+        ALTER TABLE titles ADD COLUMN next_season INTEGER;
+        ALTER TABLE titles ADD COLUMN next_number INTEGER;
+        ALTER TABLE titles ADD COLUMN next_name TEXT;
+        ALTER TABLE titles ADD COLUMN rating REAL;
+        ALTER TABLE titles ADD COLUMN votes INTEGER;
+        ALTER TABLE titles ADD COLUMN rated_by TEXT;
+        CREATE INDEX titles_popularity ON titles (listed, popularity DESC);
+        CREATE INDEX titles_released ON titles (listed, released);
+        CREATE INDEX titles_votes ON titles (listed, votes DESC);
+        CREATE INDEX credits_title ON credits (title_id, department, ord);
+
+        -- Search weighs a title's English name over its original and those over the alternatives, each
+        -- its own column, so a title known by many names is not found later for having them.
+        DROP TABLE titles_fts;
+        CREATE VIRTUAL TABLE titles_fts USING fts5 (title, original, alternative, tokenize = 'unicode61 remove_diacritics 2');
+
+        UPDATE titles SET
+            rated_by = (SELECT source FROM ratings r WHERE r.title_id = titles.id ORDER BY r.source = 'imdb' DESC LIMIT 1),
+            votes = (SELECT votes FROM ratings r WHERE r.title_id = titles.id ORDER BY r.source = 'imdb' DESC LIMIT 1),
+            rating = (SELECT CASE WHEN votes >= 25 THEN rating END FROM ratings r WHERE r.title_id = titles.id ORDER BY r.source = 'imdb' DESC LIMIT 1);
+        """;
 
     private const string Fingerprints = """
         -- What each layer holds, as a hash: an answer whose hash is the one held changes nothing but when

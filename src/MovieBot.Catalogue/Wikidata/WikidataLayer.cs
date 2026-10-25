@@ -162,6 +162,9 @@ public sealed class WikidataWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The universes and the fact items are built as this build's rules have them, whether or not a pass is due.
+        var built = database.Write(c => (Universes.Build(c), FactItems.Build(c)));
+        logger.LogInformation("Wikidata: {Universes} universes, {Items} fact items.", built.Item1, built.Item2);
         try
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -171,8 +174,9 @@ public sealed class WikidataWorker(
                     var asked = await RunPassAsync(stoppingToken);
                     if (asked > 0)
                     {
-                        var universes = database.Write(Universes.Build);
-                        logger.LogInformation("Wikidata: {Asked} titles asked about; {Universes} universes.", asked, universes);
+                        var universes = database.Write(c => (Universes.Build(c), FactItems.Build(c)));
+                        logger.LogInformation("Wikidata: {Asked} titles asked about; {Universes} universes, {Items} fact items.",
+                            asked, universes.Item1, universes.Item2);
                     }
                 }
                 catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException && !stoppingToken.IsCancellationRequested)

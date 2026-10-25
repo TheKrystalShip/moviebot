@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TheKrystalShip.MovieBot.Catalogue.Data;
+using TheKrystalShip.MovieBot.Catalogue.Entries;
 
 namespace TheKrystalShip.MovieBot.Catalogue.Imdb;
 
@@ -179,7 +180,17 @@ public static class ImdbImport
                         start_year = excluded.start_year, end_year = excluded.end_year, runtime = excluded.runtime,
                         genres = excluded.genres, edition = excluded.edition
                     """, ("$edition", edition));
-                // A rating or vote count that moved marks its title changed.
+                // A rating or vote count that moved marks its title changed, and is shown once written.
+                c.Execute("""
+                    CREATE TEMP TABLE IF NOT EXISTS rated (id INTEGER PRIMARY KEY);
+                    DELETE FROM rated;
+                    """);
+                c.Execute("""
+                    INSERT INTO rated (id)
+                    SELECT t.id FROM imdb_next n JOIN titles t ON t.imdb_id = n.imdb_id
+                    LEFT JOIN ratings r ON r.title_id = t.id AND r.source = 'imdb'
+                    WHERE r.title_id IS NULL OR r.rating <> n.rating OR r.votes <> n.votes
+                    """);
                 c.Execute("""
                     UPDATE titles SET changed_at = $at WHERE id IN (
                         SELECT t.id FROM imdb_next n JOIN titles t ON t.imdb_id = n.imdb_id
@@ -192,6 +203,7 @@ public static class ImdbImport
                     WHERE true
                     ON CONFLICT (title_id, source) DO UPDATE SET rating = excluded.rating, votes = excluded.votes, seen_at = excluded.seen_at
                     """, ("$at", at));
+                Ratings.Show(c, "id IN (SELECT id FROM rated)");
                 c.Execute("DROP TABLE imdb_next");
                 CatalogueDatabase.SetMeta(c, StampKey, stamp);
                 CatalogueDatabase.SetMeta(c, EditionKey, edition);

@@ -127,6 +127,7 @@ public sealed class TmdbLayer(CatalogueDatabase database, TmdbSource source, Ent
         c.Execute("DELETE FROM tmdb_seasons WHERE title_id = $id", ("$id", titleId));
         c.Execute("UPDATE titles SET tmdb_id = NULL, popularity = NULL WHERE id = $id", ("$id", titleId));
         c.Execute("DELETE FROM ratings WHERE title_id = $id AND source = 'tmdb'", ("$id", titleId));
+        Ratings.Show(c, "id = $id", ("$id", titleId));
         builder.Build(c, titleId);
     });
 
@@ -156,6 +157,7 @@ public sealed class TmdbLayer(CatalogueDatabase database, TmdbSource source, Ent
         "last_air_date", "in_production", "episode_run_time", "poster_path", "backdrop_path", "popularity", "vote_average",
         "vote_count", "genres", "production_companies", "production_countries", "origin_country", "spoken_languages",
         "networks", "created_by", "number_of_seasons", "number_of_episodes", "seasons", "adult",
+        "next_episode_to_air", "last_episode_to_air",
     ];
 
     /// <summary>

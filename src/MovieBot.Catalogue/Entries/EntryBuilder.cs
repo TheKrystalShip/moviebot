@@ -30,7 +30,7 @@ public sealed class EntryBuilder(TimeProvider clock)
     /// The version of the rules below. Changing what an entry is built into changes it, and every entry
     /// is built again once (<see cref="BuildWorker"/>).
     /// </summary>
-    public const string Rules = "2";
+    public const string Rules = "4";
 
     private static readonly string[] Facts =
         ["P840", "P915", "P144", "P144/P50", "P166", "P1411", "P921", "P136", "P179", "P155", "P156", "P1434", "P8345"];
@@ -45,8 +45,8 @@ public sealed class EntryBuilder(TimeProvider clock)
         if (fingerprint == title.BuiltFrom) return false;
 
         var imdb = c.First("""
-            SELECT primary_title, original_title, start_year, runtime, genres FROM imdb_layer WHERE title_id = $id
-            """, r => new ImdbRow(r.GetString(0), r.GetString(1), r.GetIntOrNull(2), r.GetIntOrNull(3), r.GetString(4)), ("$id", titleId));
+            SELECT primary_title, original_title, start_year, runtime, genres, end_year FROM imdb_layer WHERE title_id = $id
+            """, r => new ImdbRow(r.GetString(0), r.GetString(1), r.GetIntOrNull(2), r.GetIntOrNull(3), r.GetString(4), r.GetIntOrNull(5)), ("$id", titleId));
         var tmdb = c.First("SELECT json FROM tmdb_layer WHERE title_id = $id", r => JsonNode.Parse(r.GetString(0)), ("$id", titleId));
         if (tmdb is not null && tmdb["kind"]?.GetValue<string>() != title.Kind) tmdb = null;
 
@@ -67,6 +67,8 @@ public sealed class EntryBuilder(TimeProvider clock)
                 listed = $listed, english_title = $english, original_title = $original, original_language = $language,
                 year = $year, released = $released, runtime = $runtime, status = $status, overview = $overview, tagline = $tagline,
                 poster = $poster, backdrop = $backdrop, logo = $logo, seasons = $seasons, episodes = $episodes,
+                end_year = $endYear, category = $category, genres = $genres, budget = $budget, revenue = $revenue,
+                next_air_date = $nextAir, next_season = $nextSeason, next_number = $nextNumber, next_name = $nextName,
                 built_at = $at, changed_at = $at
             WHERE id = $id
             """,
@@ -75,6 +77,12 @@ public sealed class EntryBuilder(TimeProvider clock)
             ("$status", Text(tmdb?["status"])), ("$overview", Text(tmdb?["overview"])), ("$tagline", Text(tmdb?["tagline"])),
             ("$poster", poster), ("$backdrop", Text(tmdb?["backdrop_path"])), ("$logo", Text(tmdb?["logo_path"])),
             ("$seasons", Int(tmdb?["number_of_seasons"])), ("$episodes", Int(tmdb?["number_of_episodes"])),
+            ("$endYear", show ? imdb?.End ?? Year(Text(tmdb?["last_air_date"])) : null),
+            ("$category", Anime(imdb?.Genres, tmdb, Text(tmdb?["original_language"])) ? "anime" : "general"),
+            ("$genres", CardGenres(imdb?.Genres, tmdb)),
+            ("$budget", show ? null : Long(tmdb?["budget"])), ("$revenue", show ? null : Long(tmdb?["revenue"])),
+            ("$nextAir", Text(tmdb?["next_episode_to_air"]?["air_date"])), ("$nextSeason", Int(tmdb?["next_episode_to_air"]?["season_number"])),
+            ("$nextNumber", Int(tmdb?["next_episode_to_air"]?["episode_number"])), ("$nextName", Text(tmdb?["next_episode_to_air"]?["name"])),
             ("$at", clock.GetUtcNow()));
 
         Names(c, titleId, english, original, tmdb);
@@ -239,6 +247,8 @@ public sealed class EntryBuilder(TimeProvider clock)
         foreach (var member in Items(tmdb["cast"]))
             Credit(c, titleId, member, "cast", Text(member["character"]) ?? "", ord++);
         ord = 0;
+        foreach (var member in Items(tmdb["created_by"]))
+            Credit(c, titleId, member, "Writing", "Creator", ord++);
         foreach (var member in Items(tmdb["crew"]))
             Credit(c, titleId, member, Text(member["department"]) ?? "Crew", Text(member["job"]) ?? "", ord++);
     }
@@ -266,7 +276,8 @@ public sealed class EntryBuilder(TimeProvider clock)
             return;
         var franchiseId = c.First("""
             INSERT INTO franchises (source, source_id, name, poster, backdrop) VALUES ('tmdb', $source, $name, $poster, $backdrop)
-            ON CONFLICT (source, source_id) DO UPDATE SET name = excluded.name, poster = excluded.poster, backdrop = excluded.backdrop
+            ON CONFLICT (source, source_id) DO UPDATE SET name = excluded.name,
+                poster = coalesce(excluded.poster, franchises.poster), backdrop = coalesce(excluded.backdrop, franchises.backdrop)
             RETURNING id
             """, r => r.GetInt64(0),
             ("$source", id.ToString(CultureInfo.InvariantCulture)), ("$name", name),
@@ -330,16 +341,37 @@ public sealed class EntryBuilder(TimeProvider clock)
         }
     }
 
-    /// <summary>A listed title's every name, in one row its id keys; a candidate is found by no search.</summary>
+    /// <summary>A listed title's names, in one row its id keys: English, original, alternatives. A candidate is found by no search.</summary>
     private static void Search(SqliteConnection c, long titleId, bool listed)
     {
         if (!listed) return;
-        var names = c.Query("SELECT DISTINCT name FROM title_names WHERE title_id = $id", r => r.GetString(0), ("$id", titleId));
-        if (names.Count == 0) return;
-        var joined = new StringBuilder();
-        foreach (var name in names) joined.Append(name).Append('\n');
-        c.Execute("INSERT INTO titles_fts (rowid, names) VALUES ($id, $names)", ("$id", titleId), ("$names", joined.ToString()));
+        string Names(string kind) => string.Join('\n', c.Query(
+            "SELECT DISTINCT name FROM title_names WHERE title_id = $id AND kind = $kind", r => r.GetString(0), ("$id", titleId), ("$kind", kind)));
+        var english = Names("english");
+        var original = Names("original");
+        c.Execute("INSERT INTO titles_fts (rowid, title, original, alternative) VALUES ($id, $title, $original, $alternative)",
+            ("$id", titleId), ("$title", english), ("$original", original == english ? "" : original), ("$alternative", Names("alternative")));
     }
+
+    /// <summary>The genres a card shows: IMDb's, the film database's where IMDb has none; comma-joined, sorted.</summary>
+    private static string CardGenres(string? imdbGenres, JsonNode? tmdb)
+    {
+        var genres = (imdbGenres ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+        if (genres.Count == 0) genres = Items(tmdb?["genres"]).Select(g => Text(g["name"])).OfType<string>().ToList();
+        return string.Join(',', genres.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+    }
+
+    /// <summary>Anime: Animation, in either source's genres, made in Japanese.</summary>
+    public static bool Anime(string? imdbGenres, JsonNode? tmdb, string? language) =>
+        language == "ja"
+        && ((imdbGenres ?? "").Split(',').Contains("Animation", StringComparer.Ordinal)
+            || Items(tmdb?["genres"]).Any(g => Text(g["name"]) == "Animation"));
+
+    private static int? Year(string? date) =>
+        date is { Length: >= 4 } && int.TryParse(date.AsSpan(0, 4), NumberStyles.None, CultureInfo.InvariantCulture, out var year) ? year : null;
+
+    private static long? Long(JsonNode? node) =>
+        node is JsonValue value && value.TryGetValue<long>(out var number) && number > 0 ? number : null;
 
     private static IEnumerable<JsonNode> Items(JsonNode? array) => array is JsonArray items ? items.OfType<JsonNode>() : [];
 
@@ -349,5 +381,5 @@ public sealed class EntryBuilder(TimeProvider clock)
     private static int? Int(JsonNode? node) =>
         node is JsonValue value && value.TryGetValue<int>(out var number) ? number : null;
 
-    private sealed record ImdbRow(string Primary, string Original, int? Year, int? Runtime, string Genres);
+    private sealed record ImdbRow(string Primary, string Original, int? Year, int? Runtime, string Genres, int? End);
 }

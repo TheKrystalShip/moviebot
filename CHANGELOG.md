@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.86.0] - 2026-10-25
+
+### Added
+- The catalogue's reading side, `MovieBot.Catalogue.Store`: one card wherever a title is listed and one
+  page for a title, and one list query whose filters answer every list (words, kind, category, genres,
+  years, release dates, length, language, country, keywords, companies, a person and their role, rating
+  and votes, Wikidata facts, a franchise, a ranking, what is like a title), with exact facet counts, a
+  show's seasons, people, franchises and words resolved to filters. Nothing serves it yet.
+
+### Changed
+- The catalogue keeps what a card shows on the entry: the rating it shows (IMDb's, else TMDB's, with no
+  value under 25 votes), its genres, a show's last year and next episode, a film's budget and revenue,
+  and whether it is anime. Search weighs a title's English name over its original and those over its
+  alternatives, and how well known a title is beside how well it matches. A show's creators are its
+  credits. Wikidata universes come from fictional universes and media franchises alone, not series,
+  which editors file lists under.
+
 ## [3.85.0] - 2026-10-25
 
 ### Changed
