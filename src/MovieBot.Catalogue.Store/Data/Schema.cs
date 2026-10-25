@@ -15,7 +15,7 @@ namespace TheKrystalShip.MovieBot.Catalogue.Data;
 /// </summary>
 public static class Schema
 {
-    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres, Lookups, PopularOrder];
+    private static readonly string[] Steps = [Tables, Fingerprints, Cards, CardGenres, Lookups, PopularOrder, ShelfColumns];
 
     public static int Version => Steps.Length;
 
@@ -32,6 +32,19 @@ public static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string ShelfColumns = """
+        -- What a list filters by, carried in the indexes it is read down, so a list or a count over every
+        -- film never reads a whole row (its overview and the rest) to check a column: the popular order
+        -- (its last tie-breaker, the id, named so the order is the index's whole) with every filter
+        -- column, and for the counts and the rating order, the filter columns first.
+        DROP INDEX titles_popularity;
+        CREATE INDEX titles_popularity ON titles
+            (listed, popularity DESC, votes DESC, id, kind, category, original_language, year, runtime, rating, genres);
+        CREATE INDEX titles_shelf ON titles
+            (listed, kind, rating, votes, year, runtime, original_language, category, popularity, genres);
+        ANALYZE titles;
+        """;
 
     private const string PopularOrder = """
         -- The most popular first, as a list orders by default (popularity, then votes, then id, which every

@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.3] - 2026-10-25
+
+### Fixed
+- Every Discover shelf answers within a tenth of a second, and the filter's options in under a fifth:
+  a list and its count are read from indexes that carry every column a list filters by, and the
+  options are counted without allocating per title.
+
+### Changed
+- A genre filter matches the genres a card shows, as the filter's counts do: a title IMDb gives no genre
+  is found under the film database's.
+
 ## [4.0.2] - 2026-10-25
 
 ### Fixed

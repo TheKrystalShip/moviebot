@@ -102,6 +102,18 @@ public sealed class CatalogueEndpointTests(SessionFixture fixture) : IClassFixtu
         Assert.InRange(facets.Total, 1, 5); // Some films, not every film.
     }
 
+    [Theory]
+    [InlineData("Action")]
+    [InlineData("Crime")]
+    public async Task A_genre_lists_as_many_titles_as_its_facet_counts(string genre)
+    {
+        var facets = await Get<Facets>("/api/catalogue/facets?kind=film");
+        var list = await Get<CardPage>($"/api/catalogue/titles?kind=film&anyGenre={genre}&size=50");
+
+        Assert.Equal(facets.Sections.Single(s => s.Id == "genre").Options.Single(o => o.Value == genre).Count, list.Total);
+        Assert.True(list.Total > 0);
+    }
+
     [Fact]
     public async Task A_title_s_page_holds_what_the_catalogue_does_and_one_it_does_not_list_is_not_found()
     {

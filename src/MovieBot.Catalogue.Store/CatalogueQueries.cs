@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -74,27 +75,12 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             ? all
             : all.Where(r => (query.Only is not { } only || only.Contains(r.ImdbId)) && (query.Except is not { } except || !except.Contains(r.ImdbId))).ToList();
 
-        bool Passes(FacetRow row, string section) => Picks(query, row, section);
-        IEnumerable<string> Values(FacetRow row, string section) => section switch
-        {
-            "kind" => row.Category == "anime" ? [row.Kind, "anime"] : [row.Kind],
-            "genre" => row.Genres,
-            "decade" => row.Year is { } y ? [(y / 10 * 10).ToString(CultureInfo.InvariantCulture)] : [],
-            "length" => row.Runtime is { } r ? [LengthOf(r)] : [],
-            "rating" => RatingFloors.Where(f => row.Rating >= f).Select(f => f.ToString(CultureInfo.InvariantCulture)),
-            "language" => row.Language is { } l ? [l] : [],
-            _ => [],
-        };
-
         // Which sections' picks each row passes, as one bit a section.
         var every = (1 << FacetSections.Length) - 1;
-        var passes = rows.Select(row =>
-        {
-            var mask = 0;
+        var passes = new int[rows.Count];
+        for (var n = 0; n < rows.Count; n++)
             for (var i = 0; i < FacetSections.Length; i++)
-                if (Passes(row, FacetSections[i])) mask |= 1 << i;
-            return mask;
-        }).ToArray();
+                if (Picks(query, rows[n], FacetSections[i])) passes[n] |= 1 << i;
 
         var sections = new List<FacetSection>();
         for (var s = 0; s < FacetSections.Length; s++)
@@ -105,12 +91,35 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             var counts = new Dictionary<string, int>(StringComparer.Ordinal);
             for (var n = 0; n < rows.Count; n++)
             {
-                var row = rows[n];
                 var counted = (passes[n] & others) == others;
-                foreach (var value in Values(row, section))
+                void Add(string value)
                 {
-                    offeredCounts[value] = offeredCounts.GetValueOrDefault(value) + 1;
-                    if (counted) counts[value] = counts.GetValueOrDefault(value) + 1;
+                    CollectionsMarshal.GetValueRefOrAddDefault(offeredCounts, value, out _)++;
+                    if (counted) CollectionsMarshal.GetValueRefOrAddDefault(counts, value, out _)++;
+                }
+                var row = rows[n];
+                switch (s) // The section's values, by its place in FacetSections.
+                {
+                    case 0:
+                        Add(row.Kind);
+                        if (row.Category == "anime") Add("anime");
+                        break;
+                    case 1:
+                        foreach (var genre in row.Genres) Add(genre);
+                        break;
+                    case 2:
+                        if (row.Year is { } year) Add(DecadeName(year));
+                        break;
+                    case 3:
+                        if (row.Runtime is { } runtime) Add(LengthOf(runtime));
+                        break;
+                    case 4:
+                        for (var f = 0; f < RatingFloors.Length; f++)
+                            if (row.Rating >= RatingFloors[f]) Add(RatingFloorNames[f]);
+                        break;
+                    case 5:
+                        if (row.Language is { } language) Add(language);
+                        break;
                 }
             }
             var ordered = section switch
@@ -143,6 +152,13 @@ public sealed class CatalogueQueries(CatalogueReader reader)
     public static bool Matches(TitleQuery query, FacetRow row) => FacetSections.All(s => Picks(query, row, s));
 
     private static readonly int[] RatingFloors = [8, 7, 6];
+    private static readonly string[] RatingFloorNames = [.. RatingFloors.Select(f => f.ToString(CultureInfo.InvariantCulture))];
+
+    /// <summary>Each decade's name by its year over ten, made once, so a count names a decade without making a string.</summary>
+    private static readonly string[] DecadeNames = [.. Enumerable.Range(0, 300).Select(d => (d * 10).ToString(CultureInfo.InvariantCulture))];
+
+    private static string DecadeName(int year) =>
+        year >= 0 && year / 10 < DecadeNames.Length ? DecadeNames[year / 10] : (year / 10 * 10).ToString(CultureInfo.InvariantCulture);
 
     private const int LanguagesOffered = 40;
 
@@ -205,15 +221,15 @@ public sealed class CatalogueQueries(CatalogueReader reader)
             if (q.Kind is not null) where.Add($"t.kind = {Bind(q.Kind)}");
             if (q.Category is not null) where.Add($"t.category = {Bind(q.Category)}");
         }
-        // A genre is checked on each title, through the title's own rows (the unary plus keeps the genre
-        // index out): a genre names too many titles to drive a list, and through the genre index each
-        // check is a seek of its own, which a count over every film pays tens of thousands of times.
+        // A genre is read off the card's genres (titles.genres, which the facets count too), so a list
+        // filtered by genre is read down an index that carries them and never opens a row.
+        string Genre(string genre) => $"instr(',' || t.genres || ',', ',' || {Bind(genre)} || ',') > 0";
         foreach (var genre in q.Genres)
-            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre = {Bind(genre)})");
+            where.Add(Genre(genre));
         if (Picks("genre") && q.AnyGenres.Count > 0)
-            where.Add($"EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre IN ({string.Join(", ", q.AnyGenres.Select(g => Bind(g)))}))");
+            where.Add("(" + string.Join(" OR ", q.AnyGenres.Select(Genre)) + ")");
         if (q.NotGenres.Count > 0)
-            where.Add($"NOT EXISTS (SELECT 1 FROM title_genres g WHERE g.title_id = t.id AND g.source = 'imdb' AND +g.genre IN ({string.Join(", ", q.NotGenres.Select(g => Bind(g)))}))");
+            where.Add("NOT (" + string.Join(" OR ", q.NotGenres.Select(Genre)) + ")");
         if (q.From is { } yearFrom) where.Add($"t.year >= {Bind(yearFrom)}");
         if (q.To is { } yearTo) where.Add($"t.year <= {Bind(yearTo)}");
         if (Picks("decade") && q.Decades.Count > 0)

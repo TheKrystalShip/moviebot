@@ -142,15 +142,14 @@ first page no longer sorts every title it names), a genre is checked on each tit
 own rows (`+g.genre`), and no shelf sets a votes floor. The genre shelves took 0.42–0.65 s and take
 0.18–0.27 s; every shared shelf's list in turn, 51.6 s at 4.0.0, takes 12 s.
 
-What is left, slowest first:
+In 4.0.3: a list filters genres off the card's genres (`titles.genres`, as the facets count them), and
+the indexes a list is read down carry every column it filters by (`titles_popularity` for the popular
+order, `titles_shelf` for counts and the rating order), so neither a list nor a count opens a row; the
+facets are counted without allocating per row. Every shared shelf's list now takes 15–105 ms, all of
+them in turn 5 s, and the background Discover pass 2–3 s; the facets 150–175 ms.
 
-1. **The broad counts, 0.2–0.4 s**: a genre shelf's or a rating shelf's total counts every film it
-   names (`sort=rating` shelves also order every one of them by an expression). The facets' in-memory
-   rows hold kind, genres, year, runtime, rating and language, so these totals could be counted there,
-   as the facets are, once the list and the facets read genres alike (the list reads IMDb's, the rows the
-   card's).
-2. **The facets, 260 ms**, all of it `CatalogueQueries.Count` over every held row; the section masks
-   can be counted once per pass for the unpicked query, the one Discover asks.
+Nothing in §4·d is left. Discover's server time is a few hundred milliseconds across all its requests;
+what remains is how many requests a page makes, which the page routes take on.
 
 **Measuring a query as the API runs it**: a console program on Microsoft.Data.Sqlite, published on
 hotrod and run on hotbox against the live file read-only, with the API's own `libe_sqlite3.so`

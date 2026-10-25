@@ -233,12 +233,13 @@ public sealed class CatalogueQueriesTests : IDisposable
         var (statistics, byItem, popular) = _database.Read(c => (
             c.Count("SELECT count(*) FROM sqlite_stat1 WHERE tbl = 'titles'"),
             Plan(c, "SELECT id FROM titles WHERE wikidata_id = 'Q1'"),
-            Plan(c, "SELECT t.id FROM titles t WHERE t.listed = 1 ORDER BY t.popularity DESC NULLS LAST, t.votes DESC NULLS LAST, t.id LIMIT 12")));
+            Plan(c, "SELECT t.id FROM titles t WHERE t.listed = 1 AND instr(',' || t.genres || ',', ',Drama,') > 0 "
+                + "ORDER BY t.popularity DESC NULLS LAST, t.votes DESC NULLS LAST, t.id LIMIT 12")));
 
         Assert.True(statistics > 0);
         Assert.Contains("titles_wikidata", byItem);
-        Assert.Contains("titles_popularity", popular); // The default order is read down its index, not sorted.
-        Assert.DoesNotContain("TEMP B-TREE", popular);
+        Assert.Contains("COVERING INDEX titles_popularity", popular); // The default order is read down its index, not sorted,
+        Assert.DoesNotContain("TEMP B-TREE", popular);                 // and a filter's columns are in it.
     }
 
     [Fact]
