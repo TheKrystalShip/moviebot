@@ -22,7 +22,7 @@ public sealed record ImdbSpec(
     int? ToYear);
 
 /// <summary>
-/// IMDb's rating and votes for a title, and the titles IMDb itself files under a genre and years, read
+/// IMDb's rating, votes and runtime for a title, and the titles IMDb itself files under a genre and years, read
 /// from the table the import keeps (<see cref="ImdbImport"/>). A host where the import has not run holds
 /// nothing: <see cref="Edition"/> is null, every lookup answers none and every candidate list is empty,
 /// so what depends on it does what it does without IMDb.
@@ -40,6 +40,7 @@ public sealed class ImdbRatings(CinemaDatabase database)
     public readonly record struct Rating(double Value, int Votes);
 
     private readonly ConcurrentDictionary<long, Rating?> _seen = new();
+    private readonly ConcurrentDictionary<long, int?> _runtimes = new();
     private readonly Lock _gate = new();
     private string? _edition;
     private bool _loaded;
@@ -71,6 +72,7 @@ public sealed class ImdbRatings(CinemaDatabase database)
         lock (_gate)
         {
             _seen.Clear();
+            _runtimes.Clear();
             _loaded = false;
         }
     }
@@ -86,6 +88,20 @@ public sealed class ImdbRatings(CinemaDatabase database)
             r => (Rating?)new Rating(r.GetDouble(0), r.GetInt32(1)), ("$id", number)));
         if (_seen.Count >= MostRemembered) _seen.Clear();
         _seen[number] = read;
+        return read;
+    }
+
+    /// <summary>A title's length in minutes as IMDb gives it; null for one the import does not hold or does not time.</summary>
+    public int? RuntimeOf(string? imdbId)
+    {
+        if (ImdbId.ToNumber(imdbId) is not { } number || Edition is null) return null;
+        if (_runtimes.TryGetValue(number, out var seen)) return seen;
+
+        var read = database.Read(c => c.First(
+            "SELECT runtime FROM imdb_titles WHERE imdb_id = $id AND runtime > 0",
+            r => (int?)r.GetInt32(0), ("$id", number)));
+        if (_runtimes.Count >= MostRemembered) _runtimes.Clear();
+        _runtimes[number] = read;
         return read;
     }
 

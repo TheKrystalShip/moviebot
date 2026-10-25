@@ -502,16 +502,24 @@ public sealed class DiscoverShelves(
     }
 
     /// <summary>
-    /// Which options each section of a shelf holds with a filter's picks on it. A shelf that is a
-    /// question of the film database is measured as a discovery is
-    /// (<see cref="CatalogueSearch.ShelfFacetsAsync"/>); any other shelf has no sections.
+    /// Which options each section of a shelf holds with a filter's picks on it, counted over the
+    /// titles it is read whole as. A shelf that is a question of the film database is counted over the
+    /// whole the warmer holds of it (<see cref="CatalogueSearch.WholeShelfFacetsAsync"/>), and measured
+    /// as a discovery is (<see cref="CatalogueSearch.ShelfFacetsAsync"/>) while none is held.
     /// </summary>
     public async Task<Outcome<CatalogueFacetsView>> FacetsAsync(string id, string? viewerId, DiscoverPicks picks, CancellationToken ct)
     {
         var titles = library.Titles();
         var shelf = Find(id, viewerId, titles);
         if (shelf is null) return Outcome<CatalogueFacetsView>.Failed(Problem.NotFound, "There is no shelf by that name.");
-        if (shelf.Source == ShelfSource.Query) return await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct);
+        if (shelf.Source == ShelfSource.Query)
+        {
+            var query = Asked(shelf.Query!, null);
+            if (!_whole.TryGetValue(shelf.Id, out var listed)) return await search.ShelfFacetsAsync(query, picks, ct);
+            var resolved = await search.ShelfPicksAsync(query, picks, ct);
+            if (resolved.Value is not { } named) return resolved.Carry<CatalogueFacetsView>();
+            return Outcome<CatalogueFacetsView>.Ok(await search.WholeShelfFacetsAsync(query, listed, named, ct));
+        }
 
         if (WholeFacets.Refusal(picks, Today()) is { } refusal) return Outcome<CatalogueFacetsView>.Failed(Problem.Invalid, refusal);
         var whole = await WholeAsync(shelf, viewerId, titles, null, ct);
@@ -540,7 +548,7 @@ public sealed class DiscoverShelves(
         foreach (var head in section.Shelves)
         {
             if (Find(head.Id, viewerId, titles) is not { } shelf) continue;
-            var answer = shelf.Source == ShelfSource.Query
+            var answer = shelf.Source == ShelfSource.Query && !_whole.ContainsKey(shelf.Id)
                 ? await search.ShelfFacetsAsync(Asked(shelf.Query!, null), picks, ct, held)
                 : await FacetsAsync(head.Id, viewerId, picks, ct);
             if (answer.Value is not { } facets) return answer;
@@ -630,7 +638,8 @@ public sealed class DiscoverShelves(
 
     /// <summary>
     /// A page of a shelf narrowed by a filter's picks, never kept as the shelf's own first page: a
-    /// shelf that is a question of the database is asked it narrowed, and any other is read whole
+    /// shelf that is a question of the database is narrowed over the whole the warmer holds of it, and
+    /// asked of the database narrowed while none is held; any other is read whole
     /// (<see cref="WholeAsync"/>), narrowed and paged.
     /// </summary>
     private async Task<Outcome<ShelfPage>> PickedAsync(Shelf shelf, string? viewerId, IReadOnlyList<TitleSummary> titles, int page, string? sort, DiscoverPicks picks, CancellationToken ct, int size = CatalogueSearch.ShelfListed)
@@ -646,15 +655,24 @@ public sealed class DiscoverShelves(
             var slice = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
             return Outcome<ShelfPage>.Ok(new ShelfPage([.. kept.Skip(slice.Skip).Take(slice.Take)], slice.Next(kept.Count > slice.Skip + slice.Size), held.Title));
         }
+        var ask = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
+        if (_whole.TryGetValue(shelf.Id, out var listed))
+        {
+            var resolved = await search.ShelfPicksAsync(Asked(shelf.Query!, null), picks, ct);
+            if (resolved.Value is not { } named) return resolved.Carry<ShelfPage>();
+            return Hits(Outcome<PagedHits>.Ok(await search.WholeShelfPageAsync(shelf.Query!, listed, named, sort, ask, ct)), LibraryShelf.Of(titles, record, viewerId));
+        }
         var narrowed = await search.NarrowedAsync(Asked(shelf.Query!, sort), picks, ct);
         if (narrowed.Value is not { } queries) return narrowed.Carry<ShelfPage>();
-        var ask = new PageAsk(CatalogueSearch.MostOnShelf, size, page);
         return Hits(await search.ShelfAsync(queries, ask, ct), LibraryShelf.Of(titles, record, viewerId));
     }
 
     /// <summary>
     /// Asks every shelf the same for everybody, one after another, which asks the database only for
-    /// what is due. The number of shelves that could not be answered.
+    /// what is due, and holds each shelf that is a question of the database whole
+    /// (<see cref="CatalogueSearch.ShelfWholeAsync"/>) when it lists no more than a shelf serves, so a
+    /// filter on it asks the database nothing. A shelf that could not be read whole keeps the whole it
+    /// held. The number of shelves that could not be answered.
     /// </summary>
     public async Task<int> WarmAsync(CancellationToken ct)
     {
@@ -664,9 +682,28 @@ public sealed class DiscoverShelves(
         {
             ct.ThrowIfCancellationRequested();
             if ((await TitlesAsync(shelf, null, titles, 1, null, ct)).Value is null) unanswered++;
+            if (shelf.Source == ShelfSource.Query) await HoldWholeAsync(shelf, ct);
         }
         return unanswered;
     }
+
+    /// <summary>Holds one fixed shelf that is a question of the database whole, as a warmer pass does; false for an id that names none.</summary>
+    internal async Task<bool> HoldWholeAsync(string id, CancellationToken ct)
+    {
+        if (ById.GetValueOrDefault(id) is not { Source: ShelfSource.Query } shelf) return false;
+        await HoldWholeAsync(shelf, ct);
+        return true;
+    }
+
+    private async Task HoldWholeAsync(Shelf shelf, CancellationToken ct)
+    {
+        var whole = await search.ShelfWholeAsync(Asked(shelf.Query!, null), ct);
+        if (whole.Value is { Titles: { } held }) _whole[shelf.Id] = held;
+        else if (whole.Value is not null) _whole.TryRemove(shelf.Id, out _);
+    }
+
+    /// <summary>Each shelf that is a question of the database, read whole by the last warmer pass, by its id.</summary>
+    private readonly ConcurrentDictionary<string, List<TitleHit>> _whole = new(StringComparer.Ordinal);
 
     private static ShelfHeadView Head(Shelf shelf) => new() { Id = shelf.Id, Title = shelf.Title, Icon = shelf.Icon, Kind = shelf.Kind };
 

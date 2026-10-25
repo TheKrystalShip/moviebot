@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.82.0] - 2026-10-25
+
+### Changed
+- A Discover shelf that is a question of the film database, and lists at most 1,000 titles, is held
+  whole in memory by each pass that keeps the shelves fresh, every title with its card. A filter on it,
+  its orders and its facets are answered over the titles held, with exact counts, and ask the database
+  nothing; a shelf that lists more, or one no pass has held yet, is narrowed by the database and its
+  facets probed as before. Such a shelf's facets leave out the genres it names for itself.
+- A film's length is read from its card (moviebot-acquire 0.50.0), the runtime its title page shows,
+  else from IMDb's, so the sets Wikidata lists offer Length too. A film's card with no runtime is kept
+  an hour rather than a week.
+
 ## [3.81.0] - 2026-10-25
 
 ### Changed

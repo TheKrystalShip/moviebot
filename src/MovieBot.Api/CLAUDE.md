@@ -167,7 +167,10 @@ film onto a device is `Offline/CLAUDE.md`.
   them again every `Tmdb:ShelvesWarmMinutes`, which asks the database only for what is due, so a page
   never waits on it. A tile's posters and a series' films are read from each shelf's last answer,
   held in memory and renewed by every warmer pass, so `/api/discover` asks nothing of the database once
-  the warmer has run. The shelves that follow from a person read the watch record and the library as
+  the warmer has run. Each pass also holds every question shelf of at most 1,000 titles whole in
+  memory, each title with its card (`CatalogueSearch.ShelfWholeAsync`), so a filter on it and its
+  facets are answered over the titles held and ask the database nothing; a shelf not held is
+  narrowed by the database and its facets probed, one question per option. The shelves that follow from a person read the watch record and the library as
   listed, and "Popular here" names nobody and no count.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/shows/{imdbId}`, the library's

@@ -100,13 +100,17 @@ public sealed partial class CatalogueSearch
         return code => names.GetValueOrDefault(code);
     }
 
-    /// <summary>What a filter reads off a title the film database listed, by its card and its listing; a listing carries no runtime.</summary>
+    /// <summary>
+    /// What a filter reads off a title the film database listed, by its card and its listing. A film's
+    /// runtime is its card's, else IMDb's for a card kept before cards carried one; a listing carries none.
+    /// </summary>
     internal FacetTraits Traits(TitleHit hit)
     {
         var (listed, card) = (hit.Listed, hit.Card);
         var language = listed.OriginalLanguage ?? card?.OriginalLanguage;
+        var runtime = listed.Kind == "film" ? card?.RuntimeMinutes ?? imdbRatings.RuntimeOf(card?.ImdbId) : null;
         return new FacetTraits(listed.Kind, categories.Of(listed.Kind, card?.ImdbId, card?.Genres, language) == TitleCategory.Anime,
-            CinemaGenres.Of(card?.Genres ?? []), (listed.Released ?? card?.Released)?.Year, null,
+            CinemaGenres.Of(card?.Genres ?? []), (listed.Released ?? card?.Released)?.Year, runtime,
             scores.Serve(card?.ImdbId, listed.TmdbId, listed.Kind, listed.Rating, listed.Votes).Rating, language);
     }
 
@@ -201,52 +205,75 @@ public sealed partial class CatalogueSearch
 
     /// <summary>
     /// The questions a shelf's question is asked as with a filter's picks on it, the picks matched to
-    /// the database's ids for the shelf's kind. A shelf is of its own kind, so a pick of a kind is
-    /// refused, as is a length on a shelf of shows; a genre or a language the database does not have
-    /// is a refusal as it is for a discovery.
+    /// the database's ids for the shelf's kind (<see cref="ShelfPicksAsync"/>, which refuses what it
+    /// refuses); more than <see cref="DiscoverNarrowing.MostQuestions"/> questions is refused too.
     /// </summary>
     public async Task<Outcome<List<DiscoverQuery>>> NarrowedAsync(DiscoverQuery query, DiscoverPicks picks, CancellationToken ct)
     {
-        if (picks.Kind is not null || picks.Category is not null) return Invalid<List<DiscoverQuery>>("A shelf is of its own kind; a filter does not pick one.");
-        if (picks.Lengths.Count > 0 && query.Kind != "film") return Invalid<List<DiscoverQuery>>("A length is a film's; a show is not picked by one.");
+        var resolved = await ResolvedAsync(query, picks, ct);
+        if (resolved.Value is not { } named) return resolved.Carry<List<DiscoverQuery>>();
+
+        var floor = picks.MinRating is { } least && (query.MinRating is null || least > query.MinRating) ? query with { MinRating = least } : query;
+        var queries = DiscoverNarrowing.Narrow(floor, new Narrowing
+        {
+            AnyGenreIds = [.. named.Genres.Select(g => g.Id)],
+            Windows = DiscoverNarrowing.Windows(picks.Decades),
+            Runtimes = DiscoverNarrowing.Runtimes(picks.Lengths),
+            Languages = named.Languages,
+        });
+        return queries.Count > DiscoverNarrowing.MostQuestions
+            ? Invalid<List<DiscoverQuery>>($"These picks ask the film database {queries.Count} questions at once; at most {DiscoverNarrowing.MostQuestions} are asked.")
+            : Outcome<List<DiscoverQuery>>.Ok(queries);
+    }
+
+    /// <summary>
+    /// A filter's picks on a shelf's question as the titles held whole are narrowed by them
+    /// (<see cref="WholeFacets"/>): each genre by Cinema's name for the database's genre of the shelf's
+    /// kind, each language by its code. A shelf is of its own kind, so a pick of a kind is refused, as is
+    /// a length on a shelf of shows; a decade or a length that is none is refused, and a genre or a
+    /// language the database does not have is a refusal as it is for a discovery.
+    /// </summary>
+    public async Task<Outcome<DiscoverPicks>> ShelfPicksAsync(DiscoverQuery query, DiscoverPicks picks, CancellationToken ct)
+    {
+        var resolved = await ResolvedAsync(query, picks, ct);
+        if (resolved.Value is not { } named) return resolved.Carry<DiscoverPicks>();
+        return Outcome<DiscoverPicks>.Ok(picks with { AnyGenres = CinemaGenres.Of(named.Genres.Select(g => g.Name)), Languages = named.Languages });
+    }
+
+    /// <summary>A shelf's picks matched to the database: its genres of the shelf's kind and the languages' codes.</summary>
+    private sealed record NamedPicks(List<CatalogueGenre> Genres, List<string> Languages);
+
+    private async Task<Outcome<NamedPicks>> ResolvedAsync(DiscoverQuery query, DiscoverPicks picks, CancellationToken ct)
+    {
+        if (picks.Kind is not null || picks.Category is not null) return Invalid<NamedPicks>("A shelf is of its own kind; a filter does not pick one.");
+        if (picks.Lengths.Count > 0 && query.Kind != "film") return Invalid<NamedPicks>("A length is a film's; a show is not picked by one.");
         var today = Today();
         foreach (var decade in picks.Decades)
             if (!Decades.IsDecade(decade, today))
-                return Invalid<List<DiscoverQuery>>($"{decade} is no decade: a decade is named by its first year, from {Decades.Earliest} to this one.");
+                return Invalid<NamedPicks>($"{decade} is no decade: a decade is named by its first year, from {Decades.Earliest} to this one.");
         if (picks.Lengths.FirstOrDefault(l => FilmLengths.Of(l) is null) is { } length)
-            return Invalid<List<DiscoverQuery>>($"\"{length}\" is no length; a length is {string.Join(", ", FilmLengths.All)}.");
+            return Invalid<NamedPicks>($"\"{length}\" is no length; a length is {string.Join(", ", FilmLengths.All)}.");
 
-        var genreIds = new List<int>();
+        var genres = new List<CatalogueGenre>();
         if (picks.AnyGenres.Count > 0)
         {
             var all = await catalogue.GenresAsync(query.Kind, ct);
-            if (all is null) return Unavailable<List<DiscoverQuery>>("The film database could not be asked about its genres.");
+            if (all is null) return Unavailable<NamedPicks>("The film database could not be asked about its genres.");
             foreach (var name in picks.AnyGenres)
             {
                 if (MatchGenre(all, name) is not { } genre)
-                    return NotFound<List<DiscoverQuery>>($"The film database has no {query.Kind} genre called \"{name.Trim()}\".");
-                if (!genreIds.Contains(genre.Id)) genreIds.Add(genre.Id);
+                    return NotFound<NamedPicks>($"The film database has no {query.Kind} genre called \"{name.Trim()}\".");
+                if (!genres.Any(g => g.Id == genre.Id)) genres.Add(genre);
             }
         }
         var languages = new List<string>();
         foreach (var text in picks.Languages)
         {
             var named = await LanguageAsync(text, ct);
-            if (named.Value is not { } language) return named.Carry<List<DiscoverQuery>>();
+            if (named.Value is not { } language) return named.Carry<NamedPicks>();
             if (!languages.Contains(language.Code)) languages.Add(language.Code);
         }
-
-        var floor = picks.MinRating is { } least && (query.MinRating is null || least > query.MinRating) ? query with { MinRating = least } : query;
-        var queries = DiscoverNarrowing.Narrow(floor, new Narrowing
-        {
-            AnyGenreIds = genreIds,
-            Windows = DiscoverNarrowing.Windows(picks.Decades),
-            Runtimes = DiscoverNarrowing.Runtimes(picks.Lengths),
-            Languages = languages,
-        });
-        return queries.Count > DiscoverNarrowing.MostQuestions
-            ? Invalid<List<DiscoverQuery>>($"These picks ask the film database {queries.Count} questions at once; at most {DiscoverNarrowing.MostQuestions} are asked.")
-            : Outcome<List<DiscoverQuery>>.Ok(queries);
+        return Outcome<NamedPicks>.Ok(new NamedPicks(genres, languages));
     }
 
     /// <summary>

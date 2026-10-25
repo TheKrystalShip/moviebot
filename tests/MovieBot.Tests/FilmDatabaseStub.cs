@@ -68,8 +68,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
     private static string Num(double value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>A film's description with its credits and keywords, which is also what names it to a list.</summary>
-    private static string Movie(int id, string? imdb, string title, string? date, string status, string genres, string director, string cast, string keywords = "", string language = "en") =>
+    private static string Movie(int id, string? imdb, string title, string? date, string status, string genres, string director, string cast, string keywords = "", string language = "en", int? runtime = null) =>
         "{ \"id\": " + id + ", \"imdb_id\": " + Quote(imdb) + ", \"title\": \"" + title + "\", \"original_language\": \"" + language + "\","
+        + (runtime is { } minutes ? " \"runtime\": " + minutes + "," : "")
         + " \"overview\": \"About " + title + ". It goes on.\", \"release_date\": " + Quote(date) + ", \"status\": \"" + status + "\","
         + " \"vote_average\": 7.04, \"vote_count\": 100, \"poster_path\": \"/p" + id + ".jpg\","
         + " \"genres\": [ " + genres + " ], \"keywords\": { \"keywords\": [ " + keywords + " ] },"
@@ -172,6 +173,23 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         new(4501, "show", "Prism Stars", "2021-05-01", [10765], "en", 50, 7.2, 1900),
     ];
 
+    /// <summary>The fixed shelf the Prism world's films answer, as a discovery is answered by its filters.</summary>
+    public const string PrismShelf = "so-bad-its-good";
+
+    private static readonly Dictionary<int, string> PrismGenres = new()
+    {
+        [12] = "Adventure", [16] = "Animation", [18] = "Drama", [27] = "Horror", [80] = "Crime", [878] = "Science Fiction",
+        [10751] = "Family", [10765] = "Sci-Fi & Fantasy",
+    };
+
+    [GeneratedRegex(@"/movie/(4[34]\d{2})$")]
+    private static partial Regex PrismFilm();
+
+    /// <summary>A Prism film's description, which is also its card: its genres by name and its runtime.</summary>
+    private static string PrismMovie(PrismTitle t) =>
+        Movie(t.Id, "tt99" + t.Id + "0", t.Title, t.Date, "Released", string.Join(", ", t.Genres.Select(g => Genre(g, PrismGenres[g]))),
+            Director(t.Id + 1000, "Pat " + t.Id), Cast(t.Id + 2000, "Lee " + t.Id, 0), language: t.Language, runtime: t.Runtime);
+
     /// <summary>A person credited on the Prism world's titles: every film but the reels, and the show.</summary>
     public const int PrismPerson = 4600;
 
@@ -245,6 +263,9 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
         if (path.EndsWith("/find/tt1790809") || path.EndsWith("/find/tt1298650") || path.EndsWith("/find/tt0383574") || path.EndsWith("/find/tt0449088"))
             return "{ \"movie_results\": [ { \"id\": " + (9000 + int.Parse(path[^3..], CultureInfo.InvariantCulture)) + ", \"vote_count\": 0 } ] }";
         if (path.Contains("/find/")) return """{ "movie_results": [] }""";
+        if (PrismFilm().Match(path) is { Success: true } prismFilm
+            && Prism.FirstOrDefault(t => t.Kind == "film" && t.Id == int.Parse(prismFilm.Groups[1].Value, CultureInfo.InvariantCulture)) is { } prismTitle)
+            return PrismMovie(prismTitle);
         if (PrismIds().Match(path) is { Success: true } prismIds) return "{ \"imdb_id\": \"tt99" + prismIds.Groups[1].Value + "0\" }";
         if (path.EndsWith("/person/" + PrismPerson))
             return "{ \"id\": " + PrismPerson + ", \"name\": \"Pia Prism\", \"known_for_department\": \"Acting\", \"combined_credits\": { \"cast\": [ "
@@ -418,6 +439,8 @@ public sealed partial class FilmDatabaseStub : HttpMessageHandler
             && (query["with_companies"] == PrismId.ToString(CultureInfo.InvariantCulture) || query["with_keywords"] == PrismId.ToString(CultureInfo.InvariantCulture)))
             return PrismPage(path.EndsWith("/discover/movie") ? "film" : "show", query);
         if (path.EndsWith("/discover/movie") && query["with_genres"] == "80" && query["vote_count.gte"] == "100" && query["without_genres"] is null)
+            return PrismPage("film", query);
+        if (path.EndsWith("/discover/movie") && query["vote_count.gte"] == "1500" && query["vote_average.lte"] is not null)
             return PrismPage("film", query);
         if (path.EndsWith("/discover/movie"))
         {

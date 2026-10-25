@@ -230,6 +230,13 @@ public sealed partial class CatalogueSearch(
     internal static readonly TimeSpan DiscoverKept = TimeSpan.FromDays(1);
     internal static readonly TimeSpan ListKept = TimeSpan.FromHours(6);
     internal static readonly TimeSpan CardKept = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// How long a film's card with no runtime is kept: a filter by length reads a film's runtime off its
+    /// card, so one the database had not timed, or a card kept before cards carried a runtime, is asked
+    /// again sooner than a card that has one.
+    /// </summary>
+    internal static readonly TimeSpan UntimedCardKept = TimeSpan.FromHours(1);
     internal static readonly TimeSpan VocabularyKept = TimeSpan.FromDays(30);
     internal static readonly TimeSpan CollectionKept = TimeSpan.FromDays(7);
 
@@ -930,12 +937,17 @@ public sealed partial class CatalogueSearch(
             return Outcome<TitlePage>.Ok(new TitlePage([.. ranked.Skip(ask.Skip).Take(ask.Take)], ask.Next(ranked.Count > ask.Skip + ask.Size)));
         }
 
+        if (await KeptPageAsync(family, keep, query, ask, ct) is not { } page) return Unavailable<TitlePage>("The film database could not be asked to discover.");
+        return Outcome<TitlePage>.Ok(new TitlePage([.. page.Titles.Take(ask.Take)], ask.Next(ask.Page < page.Pages)));
+    }
+
+    /// <summary>A page of a discovery in the database's own order, kept as its own answer, with how many pages the database holds; null when it cannot be asked.</summary>
+    private async Task<ListedPage?> KeptPageAsync(string family, TimeSpan keep, DiscoverQuery query, PageAsk ask, CancellationToken ct)
+    {
         var kept = await keeper.KeptAsync(AnswerKeeper.QueryName(family, Canonical(query, ask.Size, ask.Page)),
             AnswerJson.Default.ListedPage, keep,
             async (tmdb, token) => await tmdb.DiscoverPageAsync(query, ask.Page, ask.Size, token), null, ct);
-        if (kept is null) return Unavailable<TitlePage>("The film database could not be asked to discover.");
-        var page = kept.Value ?? new ListedPage();
-        return Outcome<TitlePage>.Ok(new TitlePage([.. page.Titles.Take(ask.Take)], ask.Next(ask.Page < page.Pages)));
+        return kept is null ? null : kept.Value ?? new ListedPage();
     }
 
     /// <summary>The most voted titles of a discovery, the pool a sort by rating ranks; null when the database cannot be asked.</summary>
@@ -1365,8 +1377,9 @@ public sealed partial class CatalogueSearch(
         await Parallel.ForEachAsync(keys.Distinct(), new ParallelOptions { MaxDegreeOfParallelism = CardsAtOnce, CancellationToken = ct },
             async (key, token) =>
             {
-                var kept = await keeper.KeptAsync($"cards/{(key.Kind == "film" ? "movie" : "tv")}-{key.Id}",
-                    AnswerJson.Default.TitleCard, CardKept,
+                var name = $"cards/{(key.Kind == "film" ? "movie" : "tv")}-{key.Id}";
+                var keep = keeper.Kept(name, AnswerJson.Default.TitleCard)?.Value is { Kind: "film", RuntimeMinutes: null } ? UntimedCardKept : CardKept;
+                var kept = await keeper.KeptAsync(name, AnswerJson.Default.TitleCard, keep,
                     (tmdb, t) => tmdb.CardAsync(key.Kind, key.Id, t), null, token);
                 cards[key] = kept?.Value;
             });
