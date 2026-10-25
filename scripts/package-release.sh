@@ -30,6 +30,7 @@ publish() {
 }
 publish MovieBot.Api     api
 publish MovieBot.Handoff handoff
+publish MovieBot.Catalogue catalogue
 publish MovieBot.Bot     bot    --self-contained
 publish MovieBot.Assistant assistant --self-contained
 publish MovieBot.Ingest  ingest --self-contained -p:PublishSingleFile=true

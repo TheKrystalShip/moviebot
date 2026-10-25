@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.84.0] - 2026-10-25
+
+### Added
+- `moviebot-catalogue`, a fifth service: the catalogue, one entry per film and show, built from IMDb's
+  datasets, TMDB and Wikidata layered on the same title and kept in `catalogue.db` with the images a
+  page shows, in its own state directory. A title is a candidate with 100 IMDb votes and an entry once
+  TMDB gives it a poster; an unreleased title named "Untitled ..." never is, and TMDB's rankings admit
+  titles under the vote line. Each source's layer is kept as it answered, and the entry is built from
+  the layers by rule (IMDb's original title, year and runtime; TMDB's English title, overview, credits,
+  certificates, keywords, companies, collection, recommendations, images and trailers; Wikidata's
+  places, sources, awards, subjects and series), with both sources' genres and ratings side by side and
+  full-text search over every name a title goes by. TMDB is read once in full, then from its changes
+  feed daily, its ratings weekly for what is ranked or recent, and nothing it said is kept past five
+  months; Wikidata weekly; IMDb daily. TMDB's collections are the franchises, and Wikidata adds the
+  universes that span several of them or hold shows. The `Catalogue` settings set the floor and the
+  pace. Nothing reads the catalogue yet (`docs/local-catalogue-plan.md`).
+
 ## [3.83.0] - 2026-10-25
 
 ### Added

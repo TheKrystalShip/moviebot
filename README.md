@@ -94,6 +94,7 @@ src/MovieBot.Api/       library, media serving, sessions, SignalR hub, downloads
 src/MovieBot.Assistant/ the assistant: the plugin that finds films, over the harness's chat protocol
 src/MovieBot.Bot/       the Discord bot
 src/MovieBot.Handoff/   moves finished downloads into the library
+src/MovieBot.Catalogue/ the catalogue: every film and show, from IMDb, TMDB and Wikidata
 web/site/               Cinema, the site, and its player, which is also the Discord Activity
 packaging/              the release's installer, systemd units and configuration examples
 deploy/                 the maintainers' host configuration and native GPU builds

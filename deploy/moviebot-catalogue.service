@@ -1,0 +1,38 @@
+[Unit]
+Description=MovieBot catalogue — every film and show, built from IMDb, TMDB and Wikidata
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heisen
+Group=heisen
+WorkingDirectory=/opt/moviebot/catalogue
+ExecStart=/opt/moviebot/catalogue/moviebot-catalogue
+
+# Settings come from /home/heisen/.config/moviebot/moviebot.settings.json (deploy/hotbox.settings.json);
+# the film database's token (Tmdb__ReadAccessToken) from the environment file.
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=DOTNET_EnableDiagnostics=0
+
+Restart=on-failure
+RestartSec=30s
+
+# Background work beside transcodes and rooms: it yields the CPU and the disk to them.
+Nice=10
+IOSchedulingClass=idle
+
+# It writes the catalogue and its images to its own state directory, /var/lib/moviebot-catalogue, which
+# the API reads. It reads the library's manifests for the shows the library holds, and writes nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadOnlyPaths=/home/heisen/moviebot/media /home/heisen/moviebot/cold
+StateDirectory=moviebot-catalogue
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

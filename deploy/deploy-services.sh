@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Deploys MovieBot's four services to hotbox. Run it from hotrod, with no arguments:
+# Deploys MovieBot's five services to hotbox. Run it from hotrod, with no arguments:
 #
 #   deploy/deploy-services.sh
 #
-# It publishes the API, the bot, the hand-off and the assistant here, copies them to /opt/moviebot,
+# It publishes the API, the bot, the hand-off, the catalogue and the assistant here, copies them to /opt/moviebot,
 # installs hotbox's settings file, and restarts the units. A restart is safe while people are
 # watching: rooms come back as they were and the player reconnects through the gap. The hand-off
 # carries a stopped transcode on from where it stopped, but a restart still pauses it and rewinds it a
@@ -14,7 +14,7 @@ set -euo pipefail
 host=hotbox
 opt=/opt/moviebot
 api=http://127.0.0.1:8099
-units=(moviebot-api moviebot-bot moviebot-handoff moviebot-assistant)
+units=(moviebot-api moviebot-bot moviebot-handoff moviebot-catalogue moviebot-assistant)
 handoff=moviebot-handoff
 waiter=moviebot-handoff-restart
 
@@ -34,12 +34,13 @@ trap 'rm -rf "$out"' EXIT
 dotnet publish "$root/src/MovieBot.Api"       -c Release --nologo -o "$out/api"
 dotnet publish "$root/src/MovieBot.Bot"       -c Release --nologo -o "$out/bot"
 dotnet publish "$root/src/MovieBot.Handoff"   -c Release --nologo -o "$out/handoff"
+dotnet publish "$root/src/MovieBot.Catalogue" -c Release --nologo -o "$out/catalogue"
 dotnet publish "$root/src/MovieBot.Assistant" -c Release --nologo -r linux-x64 --self-contained false -o "$out/assistant"
 
 # --delete keeps a native binary from running beside the assemblies of an older build. The API's
 # web root is the site's, which deploy/deploy-site.sh installs: excluded, it is neither copied from
 # this publish nor deleted on hotbox.
-for service in api bot handoff assistant; do
+for service in api bot handoff catalogue assistant; do
     rsync -a --delete --exclude=/wwwroot/ "$out/$service/" "$host:$opt/$service/"
 done
 

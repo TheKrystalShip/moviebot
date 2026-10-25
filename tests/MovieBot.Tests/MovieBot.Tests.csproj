@@ -47,6 +47,7 @@
     <ProjectReference Include="../../src/MovieBot.Assistant/MovieBot.Assistant.csproj" />
     <ProjectReference Include="../../src/MovieBot.Handoff/MovieBot.Handoff.csproj" />
     <ProjectReference Include="../../src/MovieBot.Ingest/MovieBot.Ingest.csproj" />
+    <ProjectReference Include="../../src/MovieBot.Catalogue/MovieBot.Catalogue.csproj" />
   </ItemGroup>
 
 </Project>

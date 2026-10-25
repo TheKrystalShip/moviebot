@@ -1,0 +1,38 @@
+[Unit]
+Description=MovieBot catalogue: every film and show, built from IMDb, TMDB and Wikidata
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moviebot
+Group=moviebot
+WorkingDirectory=/opt/moviebot/catalogue
+ExecStart=/opt/moviebot/catalogue/moviebot-catalogue
+
+# Settings come from ~moviebot/.config/moviebot/moviebot.settings.json; the TMDB token from the
+# environment file.
+EnvironmentFile=/etc/moviebot/moviebot.env
+Environment=DOTNET_EnableDiagnostics=0
+
+Restart=on-failure
+RestartSec=30s
+
+# Background work beside transcodes and rooms: it yields the CPU and the disk to them.
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# The catalogue and its images live in /var/lib/moviebot-catalogue, which the API reads. The library is
+# read for the shows it holds, so this names Media.Root from the settings file and changes with it.
+StateDirectory=moviebot-catalogue
+ReadOnlyPaths=/srv/moviebot/media
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

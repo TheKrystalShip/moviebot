@@ -14,6 +14,7 @@ With everything under [Before you start](#before-you-start) ready, it takes abou
 | `moviebot-api` | Serves the player, your films, and the live connection that keeps everyone in a room at the same moment of the film |
 | `moviebot-bot` | The Discord bot: the `/watch`, `/show`, `/notify` and `/voice` commands |
 | `moviebot-handoff` | Watches for finished downloads and prepares them for playback on your GPU |
+| `moviebot-catalogue` | Keeps the catalogue: every film and show with its details, ratings and artwork, from IMDb, TMDB and Wikidata |
 | `moviebot-assistant` | Optional. A plugin that helps people find films, to an assistant harness you run |
 | `moviebot-ingest` | A command for adding films you already have |
 
@@ -101,7 +102,7 @@ The installer:
   `/srv/moviebot/incoming` (for films you add yourself),
 - creates the settings file `/srv/moviebot/.config/moviebot/moviebot.settings.json`,
 - creates the secrets file `/etc/moviebot/moviebot.env`, with its internal keys already filled in,
-- sets up qBittorrent's settings and the four systemd services.
+- sets up qBittorrent's settings and the five systemd services.
 
 It does not start anything yet.
 
@@ -259,13 +260,13 @@ certbot asks for an email address and for agreement to its terms, then adds http
 ## Step 7: Start MovieBot
 
 ```bash
-sudo systemctl enable --now moviebot-api moviebot-bot moviebot-handoff
+sudo systemctl enable --now moviebot-api moviebot-bot moviebot-handoff moviebot-catalogue
 ```
 
-Check that all three are running:
+Check that all four are running:
 
 ```bash
-systemctl status moviebot-api moviebot-bot moviebot-handoff --no-pager
+systemctl status moviebot-api moviebot-bot moviebot-handoff moviebot-catalogue --no-pager
 ```
 
 Each should say `active (running)`. If you run an assistant harness, start the plugin too

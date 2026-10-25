@@ -17,7 +17,7 @@ etc=/etc/moviebot
 env_file="$etc/moviebot.env"
 # The services' XDG configuration directory: $XDG_CONFIG_HOME of the account they run as.
 settings="$data/.config/moviebot/moviebot.settings.json"
-services=(moviebot-api moviebot-bot moviebot-handoff moviebot-assistant)
+services=(moviebot-api moviebot-bot moviebot-handoff moviebot-catalogue moviebot-assistant)
 
 say()  { printf '\033[1m==>\033[0m %s\n' "$*"; }
 fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
@@ -25,7 +25,7 @@ fail() { printf 'error: %s\n' "$*" >&2; exit 1; }
 [[ $EUID -eq 0 ]] || fail "run this as root: sudo ./install.sh"
 [[ "$(uname -m)" == x86_64 ]] || fail "this release is built for x86_64 Linux"
 command -v systemctl >/dev/null || fail "systemd is required"
-for dir in api bot handoff assistant ingest packaging; do
+for dir in api bot handoff catalogue assistant ingest packaging; do
     [[ -d "$here/$dir" ]] || fail "run this from the extracted release directory ($dir/ is missing)"
 done
 
@@ -42,7 +42,7 @@ install -d -o "$user" -g "$user" -m 0755 "$data" "$data/media" "$data/downloads"
 
 say "Programs in $prefix"
 install -d -m 0755 "$prefix"
-for dir in api bot handoff assistant ingest; do
+for dir in api bot handoff catalogue assistant ingest; do
     rm -rf "${prefix:?}/$dir"
     cp -a "$here/$dir" "$prefix/$dir"
 done

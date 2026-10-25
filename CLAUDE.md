@@ -11,10 +11,11 @@ shared systems (identity, assistant harness, speech, design system, build and pu
 `../kgsm-docs/systems/moviebot/README.md`; its place in the workspace:
 `../kgsm-docs/components/moviebot.md`.
 
-It runs as four services: `moviebot-api`, `moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`.
+It runs as five services: `moviebot-api`, `moviebot-bot`, `moviebot-handoff`, `moviebot-catalogue` and
+`moviebot-assistant`.
 
-**It builds against the checkout beside it.** `MovieBot.Api`, `MovieBot.Bot`, `MovieBot.Handoff` and
-`MovieBot.Assistant` take a `ProjectReference` on `../../../moviebot-acquire/src/MovieBot.Acquire`, so
+**It builds against the checkout beside it.** `MovieBot.Api`, `MovieBot.Bot`, `MovieBot.Handoff`,
+`MovieBot.Catalogue` and `MovieBot.Assistant` take a `ProjectReference` on `../../../moviebot-acquire/src/MovieBot.Acquire`, so
 `moviebot-acquire` has to be checked out as a sibling directory for anything here to compile, and a
 change to a public type over there breaks the build here in the same pass
 (`../kgsm-docs/systems/moviebot/build-and-deploy.md`). `moviebot-acquire` owns torrents, the tracker,
@@ -34,8 +35,8 @@ a file once it exists — probing it, transcoding it, serving it, and keeping a 
 - **The rules each part rests on live in a `CLAUDE.md` beside its code**: `deploy/`,
   `src/MovieBot.Api/` (with `Sessions/`, `Subtitles/`, `Acquisition/`, `Transcode/`, `Offline/` and
   `Notifications/`), `src/MovieBot.Core/` (the two disks), `src/MovieBot.Ingest/`,
-  `src/MovieBot.Handoff/`, `src/MovieBot.Assistant/`, `src/MovieBot.Bot/` (and each feature directory
-  under it), `web/site/src/player/` and `web/site/src/offline/`.
+  `src/MovieBot.Handoff/`, `src/MovieBot.Catalogue/`, `src/MovieBot.Assistant/`, `src/MovieBot.Bot/` (and
+  each feature directory under it), `web/site/src/player/` and `web/site/src/offline/`.
 
 Sign-in, the assistant and the design system are shared systems: read
 `../kgsm-docs/systems/moviebot/sign-in.md`, `../kgsm-docs/systems/moviebot/assistant.md` and

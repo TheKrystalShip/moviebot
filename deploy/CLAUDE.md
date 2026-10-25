@@ -1,7 +1,8 @@
 # Deploying MovieBot
 
-Four units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
-`moviebot-bot`, `moviebot-handoff` and `moviebot-assistant`, this repository's .NET services.
+Five units run on **hotbox**, under `heisen`, out of `/opt/moviebot`: `moviebot-api`,
+`moviebot-bot`, `moviebot-handoff`, `moviebot-catalogue` and `moviebot-assistant`, this repository's .NET
+services.
 `moviebot-assistant` is a plugin to the organization's assistant harness on hotrod, which runs the
 model and holds the conversations; it presents the key issued for `moviebot` there. All of it is built
 on hotrod, which holds the checkouts, the .NET SDK, `clang` and node; hotbox carries the .NET runtime
@@ -10,7 +11,7 @@ one script run from hotrod, with no arguments and nothing to set:
 
 ```bash
 deploy/deploy.sh            # everything: the services, then the site
-deploy/deploy-services.sh   # the four services: publish, rsync to /opt/moviebot, settings, restart
+deploy/deploy-services.sh   # the five services: publish, rsync to /opt/moviebot, settings, restart
 deploy/deploy-site.sh       # the site and its player alone, into /opt/moviebot/api/wwwroot; restarts nothing
 ```
 
@@ -119,7 +120,9 @@ deploy/deploy-app.sh phone      # one: phone or tv
   every browser's subscription is bound to (it cannot be made again without every device subscribing
   again); and the subtitles fetched from outside, each of which cost one of
   a limited daily allowance. The artwork beside them is the film database's and is fetched again if
-  lost. The bot has `/var/lib/moviebot-bot`, holding the launch cards still standing. The assistant keeps no state of its own: the conversations and what people
+  lost. The catalogue has `/var/lib/moviebot-catalogue`: `catalogue.db` and `images/`, all of it
+  fetched again from its sources if lost, which takes the first fill's hours. It sits on `/`, leaving
+  `/home` to the downloads. The bot has `/var/lib/moviebot-bot`, holding the launch cards still standing. The assistant keeps no state of its own: the conversations and what people
   asked it to remember are the harness's.
 - **The cold disk is named in the settings file and proved by a marker file.** `Media.ColdRoot` and
   `Handoff.ColdRoot` point at the volume finished films are kept on, and it is used only while a

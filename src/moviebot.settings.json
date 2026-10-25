@@ -320,6 +320,38 @@
     "MostShown": 400
   },
 
+  // The catalogue (moviebot-catalogue): one entry per film and show, built from IMDb's datasets, TMDB
+  // and Wikidata, with the images a page shows, in catalogue.db and images/ under Directory (empty is
+  // the unit's state directory). A title is a candidate with at least MinVotes IMDb votes, and an entry
+  // once TMDB gives it a poster; a ranking admits titles under the line. The datasets are asked after
+  // every ImdbHours. TMDB is asked at most TmdbPerSecond a second, TmdbAtOnce at a time, with the token
+  // from the Tmdb section (Tmdb__ReadAccessToken in the environment): every title it changed, daily;
+  // its rating every RatingDays for what a ranking holds or came out within RecentDays; everything
+  // else once it is SweepDays old, inside TMDB's six months. The rankings are asked for every
+  // RankingHours, RankingPages pages each. The top PortraitsKept of a title's cast have their portrait
+  // kept, ImagesAtOnce images fetched at once. Wikidata is asked about every title every WikidataDays,
+  // WikidataAtOnce questions at once, naming Contact in the User-Agent. The library's roots (Media) are
+  // read for the shows it holds, whose episodes' stills are kept.
+  "Catalogue": {
+    "Directory": "",
+    "MinVotes": 100,
+    "ImdbBaseUrl": "https://datasets.imdbws.com/",
+    "ImdbHours": 24,
+    "TmdbPerSecond": 20,
+    "TmdbAtOnce": 16,
+    "SweepDays": 150,
+    "RatingDays": 7,
+    "RecentDays": 60,
+    "RankingHours": 6,
+    "RankingPages": 5,
+    "PortraitsKept": 10,
+    "ImagesAtOnce": 8,
+    "WikidataEndpoint": "https://query.wikidata.org/sparql",
+    "WikidataDays": 7,
+    "WikidataAtOnce": 2,
+    "Contact": "https://movies.thekrystalship.com"
+  },
+
   // Listening in a voice channel. Off unless enabled: everyone in a channel the bot joins is heard.
   "Voice": {
     "Enabled": false,
