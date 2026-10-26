@@ -3,9 +3,9 @@ import { downloadLine } from "./DownloadButton.jsx";
 import { clock } from "../time.js";
 
 /**
- * One episode as a season lists it, on a show's page and in the player's Episodes menu: its number,
- * its still with how far this person got, or full once they watched it through or marked it watched,
- * its name, its length. Under the name is where its
+ * One episode as a season lists it, on a show's page and in the player's Episodes menu: its still with
+ * how far this person got, or full once they watched it through or marked it watched, its number and
+ * name as one title, its length. Under the name is where its
  * download to this device stands when there is one (`download`, from `useDownloadMarks`), else when it
  * aired. Choosing the row is all it takes to watch it, so nothing on it asks for anything else.
  *
@@ -23,13 +23,12 @@ export function EpisodeRow({ episode: e, download = null, link = null, onPick = 
   const watchable = Boolean(link || onPick);
   const inner = (
     <>
-      <span className="kc-episode__n">{e.number}</span>
       <span className="kc-episode__still">
         {e.still && <img src={e.still} alt="" loading="lazy" />}
         {fraction > 0 && <span className="kc-bar"><span style={{ width: `${Math.round(fraction * 100)}%` }} className={done ? "is-done" : ""} /></span>}
       </span>
       <span className="kc-episode__text">
-        <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name || `Episode ${e.number}`}</span>
+        <span className={"kc-episode__title" + (done ? " is-done" : "")}>{e.name ? `${e.number}. ${e.name}` : `Episode ${e.number}`}</span>
         {download
           ? <span className={"kc-episode__sub kc-episode__sub--download" + (download.kind === "done" ? " is-done" : "")}>{downloadLine(download)}</span>
           : <span className="kc-episode__sub">{starting ? "Starting…" : e.airDate ? `Aired ${e.airDate}` : null}</span>}

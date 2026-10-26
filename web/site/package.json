@@ -1,7 +1,7 @@
 {
   "name": "krystal-cinema",
   "private": true,
-  "version": "0.101.0",
+  "version": "0.101.1",
   "type": "module",
   "description": "Cinema: MovieBot's site, served by MovieBot.Api.",
   "scripts": {

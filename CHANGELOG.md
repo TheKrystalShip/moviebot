@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.1] - 2026-10-26
+
+### Changed
+- An episode's row, on a show's page and in the player's Episodes menu, leads its title with its number
+  ("2. Please Remain Calm") in place of a column of its own, and the still and everything after it take
+  that column's room, so a phone shows more of each name. Site 0.101.1.
+
 ## [4.8.0] - 2026-10-26
 
 ### Added
