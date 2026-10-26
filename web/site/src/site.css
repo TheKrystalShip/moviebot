@@ -477,6 +477,8 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-season__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 180px; }
 .kc-season__title { font-size: 15px; font-weight: 600; }
 .kc-season__note { font-size: 12.5px; color: var(--fg-3); }
+.kc-season__actions { display: flex; gap: 8px; align-items: center; }
+.kc-season__actions:empty { display: none; }
 
 .kc-episode {
   display: grid; grid-template-columns: 28px 112px minmax(0, 1fr) 120px 60px 36px; gap: 14px; align-items: center;
@@ -507,15 +509,23 @@ button.kc-episode:disabled { cursor: progress; }
   display: flex; align-items: center; justify-content: center; color: var(--fg-2);
 }
 .kc-episode__go:empty { border-color: transparent; }
-/* A season whose episodes can be downloaded: each row has Download's place at its end. */
+/* A season's rows: each ends in whether the episode was watched, and Download's place where it can be. */
 .kc-episode-line { display: flex; align-items: center; border-top: 1px solid var(--border-subtle); margin-top: -1px; }
 .kc-episode-line > .kc-episode { flex: 1; min-width: 0; border-top: 0; margin-top: 0; padding-right: 8px; }
 .kc-episode-save { flex: none; width: 44px; margin-right: 12px; display: flex; justify-content: center; }
+.kc-seen-mark {
+  width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: var(--edge-strong); border-radius: var(--r-sm); background: transparent; color: var(--fg-3); cursor: pointer;
+}
+.kc-seen-mark:hover:not(:disabled) { background: var(--surface-2); color: var(--fg-1); }
+.kc-seen-mark:disabled { opacity: 0.4; cursor: default; }
+.kc-seen-mark.is-on { border-color: var(--border-accent); background: var(--krystal-teal-dim); color: var(--krystal-teal); }
 @media (max-width: 720px) {
   .kc-episode-save { margin-right: 6px; }
   .kc-episode { grid-template-columns: 22px 96px minmax(0, 1fr) 30px; gap: 10px; padding: 10px 12px; }
   .kc-episode__still { width: 96px; }
   .kc-episode__progress, .kc-episode__runtime { display: none; }
+  .kc-season__actions { flex-basis: 100%; }
 }
 
 /* The bell: a sidebar row above the person on a wide screen, the top right of the front page on a

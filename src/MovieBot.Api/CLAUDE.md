@@ -164,9 +164,15 @@ film onto a device is `Offline/CLAUDE.md`.
   record and is read from the room (`SessionStore.Viewing`), so progress and "last played" never
   lag the room. A paused room records nothing: the library's clock reads each film's last play to
   decide when an unwatched film leaves, and a room left paused overnight must not look like a play. A person forgetting a film removes
-  their own entry and progress and leaves the film's last play. `PersonDirectory` is what turns an
-  account into a name, learned from every token validated; a record never shows an id where a name
-  belongs. When somebody was last seen is held in memory alone.
+  their own entry and progress and leaves the film's last play. What a person says they watched, here
+  or anywhere, is a mark (`watched_marks`) keyed by what it names, a film's IMDb id or a show's with
+  the episode's season and number, never by a library title, so it holds for a title the library never
+  had and outlives one that leaves; it is no play and moves no last play. `WatchRecord.Entries` reads a
+  mark on a title the library holds as that title finished at the time of the mark, unless the entry
+  is newer, so every reader of entries sees it; the readers that answer for what the library does not
+  hold (`LibraryShelf`, `ShowProgress.Finished`, Continue watching, a show's episodes) read the marks as
+  well. `PersonDirectory` is what turns an account into a name, learned from every token validated; a
+  record never shows an id where a name belongs. When somebody was last seen is held in memory alone.
 - **The API publishes what a page needs to sign in on `/api/config`**, including its public address:
   the Activity's origin is Discord's proxy, reachable only from inside the Activity, and the poster a
   viewer's presence shows is fetched by Discord's servers, so the page builds the poster URL from that

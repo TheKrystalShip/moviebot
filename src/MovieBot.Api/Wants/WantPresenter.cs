@@ -29,7 +29,7 @@ public sealed class WantPresenter(
         var titles = library.Titles();
         var shelf = LibraryShelf.Of(titles, record, userId);
         var others = wants.OthersOf(userId);
-        var finished = ShowProgress.Finished(titles, record.Entries(userId));
+        var finished = ShowProgress.Finished(titles, record, userId);
         var arriving = list.Any(w => !shelf.Holds(w.Kind, w.ImdbId)) ? await DownloadsAsync(ct) : [];
 
         return [.. list.Select(w => View(w, shelf, others, finished, arriving))];
@@ -61,7 +61,7 @@ public sealed class WantPresenter(
             Name = people.NameOf(w.UserId),
             Since = w.Since,
             NextEpisode = w.Kind == WantKinds.Show
-                ? ShowProgress.Next(shows.Show(w.ImdbId), ShowProgress.Finished(titles, record.Entries(w.UserId)).GetValueOrDefault(w.ImdbId))
+                ? ShowProgress.Next(shows.Show(w.ImdbId), ShowProgress.Finished(titles, record, w.UserId).GetValueOrDefault(w.ImdbId))
                 : null,
         })];
     }

@@ -13,6 +13,7 @@ import { TitleSections, titleFacts } from "../components/TitleSections.jsx";
 import { HeroGroup, kindWord, ResumeMeter, TitleAbout, TitleFacts, TitleHero, TitleHonours, TrailerButton } from "../components/TitleHero.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
+import { WatchedButton } from "../components/WatchedButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
@@ -111,6 +112,9 @@ export function Title({ id, category = null, fromDevice = false }) {
             <TrailerButton />
             {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={filmName(m)} />}
             {film.imdbId && <PlanButton imdbId={film.imdbId} kind="film" />}
+            {film.imdbId && !fromDevice && d && d.you && (
+              <WatchedButton imdbId={film.imdbId} watched={d.you.watched} onChange={() => { listing.reload(); described.reload(); }} />
+            )}
             {saving && (m.status === "ready" || (fetching && m.status === "transcoding" && film.imdbId)) && (
               <DownloadButton titleId={m.id} imdbId={film.imdbId || null} ready={m.status === "ready"} head={{
                 name: (d && d.title) || filmName(m), context: film.year || (d && d.year) || null,

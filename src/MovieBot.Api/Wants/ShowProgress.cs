@@ -12,8 +12,25 @@ namespace TheKrystalShip.MovieBot.Api.Wants;
 /// </summary>
 internal static class ShowProgress
 {
-    /// <summary>The episodes of each show a person finished, by the show's IMDb id.</summary>
+    /// <summary>
+    /// The episodes of each show a person finished or marked watched, by the show's IMDb id, the
+    /// library's titles naming the episodes their entries are for.
+    /// </summary>
     public static Dictionary<string, HashSet<(int Season, int Number)>> Finished(
+        IReadOnlyList<TitleSummary> titles, WatchRecord record, string userId)
+    {
+        var finished = Finished(titles, record.Entries(userId));
+        foreach (var mark in record.Marks(userId))
+        {
+            if (mark.What.IsFilm) continue;
+            if (!finished.TryGetValue(mark.What.ImdbId, out var set)) finished[mark.What.ImdbId] = set = [];
+            set.Add((mark.What.Season, mark.What.Number));
+        }
+        return finished;
+    }
+
+    /// <summary>The episodes of each show a person finished, by the show's IMDb id.</summary>
+    private static Dictionary<string, HashSet<(int Season, int Number)>> Finished(
         IReadOnlyList<TitleSummary> titles, IEnumerable<(string TitleId, WatchEntry Entry)> entries)
     {
         var episodes = new Dictionary<string, (string Show, int Season, int Number)>(StringComparer.Ordinal);

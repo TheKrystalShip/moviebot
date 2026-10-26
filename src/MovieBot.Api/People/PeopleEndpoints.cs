@@ -3,6 +3,7 @@ using TheKrystalShip.MovieBot.Api.Auth;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
+using TheKrystalShip.MovieBot.Catalogue;
 using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.People;
@@ -84,8 +85,8 @@ public static class PeopleEndpoints
             SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
-            return Results.Ok(ContinueWatching(EntriesOf(person.UserId, record, sessions, library, clock), library, shows,
-                person.Holds(CinemaActions.Download), DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)));
+            return Results.Ok(ContinueWatching(EntriesOf(person.UserId, record, sessions, library, clock), record.Marks(person.UserId),
+                library, shows, person.Holds(CinemaActions.Download), DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)));
         }).RequireAction(CinemaActions.ProfileRead);
 
         // Where a device that watched with no connection got to. Each entry is recorded the way a
@@ -121,6 +122,48 @@ public static class PeopleEndpoints
             return Results.Ok(HistoryOf(person.UserId, record, sessions, library, clock));
         }).RequireAction(CinemaActions.ProfileRead);
 
+        // What the person says they watched, here or anywhere, or takes back. Watching marked ends a want
+        // as finishing it in a room does; taking it back also forgets their progress in what the library
+        // holds of it, so nothing they did says they watched it.
+        app.MapPost("/api/me/watched", (WatchedChange body, HttpContext context, WatchRecord record, WatchRecorder recorder,
+            CatalogueTitles shows, TitleLibrary library, PersonDirectory people, TimeProvider clock) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if (body.ImdbId is not { } imdbId || !TitleQuery.IsImdbId(imdbId)) return Refuse("Name the title by its IMDb id.");
+
+            var now = clock.GetUtcNow();
+            List<Watchable> what;
+            switch (body.Kind)
+            {
+                case "film":
+                    if (body.Season is not null || body.Episode is not null) return Refuse("A film has no seasons or episodes.");
+                    what = [Watchable.Film(imdbId)];
+                    break;
+                case "show":
+                    if (body.Episode is not null && body.Season is null) return Refuse("Name the season the episode is in.");
+                    what = Episodes(imdbId, body.Season, body.Episode, body.Watched, shows, library, DateOnly.FromDateTime(now.UtcDateTime));
+                    if (what.Count == 0)
+                        return Results.Json(new ErrorReply(body.Watched ? "Nothing of that has aired." : "The show has no such episode."),
+                            ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+                    break;
+                default:
+                    return Refuse("Say whether it is a film or a show.");
+            }
+
+            people.Remember(person.UserId, person.DisplayName);
+            if (body.Watched)
+            {
+                record.Mark(person.UserId, what, now);
+                recorder.Marked(person.UserId, imdbId, show: body.Kind == "show");
+            }
+            else
+            {
+                record.Unmark(person.UserId, what);
+            }
+
+            return Results.NoContent();
+        }).RequireAction(CinemaActions.ProfileWrite);
+
         // Forgetting a film that was never watched is the same end state, so it is not an error.
         app.MapDelete("/api/me/history/{titleId}", (string titleId, HttpContext context, WatchRecord record) =>
         {
@@ -129,6 +172,28 @@ public static class PeopleEndpoints
             record.Forget(person.UserId, titleId);
             return Results.NoContent();
         }).RequireAction(CinemaActions.ProfileWrite);
+    }
+
+    /// <summary>
+    /// The episodes of a show a change names, in order: every one the catalogue lists or the library
+    /// holds, of one season or of all of them, or one. Marked watched, an episode the library does not
+    /// hold counts only once it has aired.
+    /// </summary>
+    private static List<Watchable> Episodes(string imdbId, int? season, int? episode, bool watched, CatalogueTitles shows,
+        TitleLibrary library, DateOnly today)
+    {
+        var described = (shows.Show(imdbId)?.Seasons ?? [])
+            .Where(s => s.Number >= 1)
+            .SelectMany(s => s.Episodes)
+            .Select(e => (e.Season, e.Number, Aired: FollowViews.AirDate(e.AirDate) is { } aired && aired <= today));
+        var held = library.EpisodesOf(imdbId).Select(e => (e.Manifest.Episode!.Season, e.Manifest.Episode.Number, Aired: true));
+
+        return [.. described.Concat(held)
+            .GroupBy(e => (e.Season, e.Number))
+            .Select(g => (g.Key.Season, g.Key.Number, Aired: g.Any(e => e.Aired)))
+            .Where(e => (season is null || e.Season == season) && (episode is null || e.Number == episode) && (!watched || e.Aired))
+            .OrderBy(e => e.Season).ThenBy(e => e.Number)
+            .Select(e => new Watchable(imdbId, e.Season, e.Number))];
     }
 
     /// <summary>What a person watched of what the library still holds, newest first, as <c>/api/me/history</c> lists it.</summary>
@@ -218,51 +283,78 @@ public static class PeopleEndpoints
     /// show's description with no title id, for a person who may fetch it (<paramref name="mayFetch"/>)
     /// and once it has aired: choosing it is Watch now. A show whose last episode is finished is not
     /// listed. An episode after takes the time its predecessor was finished, so the show keeps its
-    /// place in the list.
+    /// place in the list. A person's mark on an episode (<paramref name="marks"/>) is that episode finished
+    /// at the time of the mark, here or not, so a season watched elsewhere is carried on from the episode
+    /// after it. On an episode the library holds it says what the episode's entry says, unless the entry
+    /// is newer, and the newer of the two is the one the show is listed by.
     /// </summary>
     public static List<ProgressEntry> ContinueWatching(
-        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, TitleLibrary library, CatalogueTitles shows,
-        bool mayFetch, DateOnly today)
+        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, IReadOnlyList<WatchedMark> marks, TitleLibrary library,
+        CatalogueTitles shows, bool mayFetch, DateOnly today)
     {
         var entries = newestFirst.ToList();
         var byTitle = entries.ToDictionary(e => e.TitleId, e => e.Entry, StringComparer.Ordinal);
+        var activity = entries
+            .Select(e => (At: e.Entry.LastWatchedAt, TitleId: (string?)e.TitleId, Entry: (WatchEntry?)e.Entry, Mark: (Watchable?)null))
+            .Concat(marks
+                .Where(m => !m.What.IsFilm)
+                .Select(m => (At: m.MarkedAt, TitleId: (string?)null, Entry: (WatchEntry?)null, Mark: (Watchable?)m.What)))
+            .OrderByDescending(a => a.At)
+            .ToList();
+
         var seenShows = new HashSet<string>(StringComparer.Ordinal);
         var listed = new List<ProgressEntry>();
 
-        foreach (var (titleId, entry) in entries)
+        foreach (var (at, titleId, entry, mark) in activity)
         {
-            if (library.Get(titleId) is not { } manifest) continue;
+            if (mark is { } marked)
+            {
+                if (!seenShows.Add(marked.ImdbId)) continue;
+                var place = new EpisodeIdentity { Season = marked.Season, Number = marked.Number };
+                if (After(marked.ImdbId, place, shows.Card(marked.ImdbId)?.Title ?? marked.ImdbId, at) is { } carried)
+                    listed.Add(carried);
+                continue;
+            }
+
+            if (library.Get(titleId!) is not { } manifest) continue;
             var show = manifest.Episode is null ? null : manifest.Film?.ImdbId;
 
             if (show is null)
             {
-                if (!entry.Finished) listed.Add(Progress(titleId, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
+                if (!entry!.Finished) listed.Add(Progress(titleId!, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
                 continue;
             }
 
             if (!seenShows.Add(show)) continue;
-            if (!entry.Finished)
+            if (!entry!.Finished)
             {
-                listed.Add(Progress(titleId, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
+                listed.Add(Progress(titleId!, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
                 continue;
             }
 
-            var after = shows.EpisodeAfter(show, manifest.Episode!);
-            if (HeldAfter(library, show, manifest.Episode!, after) is { } next)
-            {
-                var started = byTitle.GetValueOrDefault(next.Id) is { Finished: false } begun ? begun.PositionSeconds : 0;
-                listed.Add(Progress(next.Id, next.Manifest, started, next.Manifest.DurationSeconds, entry.LastWatchedAt, shows));
-            }
-            else if (after is not null && mayFetch && Described(shows, show, after) is { } described
-                     && FollowViews.AirDate(described.AirDate) is { } aired && FollowViews.IsDue(aired, today))
-            {
-                var duration = (described.RuntimeMinutes ?? 0) * 60.0;
-                listed.Add(new ProgressEntry(null, manifest.Film?.Name ?? manifest.Title, 0, duration, duration,
-                    entry.LastWatchedAt, after, show, described.Name, StillOf(shows, show, after)));
-            }
+            if (After(show, manifest.Episode!, manifest.Film?.Name ?? manifest.Title, entry.LastWatchedAt) is { } next)
+                listed.Add(next);
         }
 
         return listed;
+
+        // The episode after a finished one, as Continue watching lists it, or null when there is none to offer.
+        ProgressEntry? After(string show, EpisodeIdentity episode, string showName, DateTimeOffset finishedAt)
+        {
+            var after = shows.EpisodeAfter(show, episode);
+            if (HeldAfter(library, show, episode, after) is { } next)
+            {
+                var started = byTitle.GetValueOrDefault(next.Id) is { Finished: false } begun ? begun.PositionSeconds : 0;
+                return Progress(next.Id, next.Manifest, started, next.Manifest.DurationSeconds, finishedAt, shows);
+            }
+            if (after is not null && mayFetch && Described(shows, show, after) is { } described
+                && FollowViews.AirDate(described.AirDate) is { } aired && FollowViews.IsDue(aired, today))
+            {
+                var duration = (described.RuntimeMinutes ?? 0) * 60.0;
+                return new ProgressEntry(null, showName, 0, duration, duration, finishedAt, after, show, described.Name, StillOf(shows, show, after));
+            }
+            return null;
+        }
     }
 
     /// <summary>

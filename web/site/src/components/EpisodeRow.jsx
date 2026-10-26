@@ -4,7 +4,8 @@ import { clock } from "../time.js";
 
 /**
  * One episode as a season lists it, on a show's page and in the player's Episodes menu: its number,
- * its still with how far this person got, its name, its length. Under the name is where its
+ * its still with how far this person got, or full once they watched it through or marked it watched,
+ * its name, its length. Under the name is where its
  * download to this device stands when there is one (`download`, from `useDownloadMarks`), else when it
  * aired. Choosing the row is all it takes to watch it, so nothing on it asks for anything else.
  *
@@ -15,7 +16,7 @@ import { clock } from "../time.js";
  */
 export function EpisodeRow({ episode: e, download = null, link = null, onPick = null, current = false, room = false,
   starting = false, off = false }) {
-  const done = e.progress && e.progress.finished;
+  const done = (e.progress && e.progress.finished) || e.watched;
   const fraction = done ? 1
     : e.progress && e.durationSeconds ? Math.min(1, e.progress.positionSeconds / e.durationSeconds) : 0;
   const runtime = e.runtime ? clock(e.runtime * 60) : e.durationSeconds ? clock(e.durationSeconds) : null;

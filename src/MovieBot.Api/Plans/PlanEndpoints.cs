@@ -49,7 +49,7 @@ public static class PlanEndpoints
             {
                 var at = body.Season is { } s && body.Number is { } n ? new WantEpisode { Season = s, Episode = n }
                     : Wants.ShowProgress.Next(shows.Show(imdb),
-                        Wants.ShowProgress.Finished(library.Titles(), record.Entries(person.UserId)).GetValueOrDefault(imdb));
+                        Wants.ShowProgress.Finished(library.Titles(), record, person.UserId).GetValueOrDefault(imdb));
                 if (at is null) return Error("That show has no episode to start at.", StatusCodes.Status400BadRequest);
                 if (NotAired(shows.Show(imdb), at, FollowViews.Today(clock)))
                     return Error("That episode has not aired yet, so there is nothing to plan.", StatusCodes.Status409Conflict);

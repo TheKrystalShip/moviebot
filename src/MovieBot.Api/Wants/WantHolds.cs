@@ -40,7 +40,7 @@ public sealed class WantHolds(
         foreach (var person in wants.All().Where(w => w.Since > oldest).GroupBy(w => w.UserId, StringComparer.Ordinal))
         {
             var shelf = LibraryShelf.Of(titles, record, person.Key);
-            var finished = ShowProgress.Finished(titles, record.Entries(person.Key));
+            var finished = ShowProgress.Finished(titles, record, person.Key);
             foreach (var want in person)
             {
                 var watched = want.Kind == WantKinds.Show

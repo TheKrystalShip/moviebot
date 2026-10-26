@@ -5,7 +5,7 @@ namespace TheKrystalShip.MovieBot.Api.Library;
 
 /// <summary>
 /// What the library holds, by IMDb id: the title that plays each film, the shows with an episode
-/// here, and the films the viewer watched through. What a list, a search or a discovery joins a film
+/// here, and the films the viewer watched through, here or, by their own say, anywhere. What a list, a search or a discovery joins a film
 /// the database named with, so each says whether the library has it and whether this person has seen it.
 /// </summary>
 public sealed record LibraryShelf(Dictionary<string, string> Films, HashSet<string> Shows, HashSet<string> Watched)
@@ -31,12 +31,14 @@ public sealed record LibraryShelf(Dictionary<string, string> Films, HashSet<stri
             filmOf[title.Id] = imdbId;
         }
 
-        var watched = viewerId is null
-            ? new HashSet<string>(StringComparer.Ordinal)
-            : record.Entries(viewerId)
+        var watched = new HashSet<string>(StringComparer.Ordinal);
+        if (viewerId is not null)
+        {
+            watched.UnionWith(record.Entries(viewerId)
                 .Where(e => e.Entry.Finished && filmOf.ContainsKey(e.TitleId))
-                .Select(e => filmOf[e.TitleId])
-                .ToHashSet(StringComparer.Ordinal);
+                .Select(e => filmOf[e.TitleId]));
+            watched.UnionWith(record.Marks(viewerId).Where(m => m.What.IsFilm).Select(m => m.What.ImdbId));
+        }
         return new LibraryShelf(films, shows, watched);
     }
 
@@ -48,6 +50,6 @@ public sealed record LibraryShelf(Dictionary<string, string> Films, HashSet<stri
     public bool Holds(string kind, string? imdbId) =>
         imdbId is not null && (kind == "film" ? Films.ContainsKey(imdbId) : Shows.Contains(imdbId));
 
-    /// <summary>Whether the viewer watched the film through. Never true for a show.</summary>
+    /// <summary>Whether the viewer watched the film through, or marked it watched. Never true for a show.</summary>
     public bool Saw(string kind, string? imdbId) => kind == "film" && imdbId is not null && Watched.Contains(imdbId);
 }

@@ -260,7 +260,7 @@ public sealed class WantFetcher(
             if (next is null)
             {
                 var finished = candidate.Fetchers.ToDictionary(
-                    u => u, u => ShowProgress.Finished(titles, record.Entries(u)).GetValueOrDefault(imdb), StringComparer.Ordinal);
+                    u => u, u => ShowProgress.Finished(titles, record, u).GetValueOrDefault(imdb), StringComparer.Ordinal);
                 next = WantFetchRules.Earliest(candidate.Fetchers.Select(u => ShowProgress.Next(stored, finished[u])));
             }
             if (next is null) return false;

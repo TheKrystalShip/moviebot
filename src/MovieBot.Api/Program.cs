@@ -56,6 +56,7 @@ builder.Services.AddSingleton(sp => new TitleLibrary(
 builder.Services.AddSingleton<LibraryListing>();
 builder.Services.AddSingleton<TitlePosters>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryListing>());
+builder.Services.AddSingleton<IHeldTitles>(sp => sp.GetRequiredService<LibraryListing>());
 builder.Services.AddSingleton<SessionStore>();
 
 // What each connected viewer would watch at, for the transcode planner. In memory and per

@@ -79,6 +79,11 @@ public sealed record EpisodeView
     public double? DurationSeconds { get; init; }
     public TitleProgress? Progress { get; init; }
     public TitleLastPlayed? LastPlayed { get; init; }
+
+    /// <summary>
+    /// Whether the asking person watched the episode through here or marked it watched, here or not.
+    /// </summary>
+    public bool Watched { get; init; }
 }
 
 /// <summary>An episode somebody is in the middle of, or the one after the last they finished.</summary>

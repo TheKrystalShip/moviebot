@@ -34,7 +34,11 @@ public static class ShowEndpoints
                 return Results.Json(new ErrorReply("Neither the catalogue nor the library holds a show under that id."), ApiJsonContext.Default.ErrorReply,
                     statusCode: StatusCodes.Status404NotFound);
             var person = PeopleEndpoints.Person(context);
-            return Results.Ok(catalogue.View(imdbId, episodes, person is null ? null : follows.Get(person.UserId, imdbId)));
+            var marked = person is null ? null : record.Marks(person.UserId)
+                .Where(m => m.What.ImdbId == imdbId && !m.What.IsFilm)
+                .Select(m => (m.What.Season, m.What.Number))
+                .ToHashSet();
+            return Results.Ok(catalogue.View(imdbId, episodes, person is null ? null : follows.Get(person.UserId, imdbId), marked));
         }).RequireAction(CinemaActions.Watch);
 
         // What the tracker offers for a show, season by season: packs and single episodes, each best

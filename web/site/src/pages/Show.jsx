@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@thekrystalship/krystal";
+import { Button, Icon, IconButton, Menu, MenuItem, usePhone } from "@thekrystalship/krystal";
 import { certificateOf, episodeCode, libraryApi, roomsApi } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useLoad } from "../data.js";
@@ -16,8 +16,9 @@ import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
-import { DownloadMark, SeasonDownload, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
+import { DownloadMark, SeasonDownload, useDownloadMark, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
+import { useWatchedChange } from "../components/WatchedButton.jsx";
 import { episodeRelease, openingEpisode, openingRequest, watchNow, watchOpening } from "../watchNow.js";
 import { WatchOnTvActions, useDriving } from "../components/WatchOnTv.jsx";
 import { watchOnTv } from "../remoteWatch.js";
@@ -189,7 +190,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
 
           <SeasonPanel season={current} me={me} rooms={rooms.data || []}
             offers={offers.data} showImdbId={s.imdbId} showName={s.title} backdrop={s.backdrop || s.poster} saving={saving}
-            fetching={saving && downloading} />
+            fetching={saving && downloading} onWatched={show.reload} />
         </section>
       )}
 
@@ -234,12 +235,17 @@ function NextEpisode({ play, resume, seasons, room }) {
  * row whose episode is downloaded, downloading or being prepared says so under its name. An episode
  * whole in the library can be downloaded by anybody who may download; one still being made or only
  * on the tracker, and the season together, by somebody who may also fetch onto the server (`fetching`).
+ * Every aired episode's row ends in whether this person watched it, here or anywhere, and the season's
+ * head marks the whole season so; `onWatched` follows a change, to read the show again. On a phone the
+ * row keeps its own play mark and ends in one menu holding Watched and Download, and the season's two
+ * buttons share one row.
  */
-function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop, saving, fetching }) {
+function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop, saving, fetching, onWatched }) {
   const played = season.episodes.map((e) => e.lastPlayed).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
   const playedBy = played && (me && played.byId === me.id ? "you" : played.byName);
   const aired = season.airDate ? new Date(season.airDate).getFullYear() : null;
   const marks = useDownloadMarks();
+  const phone = usePhone();
   const downloadable = (e) => (e.titleId && e.status === "ready")
     || (fetching && ((e.titleId && e.status === "transcoding") || (!e.titleId && !!episodeRelease(offers, e.season, e.number))));
 
@@ -252,28 +258,125 @@ function SeasonPanel({ season, me, rooms, offers, showImdbId, showName, backdrop
             {played ? `Last played ${ago(played.at)} by ${playedBy}` : "Not played yet"}
           </span>
         </div>
-        {fetching && <SeasonDownload imdbId={showImdbId} showName={showName} season={season} offers={offers} backdrop={backdrop} />}
+        <div className="kc-season__actions">
+          <SeasonWatched imdbId={showImdbId} season={season} onChange={onWatched} grow={phone} />
+          {fetching && <SeasonDownload imdbId={showImdbId} showName={showName} season={season} offers={offers} backdrop={backdrop} grow={phone} />}
+        </div>
       </div>
 
       {season.episodes.map((e) => {
         const row = <SeasonEpisode key={e.number} episode={e} rooms={rooms} offers={offers} showImdbId={showImdbId}
           download={saving ? (e.titleId && marks.film(e.titleId)) || marks.want(showImdbId, e.season, e.number) : null} />;
-        if (!saving) return row;
+        const seenable = hasAired(e);
+        const downloading = saving && (downloadable(e) || !!marks.want(showImdbId, e.season, e.number));
+        const head = downloading ? {
+          name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
+          runtime: e.runtime ? clock(e.runtime * 60) : e.durationSeconds ? clock(e.durationSeconds) : null,
+          still: e.still, backdrop,
+        } : null;
+        const target = { titleId: e.titleId || null, imdbId: showImdbId, season: e.season, number: e.number, ready: e.status === "ready", head };
+
+        if (phone) {
+          return (
+            <div key={e.number} className="kc-episode-line">
+              {row}
+              {downloading
+                ? <EpisodeMenuWithDownload imdbId={showImdbId} episode={e} seenable={seenable} target={target} onWatched={onWatched} />
+                : seenable ? <EpisodeMenu imdbId={showImdbId} episode={e} seenable onWatched={onWatched} />
+                  : <span className="kc-episode-save" />}
+            </div>
+          );
+        }
+
+        const seen = seenable
+          ? <EpisodeWatched imdbId={showImdbId} episode={e} onChange={onWatched} />
+          : <span className="kc-episode-save" />;
+        if (!saving) return <div key={e.number} className="kc-episode-line">{row}{seen}</div>;
         return (
           <div key={e.number} className="kc-episode-line">
             {row}
-            {downloadable(e) || marks.want(showImdbId, e.season, e.number)
-              ? <DownloadMark titleId={e.titleId || null} imdbId={showImdbId} season={e.season} number={e.number}
-                  ready={e.status === "ready"} head={{
-                    name: e.name || `Episode ${e.number}`, context: `${showName} · ${episodeCode(e)}`,
-                    runtime: e.runtime ? clock(e.runtime * 60) : e.durationSeconds ? clock(e.durationSeconds) : null,
-                    still: e.still, backdrop,
-                  }} />
-              : <span className="kc-episode-save" />}
+            {seen}
+            {downloading ? <DownloadMark {...target} /> : <span className="kc-episode-save" />}
           </div>
         );
       })}
     </div>
+  );
+}
+
+/** Whether an episode can have been watched: the library holds it, or it has aired. */
+function hasAired(e) {
+  return Boolean(e.titleId) || (e.airDate && e.airDate <= new Date().toISOString().slice(0, 10));
+}
+
+/**
+ * The season watched, or not, at its head: every aired episode of it marked watched with one press, and
+ * unmarked with the next once every one is.
+ */
+function SeasonWatched({ imdbId, season, onChange, grow = false }) {
+  const online = useOnline();
+  const all = season.episodes.filter(hasAired);
+  const { shown, busy, change } = useWatchedChange(all.length > 0 && all.every((e) => e.watched), onChange);
+  if (all.length === 0) return null;
+  return (
+    <Button variant="outline" size="sm" icon={shown ? "circle-check" : "circle"} aria-pressed={shown} disabled={busy || !online} grow={grow}
+      onClick={() => change({ imdbId, kind: "show", season: season.number, watched: !shown }, "Could not change that")}>
+      {shown ? "Season watched" : "Mark season watched"}
+    </Button>
+  );
+}
+
+/** At an episode's row's end: whether this person watched it, one press to say otherwise. */
+function EpisodeWatched({ imdbId, episode: e, onChange }) {
+  const online = useOnline();
+  const { shown, busy, change } = useWatchedChange(Boolean(e.watched), onChange);
+  const label = shown ? "Watched" : "Mark watched";
+  return (
+    <span className="kc-episode-save">
+      <Button variant="bare" className={"kc-seen-mark" + (shown ? " is-on" : "")} aria-pressed={shown}
+        aria-label={`${label}: ${e.name || `Episode ${e.number}`}`} title={label} disabled={busy || !online}
+        onClick={() => change({ imdbId, kind: "show", season: e.season, episode: e.number, watched: !shown }, "Could not change that")}>
+        <Icon name={shown ? "circle-check" : "circle"} size={18} />
+      </Button>
+    </span>
+  );
+}
+
+/**
+ * A phone's episode menu, at its row's end: Watched, and Download where the episode can be downloaded
+ * (`download`, from `useDownloadMark`), whose sheet is drawn beside the menu so it outlives the menu
+ * closing.
+ */
+function EpisodeMenu({ imdbId, episode: e, seenable, download = null, onWatched }) {
+  const online = useOnline();
+  const { shown, busy, change } = useWatchedChange(Boolean(e.watched), onWatched);
+  const name = e.name || `Episode ${e.number}`;
+  return (
+    <span className="kc-episode-save">
+      <Menu label={name} placement="bottom-end"
+        trigger={<IconButton variant="ghost" icon="ellipsis-vertical" label={`More: ${name}`} />}>
+        {seenable && (
+          <MenuItem icon={shown ? "circle-check" : "circle"} disabled={busy || !online}
+            onSelect={() => change({ imdbId, kind: "show", season: e.season, episode: e.number, watched: !shown }, "Could not change that")}>
+            {shown ? "Mark unwatched" : "Mark watched"}
+          </MenuItem>
+        )}
+        {download && (
+          <MenuItem icon={download.icon} disabled={download.disabled} onSelect={download.open}>{download.label}</MenuItem>
+        )}
+      </Menu>
+    </span>
+  );
+}
+
+/** A phone's episode menu for an episode that can be downloaded: where its download stands, and its sheet. */
+function EpisodeMenuWithDownload({ imdbId, episode, seenable, target, onWatched }) {
+  const download = useDownloadMark(target);
+  return (
+    <>
+      <EpisodeMenu imdbId={imdbId} episode={episode} seenable={seenable} download={download} onWatched={onWatched} />
+      {download && download.sheet}
+    </>
   );
 }
 

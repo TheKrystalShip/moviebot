@@ -29,6 +29,9 @@ export const me = {
   history: () => call("GET", "/api/me/history"),
   historyPage: (params) => call("GET", withQuery("/api/me/history/page", params)),
   forgetHistory: (id) => call("DELETE", `/api/me/history/${enc(id)}`),
+  // What they say they watched, here or anywhere, or take back: a film, or a show, a season of it or
+  // an episode of it, by IMDb id (`{ imdbId, kind, season?, episode?, watched }`).
+  setWatched: (change) => call("POST", "/api/me/watched", change),
   // Each answer is kept on the device for the account, which offline pages and the player read with
   // no connection (`offline/preferences.js`).
   preferences: () => call("GET", "/api/me/preferences").then(kept),

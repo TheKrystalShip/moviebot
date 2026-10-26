@@ -227,32 +227,48 @@ export function DownloadButton({ titleId = null, imdbId = null, ready = false, h
  * the show's, and `season` and `number` the episode's, by which one not whole is asked for.
  */
 export function DownloadMark({ titleId = null, imdbId = null, season = null, number = null, ready = false, head }) {
-  const standing = useStanding(titleId, imdbId, season, number);
-  const online = useOnline();
-  const [open, setOpen] = React.useState(false);
-  if (standing.kind === "loading") return <span className="kc-episode-save" />;
-  const { icon, label } = face(standing);
-  const target = { titleId, imdbId, ready, episodes: season != null ? [{ season, episode: number }] : null };
-  const ring = standing.kind === "underway"
-    ? <Ring percent={percent(standing)} state={standing.state} />
-    : standing.kind === "preparing" && !standing.failed ? <Ring percent={standing.percent || 0} state="preparing" /> : null;
+  const mark = useDownloadMark({ titleId, imdbId, season, number, ready, head });
+  if (!mark) return <span className="kc-episode-save" />;
   return (
     <span className="kc-episode-save">
-      <Button variant="bare" className={"kc-dl-mark is-" + standing.kind} aria-label={`${label}: ${head.name}`} title={label}
-        disabled={standing.kind === "none" && !online} onClick={() => setOpen(true)}>
-        {ring || <Icon name={icon} size={18} />}
+      <Button variant="bare" className={"kc-dl-mark is-" + mark.kind} aria-label={`${mark.label}: ${head.name}`} title={mark.label}
+        disabled={mark.disabled} onClick={mark.open}>
+        {mark.ring || <Icon name={mark.icon} size={18} />}
       </Button>
-      {open && <DownloadSheet target={target} head={head} standing={standing} onClose={() => setOpen(false)} />}
+      {mark.sheet}
     </span>
   );
 }
 
 /**
+ * Where an episode's download stands and the sheet that acts on it, for a control of the caller's: the
+ * square at a row's end, or an item of a phone's row menu. Null while where it stands is being read.
+ * `open` shows the sheet, and `sheet` is what to draw for it.
+ */
+export function useDownloadMark({ titleId = null, imdbId = null, season = null, number = null, ready = false, head }) {
+  const standing = useStanding(titleId, imdbId, season, number);
+  const online = useOnline();
+  const [open, setOpen] = React.useState(false);
+  if (standing.kind === "loading") return null;
+  const { icon, label } = face(standing);
+  const target = { titleId, imdbId, ready, episodes: season != null ? [{ season, episode: number }] : null };
+  const ring = standing.kind === "underway"
+    ? <Ring percent={percent(standing)} state={standing.state} />
+    : standing.kind === "preparing" && !standing.failed ? <Ring percent={standing.percent || 0} state="preparing" /> : null;
+  return {
+    kind: standing.kind, icon, label, ring,
+    disabled: standing.kind === "none" && !online,
+    open: () => setOpen(true),
+    sheet: open ? <DownloadSheet target={target} head={head} standing={standing} onClose={() => setOpen(false)} /> : null,
+  };
+}
+
+/**
  * Download season: every episode of a season this device has not downloaded or asked for, that the
  * library holds or the tracker offers, asked for together at one quality. Says so once every one is
- * here or on its way.
+ * here or on its way. `grow` has it share its row with the buttons beside it.
  */
-export function SeasonDownload({ imdbId, showName, season, offers, backdrop }) {
+export function SeasonDownload({ imdbId, showName, season, offers, backdrop, grow = false }) {
   const marks = useDownloadMarks();
   const online = useOnline();
   // The episodes the sheet asks for, as they stood when it opened: asking marks every one of them,
@@ -269,7 +285,7 @@ export function SeasonDownload({ imdbId, showName, season, offers, backdrop }) {
   const count = (n) => `${n} ${n === 1 ? "episode" : "episodes"}`;
   return (
     <>
-      <Button variant="outline" size="sm" icon={done ? "circle-check" : "hard-drive-download"} className="kc-dl-season"
+      <Button variant="outline" size="sm" icon={done ? "circle-check" : "hard-drive-download"} className="kc-dl-season" grow={grow}
         disabled={remaining.length === 0 || !online}
         onClick={() => setAsking(remaining.map((e) => ({ season: e.season, episode: e.number })))}>
         {label}

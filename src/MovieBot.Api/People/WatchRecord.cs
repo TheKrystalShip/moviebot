@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using TheKrystalShip.MovieBot.Api.Data;
+using TheKrystalShip.MovieBot.Api.Library;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.People;
 
@@ -10,6 +12,31 @@ public sealed record WatchEntry
     public double DurationSeconds { get; init; }
     public DateTimeOffset LastWatchedAt { get; init; }
     public bool Finished { get; init; }
+}
+
+/// <summary>
+/// What can be watched, by what it is rather than by a library title: a film by its IMDb id, an
+/// episode by its show's IMDb id, season and number as the releases number them.
+/// </summary>
+public readonly record struct Watchable(string ImdbId, int Season, int Number)
+{
+    public static Watchable Film(string imdbId) => new(imdbId, 0, 0);
+
+    public bool IsFilm => Season == 0 && Number == 0;
+
+    /// <summary>What a library title is, or null for one nothing identified.</summary>
+    public static Watchable? Of(TitleSummary title) => title.Film?.ImdbId is not { } imdbId ? null
+        : title.Kind == TitleKind.Show ? title.Episode is { } e ? new Watchable(imdbId, e.Season, e.Number) : null
+        : Film(imdbId);
+}
+
+/// <summary>A person saying they watched something, here or elsewhere, and when they said it.</summary>
+public sealed record WatchedMark(Watchable What, DateTimeOffset MarkedAt);
+
+/// <summary>The titles the library holds, as it was last listed.</summary>
+public interface IHeldTitles
+{
+    IReadOnlyList<TitleSummary> Titles();
 }
 
 /// <summary>The last time a film was played by anybody, and by whom.</summary>
@@ -26,6 +53,12 @@ public sealed record TitlePlay
 /// is what Continue watching and History read, and they can have it removed. The film's own last
 /// play is the library's, read by the clock that decides when an unwatched film leaves, so a person
 /// forgetting a film does not make it look unplayed.
+///
+/// Beside the entries are the person's marks: what they said they watched, here or elsewhere, kept by
+/// what it is (<see cref="Watchable"/>) so it holds for a film the library has never had and outlives
+/// one that leaves. A mark is no play, so it moves no film's last play. A title the library holds that
+/// a mark names reads as finished at the time of the mark wherever its entry is read, unless the entry
+/// is newer: somebody who starts a film again after marking it is partway through it again.
 /// </summary>
 public sealed class WatchRecord : IPlayHistory
 {
@@ -39,9 +72,12 @@ public sealed class WatchRecord : IPlayHistory
     /// <summary>Raised, with the person and the title, when a sample takes a title past the point it counts as finished.</summary>
     public event Action<string, string>? Finished;
 
-    public WatchRecord(CinemaDatabase database, TimeProvider clock)
+    private readonly IHeldTitles _held;
+
+    public WatchRecord(CinemaDatabase database, TimeProvider clock, IHeldTitles held)
     {
         _database = database;
+        _held = held;
         RecordingSince = database.Write(c =>
         {
             if (c.First("SELECT value FROM meta WHERE key = $key", r => r.GetString(0), ("$key", SinceKey)) is { } kept)
@@ -107,13 +143,73 @@ public sealed class WatchRecord : IPlayHistory
         return recorded;
     }
 
-    /// <summary>One person's films, newest first.</summary>
-    public IReadOnlyList<(string TitleId, WatchEntry Entry)> Entries(string userId) =>
-        _database.Read(c => c.Query(
-            "SELECT title_id, position_seconds, duration_seconds, last_watched_at, finished FROM watch_progress "
-            + "WHERE user_id = $user ORDER BY last_watched_at DESC",
-            r => (r.GetString(0), Entry(r, 1)),
-            ("$user", userId)));
+    /// <summary>One person's films, newest first, each title the library holds that they marked read as finished when the mark is newer.</summary>
+    public IReadOnlyList<(string TitleId, WatchEntry Entry)> Entries(string userId)
+    {
+        var (entries, marks) = _database.Read(c => (
+            c.Query(
+                "SELECT title_id, position_seconds, duration_seconds, last_watched_at, finished FROM watch_progress "
+                + "WHERE user_id = $user",
+                r => (Id: r.GetString(0), Entry: Entry(r, 1)),
+                ("$user", userId)),
+            MarksOf(c, userId)));
+
+        var byTitle = entries.ToDictionary(e => e.Id, e => e.Entry, StringComparer.Ordinal);
+        if (marks.Count > 0)
+        {
+            var marked = marks.ToDictionary(m => m.What, m => m.MarkedAt);
+            foreach (var title in _held.Titles())
+            {
+                if (Watchable.Of(title) is not { } what || !marked.TryGetValue(what, out var at)) continue;
+                if (byTitle.TryGetValue(title.Id, out var kept) && kept.LastWatchedAt >= at) continue;
+                byTitle[title.Id] = MarkedEntry(title.DurationSeconds, at);
+            }
+        }
+
+        return [.. byTitle.OrderByDescending(e => e.Value.LastWatchedAt).Select(e => (e.Key, e.Value))];
+    }
+
+    /// <summary>One person's marks, newest first.</summary>
+    public IReadOnlyList<WatchedMark> Marks(string userId) => _database.Read(c => MarksOf(c, userId));
+
+    /// <summary>
+    /// Marks what the person says they watched, in the order given: the first is marked earliest and the
+    /// last at <paramref name="at"/>, a millisecond apart, so the latest of a season marked at once is its
+    /// last episode, as it is for a season watched through.
+    /// </summary>
+    public void Mark(string userId, IReadOnlyList<Watchable> what, DateTimeOffset at) =>
+        _database.Write(c =>
+        {
+            for (var i = 0; i < what.Count; i++)
+                c.Execute(
+                    "INSERT OR REPLACE INTO watched_marks (user_id, imdb_id, season, number, marked_at) "
+                    + "VALUES ($user, $imdb, $season, $number, $at)",
+                    ("$user", userId), ("$imdb", what[i].ImdbId), ("$season", what[i].Season), ("$number", what[i].Number),
+                    ("$at", at - TimeSpan.FromMilliseconds(what.Count - 1 - i)));
+        });
+
+    /// <summary>
+    /// Takes back that the person watched these: their marks, and their entries for the titles the
+    /// library holds of them, so nothing they did says they watched them. The films' last plays stay.
+    /// </summary>
+    public void Unmark(string userId, IReadOnlyList<Watchable> what)
+    {
+        var undone = what.ToHashSet();
+        var titles = _held.Titles()
+            .Where(t => Watchable.Of(t) is { } w && undone.Contains(w))
+            .Select(t => t.Id)
+            .ToList();
+
+        _database.Write(c =>
+        {
+            foreach (var w in what)
+                c.Execute("DELETE FROM watched_marks WHERE user_id = $user AND imdb_id = $imdb AND season = $season AND number = $number",
+                    ("$user", userId), ("$imdb", w.ImdbId), ("$season", w.Season), ("$number", w.Number));
+            foreach (var titleId in titles)
+                c.Execute("DELETE FROM watch_progress WHERE user_id = $user AND title_id = $title",
+                    ("$user", userId), ("$title", titleId));
+        });
+    }
 
     /// <summary>Every entry somebody touched since <paramref name="since"/>: who, which title, and when.</summary>
     public IReadOnlyList<(string UserId, string TitleId, DateTimeOffset At)> WatchedSince(DateTimeOffset since) =>
@@ -133,12 +229,22 @@ public sealed class WatchRecord : IPlayHistory
             return (IReadOnlyList<string>)[.. watchers];
         });
 
-    public WatchEntry? EntryOf(string userId, string titleId) =>
-        _database.Read(c => c.First(
+    public WatchEntry? EntryOf(string userId, string titleId)
+    {
+        var kept = _database.Read(c => c.First(
             "SELECT position_seconds, duration_seconds, last_watched_at, finished FROM watch_progress "
             + "WHERE user_id = $user AND title_id = $title",
             r => Entry(r, 0),
             ("$user", userId), ("$title", titleId)));
+
+        if (_held.Titles().FirstOrDefault(t => t.Id == titleId) is not { } title || Watchable.Of(title) is not { } what)
+            return kept;
+        var at = _database.Read(c => c.First(
+            "SELECT marked_at FROM watched_marks WHERE user_id = $user AND imdb_id = $imdb AND season = $season AND number = $number",
+            r => r.GetInstant(0),
+            ("$user", userId), ("$imdb", what.ImdbId), ("$season", what.Season), ("$number", what.Number)));
+        return at != default && (kept is null || kept.LastWatchedAt < at) ? MarkedEntry(title.DurationSeconds, at) : kept;
+    }
 
     /// <summary>
     /// Removes the person's entry for a film and, with it, their progress. The film's last play stays:
@@ -169,6 +275,20 @@ public sealed class WatchRecord : IPlayHistory
             + "VALUES ($user, $title, $position, $duration, $at, $finished)",
             ("$user", userId), ("$title", titleId), ("$position", position), ("$duration", duration), ("$at", at),
             ("$finished", position >= duration * FinishedFraction));
+
+    private static List<WatchedMark> MarksOf(SqliteConnection c, string userId) =>
+        c.Query(
+            "SELECT imdb_id, season, number, marked_at FROM watched_marks WHERE user_id = $user ORDER BY marked_at DESC",
+            r => new WatchedMark(new Watchable(r.GetString(0), r.GetInt32(1), r.GetInt32(2)), r.GetInstant(3)),
+            ("$user", userId));
+
+    private static WatchEntry MarkedEntry(double duration, DateTimeOffset at) => new()
+    {
+        PositionSeconds = duration,
+        DurationSeconds = duration,
+        LastWatchedAt = at,
+        Finished = true,
+    };
 
     private static WatchEntry Entry(SqliteDataReader r, int first) => new()
     {

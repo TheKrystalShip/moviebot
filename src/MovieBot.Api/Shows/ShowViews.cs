@@ -56,8 +56,12 @@ public static class ShowViews
         return new ResumePoint(resume.Id, place.Season, place.Number, position, resume.DurationSeconds);
     }
 
-    /// <summary>What the person has of one show, from the catalogue's seasons and what the library holds of it.</summary>
-    public static PersonShowView View(this CatalogueTitles titles, string imdbId, IReadOnlyList<TitleSummary> episodes, StoredFollow? follow = null)
+    /// <summary>
+    /// What the person has of one show, from the catalogue's seasons and what the library holds of it.
+    /// <paramref name="marked"/> is the episodes of it the person marked watched.
+    /// </summary>
+    public static PersonShowView View(this CatalogueTitles titles, string imdbId, IReadOnlyList<TitleSummary> episodes,
+        StoredFollow? follow = null, IReadOnlySet<(int Season, int Number)>? marked = null)
     {
         var stored = titles.Show(imdbId);
         var held = episodes
@@ -91,6 +95,7 @@ public static class ShowViews
                     DurationSeconds = title?.DurationSeconds,
                     Progress = title?.Progress,
                     LastPlayed = title?.LastPlayed,
+                    Watched = title?.Progress is { Finished: true } || marked?.Contains((n, number)) == true,
                 };
             }).ToList();
             return new SeasonView { Number = n, Name = season?.Name, AirDate = season?.AirDate, Overview = season?.Overview, Poster = season?.PosterPath, Episodes = rows };

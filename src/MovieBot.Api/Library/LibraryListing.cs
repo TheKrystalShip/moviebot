@@ -14,7 +14,7 @@ namespace TheKrystalShip.MovieBot.Api.Library;
 /// What a person needs exact reads <see cref="TitleLibrary"/> directly: a room's head, a title's own
 /// manifest, and whether a film is here before something is fetched.
 /// </summary>
-public sealed class LibraryListing(TitleLibrary library, ILogger<LibraryListing> logger) : BackgroundService
+public sealed class LibraryListing(TitleLibrary library, ILogger<LibraryListing> logger) : BackgroundService, People.IHeldTitles
 {
     public static readonly TimeSpan Every = TimeSpan.FromSeconds(10);
 

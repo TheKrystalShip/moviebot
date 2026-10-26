@@ -306,10 +306,10 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         var path = Path.Combine(fixture.StateRoot, $"watch-{Guid.NewGuid():n}.db");
         var at = DateTimeOffset.UtcNow;
 
-        var first = new WatchRecord(new CinemaDatabase(path), TimeProvider.System);
+        var first = new WatchRecord(new CinemaDatabase(path), TimeProvider.System, NothingHeld.Instance);
         first.Record("u", Film, 100, 6000, at);
 
-        var second = new WatchRecord(new CinemaDatabase(path), TimeProvider.System);
+        var second = new WatchRecord(new CinemaDatabase(path), TimeProvider.System, NothingHeld.Instance);
         Assert.Equal(100, second.EntryOf("u", Film)!.PositionSeconds);
         Assert.Equal(at, second.LastPlayedAt(Film));
         Assert.Equal(first.RecordingSince, second.RecordingSince);
@@ -328,4 +328,12 @@ internal static class JsonElementExtensions
     /// <summary>The property, or null when the object leaves it out, which is how an absent field reads on the wire.</summary>
     public static JsonElement? GetPropertyOrNull(this JsonElement element, string name) =>
         element.TryGetProperty(name, out var value) ? value : null;
+}
+
+/// <summary>A library that holds nothing, for a record read on its own.</summary>
+internal sealed class NothingHeld : IHeldTitles
+{
+    public static readonly NothingHeld Instance = new();
+
+    public IReadOnlyList<TheKrystalShip.MovieBot.Api.Library.TitleSummary> Titles() => [];
 }

@@ -12,6 +12,7 @@ import { useDriving } from "./WatchOnTv.jsx";
 import { DownloadButton, useOffersSaving } from "./DownloadButton.jsx";
 import { WantButton } from "./WantButton.jsx";
 import { PlanButton } from "./PlanButton.jsx";
+import { WatchedButton } from "./WatchedButton.jsx";
 import { Wanters } from "./Wanters.jsx";
 
 /**
@@ -91,6 +92,7 @@ export function FilmActions({ imdbId, film, state, compact = false, afterWatch =
 
         {(!compact || (a && a.notOut)) && <WantButton imdbId={imdbId} kind="film" title={film.title} />}
         {!compact && <PlanButton imdbId={imdbId} kind="film" notOut={!!(a && a.notOut)} />}
+        {!compact && film.you && <WatchedButton imdbId={imdbId} watched={film.you.watched} />}
         {!compact && a && downloading && saving && (arriving || offer) && (
           <DownloadButton imdbId={imdbId} head={{
             name: film.title, context: film.year || null, runtime: film.runtime ? clock(film.runtime * 60) : null,

@@ -18,8 +18,8 @@ namespace TheKrystalShip.MovieBot.Api.People;
 /// in a room right now is newer than anything written down, and is read from the room itself
 /// (<see cref="SessionStore.Viewing"/>).
 ///
-/// It is also where finishing is seen: a person who finishes a film no longer wants it, and one who
-/// finishes a show's last aired episode no longer wants the show.
+/// It is also where finishing is seen: a person who finishes a film, or marks it watched, no longer
+/// wants it, and one who finishes or marks a show's last aired episode no longer wants the show.
 /// </summary>
 public sealed class WatchRecorder(
     SessionStore sessions,
@@ -62,15 +62,26 @@ public sealed class WatchRecorder(
     private void EndWant(string userId, string titleId)
     {
         if (library.Get(titleId) is not { } manifest || manifest.Film?.ImdbId is not { } imdbId) return;
+        EndWant(userId, imdbId, show: manifest.Episode is not null);
+    }
+
+    /// <summary>
+    /// Ends the want a person's marking a film or episodes of a show watched satisfies, as their
+    /// finishing it would.
+    /// </summary>
+    public void Marked(string userId, string imdbId, bool show) => EndWant(userId, imdbId, show);
+
+    private void EndWant(string userId, string imdbId, bool show)
+    {
         if (wants.Get(userId, imdbId) is not { } want) return;
 
-        if (manifest.Episode is null)
+        if (!show)
         {
             if (want.Kind == WantKinds.Film) wants.Remove(userId, imdbId);
             return;
         }
 
-        var finished = ShowProgress.Finished(listing.Titles(), record.Entries(userId)).GetValueOrDefault(imdbId);
+        var finished = ShowProgress.Finished(listing.Titles(), record, userId).GetValueOrDefault(imdbId);
         if (want.Kind == WantKinds.Show
             && ShowProgress.FinishedAired(shows.Show(imdbId), finished, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)))
             wants.Remove(userId, imdbId);

@@ -40,3 +40,23 @@ public sealed record TitleProgress(double PositionSeconds, bool Finished, DateTi
 /// person's name was never heard, which is never an account id put in its place.
 /// </summary>
 public sealed record TitleLastPlayed(DateTimeOffset At, string ById, string? ByName);
+
+/// <summary>
+/// A person saying they watched something, or taking it back: a film, a show's episode, a season of it,
+/// or all of it, by IMDb id. A season or a show marked watched is every episode of it that has aired.
+/// </summary>
+public sealed record WatchedChange
+{
+    public string? ImdbId { get; init; }
+
+    /// <summary><c>film</c> or <c>show</c>.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>For a show, the season; absent for all of it.</summary>
+    public int? Season { get; init; }
+
+    /// <summary>For a show's season, the episode; absent for the whole season.</summary>
+    public int? Episode { get; init; }
+
+    public bool Watched { get; init; }
+}

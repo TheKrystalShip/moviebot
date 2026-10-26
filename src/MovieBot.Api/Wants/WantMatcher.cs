@@ -31,7 +31,7 @@ public sealed class WantMatcher(WantStore wants, LibraryListing library, WatchRe
         (int, int)? Next(StoredWant w)
         {
             if (!finished.TryGetValue(w.UserId, out var byShow))
-                finished[w.UserId] = byShow = ShowProgress.Finished(titles, record.Entries(w.UserId));
+                finished[w.UserId] = byShow = ShowProgress.Finished(titles, record, w.UserId);
             return ShowProgress.Next(shows.Show(w.ImdbId), byShow.GetValueOrDefault(w.ImdbId)) is { } e ? (e.Season, e.Episode) : null;
         }
 

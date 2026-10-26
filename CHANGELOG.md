@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.0] - 2026-10-26
+
+### Added
+- **Mark as watched, or unwatched.** `POST /api/me/watched` takes a film, or a show, a season of it or one
+  episode, by IMDb id, and says the person watched it, here or anywhere, or takes it back. A mark is kept by
+  what it names (`watched_marks`), so it holds for a title the library never had and outlives one that
+  leaves, and it is no play: no film's last play moves. A season or a show marked watched is every episode
+  of it that has aired. API 3.6.0.
+- A title the library holds that a mark names reads as finished at the time of the mark, unless the person
+  watched it since; the catalogue's `you.watched`, the `unwatched` filter, a series' progress on Discover,
+  the shelves of the person's likes, wants and plans read marks too. Marking a film watched ends the want
+  for it, and marking a show's last aired episode the want for the show.
+- Continue watching carries a show on from the episode after the last one marked, here or not.
+- A show's episodes carry `watched` (`/api/me/shows/{imdbId}`).
+- The site's film pages have Watched beside Want and Plan; a show's page ends every aired episode's row in
+  whether it was watched, and its season's head marks the whole season. On a phone a row keeps its play
+  mark and ends in a three-dot menu holding Mark watched and Download, and Mark season watched and
+  Download season share one row. Site 0.101.0.
+
 ## [4.7.0] - 2026-10-26
 
 ### Added

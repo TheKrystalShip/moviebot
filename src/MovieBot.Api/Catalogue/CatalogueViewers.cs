@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Api.Catalogue;
 /// What the asking person has to do with the catalogue's titles: what the library holds, as last listed,
 /// what they watched through, and what they want. Joined when a card is served, never kept with it.
 /// </summary>
-public sealed class CatalogueViewers(LibraryListing library, WatchRecord record, WantStore wants)
+public sealed class CatalogueViewers(LibraryListing library, WatchRecord record, WantStore wants, CatalogueTitles cards)
 {
     /// <summary>The joins for one person; <paramref name="userId"/> is null for the service key, which names nobody.</summary>
     public ViewerJoin For(string? userId)
@@ -20,12 +20,13 @@ public sealed class CatalogueViewers(LibraryListing library, WatchRecord record,
         var wanted = userId is null
             ? new HashSet<string>(StringComparer.Ordinal)
             : wants.For(userId).Select(w => w.ImdbId).ToHashSet(StringComparer.Ordinal);
-        return new ViewerJoin(shelf, wanted, titles, record);
+        return new ViewerJoin(shelf, wanted, titles, record, cards);
     }
 }
 
 /// <summary>One person's joins: each card's <see cref="Viewer"/>, and the lists only the API can make.</summary>
-public sealed class ViewerJoin(LibraryShelf shelf, HashSet<string> wanted, IReadOnlyList<TitleSummary> titles, WatchRecord record)
+public sealed class ViewerJoin(LibraryShelf shelf, HashSet<string> wanted, IReadOnlyList<TitleSummary> titles, WatchRecord record,
+    CatalogueTitles cards)
 {
     /// <summary>How far back what the people here watched is read for what is popular here.</summary>
     public static readonly TimeSpan PopularHereWindow = TimeSpan.FromDays(30);
@@ -74,18 +75,32 @@ public sealed class ViewerJoin(LibraryShelf shelf, HashSet<string> wanted, IRead
         .Distinct(StringComparer.Ordinal)
         .ToList();
 
-    /// <summary>The titles the person last watched through, newest first: what the shelves of their likes are made from.</summary>
+    /// <summary>
+    /// The titles the person last watched through or marked watched, newest first: what the shelves of
+    /// their likes are made from. A title marked that the catalogue does not list has no name to give a
+    /// shelf, and is left out.
+    /// </summary>
     public List<(string Kind, string ImdbId, string Name)> LastWatched(string? userId, int most)
     {
         if (userId is null) return [];
         var byId = titles.ToDictionary(t => t.Id, StringComparer.Ordinal);
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var last = new List<(string, string, string)>();
+        var watched = new List<(DateTimeOffset At, string Kind, string ImdbId, string? Name)>();
         foreach (var (titleId, entry) in record.Entries(userId))
         {
+            if (!entry.Finished || !byId.TryGetValue(titleId, out var title) || title.Film?.ImdbId is not { } imdb) continue;
+            watched.Add((entry.LastWatchedAt, title.Kind == TitleKind.Show ? "show" : "film", imdb, title.Film.Name ?? title.Title));
+        }
+        foreach (var mark in record.Marks(userId))
+            watched.Add((mark.MarkedAt, mark.What.IsFilm ? "film" : "show", mark.What.ImdbId, null));
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var last = new List<(string, string, string)>();
+        foreach (var (_, kind, imdb, name) in watched.OrderByDescending(w => w.At))
+        {
             if (last.Count == most) break;
-            if (!entry.Finished || !byId.TryGetValue(titleId, out var title) || title.Film?.ImdbId is not { } imdb || !seen.Add(imdb)) continue;
-            last.Add((title.Kind == TitleKind.Show ? "show" : "film", imdb, title.Film.Name ?? title.Title));
+            if (seen.Contains(imdb) || (name ?? cards.Card(imdb)?.Title) is not { } named) continue;
+            seen.Add(imdb);
+            last.Add((kind, imdb, named));
         }
         return last;
     }

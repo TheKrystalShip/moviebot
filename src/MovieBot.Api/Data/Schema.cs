@@ -18,7 +18,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar, WatchedMarks];
 
     public static int Version => Steps.Length;
 
@@ -35,6 +35,20 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string WatchedMarks = """
+        -- What each person said they watched, or watched elsewhere, by what it is rather than by a library
+        -- title: a film is its IMDb id at season 0, episode 0, an episode its show's IMDb id, season and
+        -- number as the releases number them.
+        CREATE TABLE watched_marks (
+            user_id   TEXT NOT NULL,
+            imdb_id   TEXT NOT NULL,
+            season    INTEGER NOT NULL,
+            number    INTEGER NOT NULL,
+            marked_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, imdb_id, season, number)
+        ) WITHOUT ROWID;
+        """;
 
     private const string TabBar = """
         -- The four page ids a person keeps in their phone's tab bar, comma-joined in slot order; null is the
