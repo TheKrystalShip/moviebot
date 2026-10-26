@@ -65,6 +65,41 @@ public sealed class EpisodeNumberingTests
     }
 
     [Fact]
+    public void A_season_the_releases_order_differently_keeps_each_name_on_its_own_episode()
+    {
+        // Superstore's fifth season: the database lists the episodes as they aired, the releases in
+        // production order, which moves Carol's Back from 19 to 21 and the two after it back one.
+        string[] aired = ["Employee App", "Zephra Cares", "Playdate", "Carol's Back", "Customer Safari", "California (1)"];
+        var described = new StoredShow
+        {
+            FetchedAt = DateTimeOffset.UtcNow,
+            Details = new ShowDetails { ImdbId = Show, TmdbId = 62649, Title = "Superstore" },
+            Seasons =
+            [
+                new SeasonDetails { Number = 5, Episodes = [.. aired.Select((name, i) => new EpisodeDetails { Season = 5, Number = i + 16, Name = name })] },
+            ],
+        };
+
+        var numbering = new EpisodeNumbering();
+        numbering.Learn(Show, [
+            "Superstore.S05E16.Employee.App.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+            "Superstore.S05E17.Zephra.Cares.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+            "Superstore.S05E18.Playdate.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+            "Superstore.S05E19.Customer.Safari.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+            "Superstore.S05E20.California.Part.1.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+            "Superstore.S05E21.Carol's.Back.720p.DSNP.WEB-DL.AAC2.0.H.264-playWEB.mkv",
+        ]);
+
+        var season = numbering.Apply(Show, described).Seasons.Single().Episodes;
+
+        Assert.Equal([16, 17, 18, 19, 20, 21], season.Select(e => e.Number).Order());
+        Assert.Equal("Playdate", season.Single(e => e.Number == 18).Name);
+        Assert.Equal("Customer Safari", season.Single(e => e.Number == 19).Name);
+        Assert.Equal("California (1)", season.Single(e => e.Number == 20).Name);
+        Assert.Equal("Carol's Back", season.Single(e => e.Number == 21).Name);
+    }
+
+    [Fact]
     public void A_show_whose_numberings_agree_is_left_as_it_is()
     {
         var numbering = new EpisodeNumbering();

@@ -96,9 +96,10 @@ film onto a device is `Offline/CLAUDE.md`.
   `CatalogueTitles.Show` hands out every show's seasons already put into the releases' numbering, so
   no reader translates. The evidence is the episode names release and file names carry after their
   marker, from the library and from the show's torrents in the client (`EpisodeNumberingWarmer`, every
-  ten minutes): each name matching the catalogue's episode of the same name in that season anchors the
-  two, and the offset holds until the next anchor. A catalogue episode before the first release
-  episode is a special and leaves the season. A still is found by the release's numbering
+  ten minutes): each name matching the catalogue's episode of the same name in that season pins that
+  episode to its release's number, which holds a season the releases order differently from the
+  catalogue, and every episode between takes the offset of the anchor below it in the catalogue's
+  order. A catalogue episode before the first release episode is a special and leaves the season. A still is found by the release's numbering
   (`/images/titles/{imdbId}/sNNeMM`). A season with no names to match keeps the catalogue's numbering.
 - **The shelf is listed from memory.** `Library/LibraryListing` rebuilds the library's list every
   ten seconds in the background, and `/api/titles`, `/api/shows`, `/api/me/shows/{imdbId}`, the library's

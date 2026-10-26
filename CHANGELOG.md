@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.1] - 2026-10-26
+
+### Fixed
+- A season whose releases order its episodes differently from the film database keeps each episode's
+  name, still and date on its own episode. An episode matched by name takes its release's number
+  outright, and only the episodes between matches take an offset; Superstore's fifth season, whose
+  releases run Customer Safari, California and Carol's Back as 19 to 21, lists them so rather than
+  jumping from 18 to 21 and on to 22 and 23.
+
 ## [4.6.0] - 2026-10-26
 
 ### Added

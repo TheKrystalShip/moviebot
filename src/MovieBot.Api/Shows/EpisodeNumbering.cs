@@ -16,9 +16,10 @@ namespace TheKrystalShip.MovieBot.Api.Shows;
 /// name, still and date it gives is attached to the wrong episode. The evidence is the episode's own
 /// name, which a release or file name usually carries after its marker
 /// (<c>Superstore.S02E07.Election.Day.720p…</c>): each name matched to the database's episode of the
-/// same name in the same season anchors the two numberings, and the offset between them holds until
-/// the next anchor. A season with nothing to match keeps the database's numbering. A database
-/// episode with no release counterpart before the first one is a special, and leaves the season.
+/// same name in the same season anchors that episode to its release's number, and every episode
+/// between anchors takes the offset of the anchor below it in the database's order. A season with
+/// nothing to match keeps the database's numbering. A database episode with no release counterpart
+/// before the first one is a special, and leaves the season.
 /// </summary>
 public sealed partial class EpisodeNumbering
 {
@@ -27,7 +28,7 @@ public sealed partial class EpisodeNumbering
     /// <summary>Each description's anchors and its renumbered copy, worked out once per description and evidence.</summary>
     private readonly ConditionalWeakTable<StoredShow, Worked> _worked = new();
 
-    private sealed record Worked(Evidence Evidence, Dictionary<int, List<Anchor>> Anchors, StoredShow Applied);
+    private sealed record Worked(Evidence Evidence, Dictionary<int, SeasonNumbering> Seasons, StoredShow Applied);
 
     /// <summary>The episode names a show's releases carry, by season and episode as the releases number them.</summary>
     private sealed record Evidence(IReadOnlyDictionary<(int Season, int Number), string> Names);
@@ -85,28 +86,27 @@ public sealed partial class EpisodeNumbering
     }
 
     /// <summary>The description with every episode, and the airing ones, numbered as the show's releases number them.</summary>
-    public StoredShow Apply(string showImdbId, StoredShow stored)
-    {
-        return Work(showImdbId, stored)?.Applied ?? stored;
-    }
+    public StoredShow Apply(string showImdbId, StoredShow stored) => Work(showImdbId, stored)?.Applied ?? stored;
 
     private Worked? Work(string showImdbId, StoredShow stored)
     {
         if (!_evidence.TryGetValue(showImdbId, out var evidence) || evidence.Names.Count == 0) return null;
         if (_worked.TryGetValue(stored, out var worked) && ReferenceEquals(worked.Evidence, evidence)) return worked;
 
-        var anchors = Anchors(stored, evidence);
-        worked = new Worked(evidence, anchors, anchors.Values.All(a => a.All(x => x.Release == x.Database)) ? stored : Renumber(stored, anchors));
+        var seasons = Seasons(stored, evidence);
+        worked = new Worked(evidence, seasons, seasons.Values.All(s => s.Agrees) ? stored : Renumber(stored, seasons));
         _worked.AddOrUpdate(stored, worked);
         return worked;
     }
 
-    private static StoredShow Renumber(StoredShow stored, Dictionary<int, List<Anchor>> anchors)
+    private static StoredShow Renumber(StoredShow stored, Dictionary<int, SeasonNumbering> seasons)
     {
+        int? ToRelease(int season, int database) =>
+            seasons.TryGetValue(season, out var numbering) ? numbering.ToRelease(database) : database;
 
         AiringEpisode? Airing(AiringEpisode? airing) =>
             airing is null ? null
-            : ToRelease(anchors, airing.Season, airing.Number) is { } number ? airing with { Number = number } : null;
+            : ToRelease(airing.Season, airing.Number) is { } number ? airing with { Number = number } : null;
 
         return stored with
         {
@@ -120,17 +120,17 @@ public sealed partial class EpisodeNumbering
             Seasons = [.. stored.Seasons.Select(season => season with
             {
                 Episodes = [.. season.Episodes
-                    .Select(e => (Episode: e, Number: ToRelease(anchors, e.Season, e.Number)))
+                    .Select(e => (Episode: e, Number: ToRelease(e.Season, e.Number)))
                     .Where(e => e.Number is not null)
                     .Select(e => e.Episode with { Number = e.Number!.Value })],
             })],
         };
     }
 
-    /// <summary>Every season's anchors, where a release's episode name is the database's episode of the same name.</summary>
-    private static Dictionary<int, List<Anchor>> Anchors(StoredShow stored, Evidence evidence)
+    /// <summary>Every season with anchors, where a release's episode name is the database's episode of the same name.</summary>
+    private static Dictionary<int, SeasonNumbering> Seasons(StoredShow stored, Evidence evidence)
     {
-        var anchors = new Dictionary<int, List<Anchor>>();
+        var seasons = new Dictionary<int, SeasonNumbering>();
         foreach (var season in stored.Seasons)
         {
             var named = season.Episodes
@@ -140,32 +140,60 @@ public sealed partial class EpisodeNumbering
                 .ToDictionary(g => g.Key, g => g.Single().Number);
 
             var found = new List<Anchor>();
-            foreach (var ((s, release), name) in evidence.Names)
+            foreach (var ((s, release), name) in evidence.Names.OrderBy(n => n.Key.Number))
             {
                 if (s != season.Number || Key(name) is not { Length: >= 4 } key) continue;
                 var match = named.FirstOrDefault(n => n.Key == key || n.Key.StartsWith(key, StringComparison.Ordinal)
                     || key.StartsWith(n.Key, StringComparison.Ordinal));
                 if (match.Key is not null) found.Add(new Anchor(release, match.Value));
             }
-            if (found.Count > 0) anchors[season.Number] = [.. found.OrderBy(a => a.Release)];
+            if (found.Count > 0)
+                seasons[season.Number] = new SeasonNumbering(found, season.Episodes.Select(e => e.Number));
         }
-        return anchors;
+        return seasons;
     }
 
-    private static int? ToRelease(Dictionary<int, List<Anchor>> anchors, int season, int database)
+    /// <summary>
+    /// One season's two numberings put together. An anchored episode takes its release's number
+    /// outright, so a season the releases order differently from the database (an episode aired out
+    /// of its production order) keeps every name on its own episode. Every other episode takes the
+    /// offset of the nearest anchor below it in the database's order, or of the first anchor when
+    /// none is below, and leaves the season when that lands before the first episode or on a number
+    /// another episode holds.
+    /// </summary>
+    private sealed class SeasonNumbering
     {
-        if (!anchors.TryGetValue(season, out var at)) return database;
-        var anchor = at.LastOrDefault(a => a.Database <= database) is { Release: > 0 } below ? below : at[0];
-        var release = database - (anchor.Database - anchor.Release);
-        return release >= 1 && ToDatabase(anchors, season, release) == database ? release : null;
-    }
+        private readonly List<Anchor> _anchors;
+        private readonly Dictionary<int, int> _listed = [];
+        private readonly HashSet<int> _taken = [];
 
-    private static int? ToDatabase(Dictionary<int, List<Anchor>> anchors, int season, int release)
-    {
-        if (!anchors.TryGetValue(season, out var at)) return release;
-        var anchor = at.LastOrDefault(a => a.Release <= release) is { Release: > 0 } below ? below : at[0];
-        var database = release + (anchor.Database - anchor.Release);
-        return database >= 1 ? database : null;
+        public SeasonNumbering(IEnumerable<Anchor> anchors, IEnumerable<int> listed)
+        {
+            // One anchor per episode on either side: the first release to name a database episode keeps it.
+            _anchors = [.. anchors.DistinctBy(a => a.Database).DistinctBy(a => a.Release).OrderBy(a => a.Database)];
+            foreach (var anchor in _anchors)
+            {
+                _listed[anchor.Database] = anchor.Release;
+                _taken.Add(anchor.Release);
+            }
+            foreach (var database in listed.Order())
+                if (!_listed.ContainsKey(database) && Offset(database) is { } release && _taken.Add(release))
+                    _listed[database] = release;
+        }
+
+        public bool Agrees => _anchors.All(a => a.Release == a.Database);
+
+        public int? ToRelease(int database) =>
+            _listed.TryGetValue(database, out var release) ? release
+            : Offset(database) is { } offset && !_taken.Contains(offset) ? offset
+            : null;
+
+        private int? Offset(int database)
+        {
+            var anchor = _anchors.LastOrDefault(a => a.Database < database) is { Release: > 0 } below ? below : _anchors[0];
+            var release = database - (anchor.Database - anchor.Release);
+            return release >= 1 ? release : null;
+        }
     }
 
     private static string? Key(string? name) =>
