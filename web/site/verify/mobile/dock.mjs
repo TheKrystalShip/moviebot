@@ -23,7 +23,7 @@ const at = process.argv.indexOf("--out");
 const out = at >= 0 ? process.argv[at + 1] : join(dir, "runs", "dock-" + new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)); mkdirSync(out, { recursive: true });
 const cache = join(homedir(), ".cache", "ms-playwright");
 const exe = readdirSync(cache).filter(d => d.startsWith("chromium-")).sort().reverse().map(d => join(cache, d, "chrome-linux64", "chrome")).find(existsSync);
-const staged = await stage(base, issuer);
+const staged = await stage(base, issuer, { tmdb: false });
 const browser = await chromium.launch({ executablePath: exe });
 const results = [];
 const check = (name, ok, detail = "") => { results.push({ name, ok }); console.log((ok ? "PASS " : "FAIL ") + name + (detail ? "  " + detail : "")); };
@@ -108,7 +108,7 @@ async function run(tv, label) {
 
   // The tab bar is uncovered and takes a tap while the dock is open.
   const tab = await page.evaluate(() => {
-    const t = [...document.querySelectorAll(".k-tabbar__tab")].find((e) => /Library/.test(e.textContent));
+    const t = [...document.querySelectorAll(".k-tabbar__tab")].find((e) => /Discover/.test(e.textContent));
     const b = t.getBoundingClientRect();
     return { x: b.x + b.width / 2, y: b.y + b.height / 2, hit: t.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)) };
   });
