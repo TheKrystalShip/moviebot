@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.8.2] - 2026-10-26
+
+### Changed
+- Marking watched is a checkmark everywhere it is offered: the film pages' Watched, an episode's square and
+  its phone menu item, and the season's button, which turns to the accent once the season is watched as the
+  film's does. Site 0.101.2.
+
 ## [4.8.1] - 2026-10-26
 
 ### Changed

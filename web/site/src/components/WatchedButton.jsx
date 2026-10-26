@@ -35,7 +35,7 @@ export function WatchedButton({ imdbId, watched, onChange = null }) {
   const online = useOnline();
   const { shown, busy, change } = useWatchedChange(Boolean(watched), onChange);
   return (
-    <Button size="xl" variant={shown ? "accent" : undefined} icon={shown ? "circle-check" : "circle"} aria-pressed={shown}
+    <Button size="xl" variant={shown ? "accent" : undefined} icon="circle-check" aria-pressed={shown}
       disabled={busy || !online}
       onClick={() => change({ imdbId, kind: "film", watched: !shown }, "Could not change that")}>
       {shown ? "Watched" : "Mark watched"}

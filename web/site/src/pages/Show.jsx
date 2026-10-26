@@ -319,7 +319,7 @@ function SeasonWatched({ imdbId, season, onChange, grow = false }) {
   const { shown, busy, change } = useWatchedChange(all.length > 0 && all.every((e) => e.watched), onChange);
   if (all.length === 0) return null;
   return (
-    <Button variant="outline" size="sm" icon={shown ? "circle-check" : "circle"} aria-pressed={shown} disabled={busy || !online} grow={grow}
+    <Button variant={shown ? "accent" : "outline"} size="sm" icon="circle-check" aria-pressed={shown} disabled={busy || !online} grow={grow}
       onClick={() => change({ imdbId, kind: "show", season: season.number, watched: !shown }, "Could not change that")}>
       {shown ? "Season watched" : "Mark season watched"}
     </Button>
@@ -336,7 +336,7 @@ function EpisodeWatched({ imdbId, episode: e, onChange }) {
       <Button variant="bare" className={"kc-seen-mark" + (shown ? " is-on" : "")} aria-pressed={shown}
         aria-label={`${label}: ${e.name || `Episode ${e.number}`}`} title={label} disabled={busy || !online}
         onClick={() => change({ imdbId, kind: "show", season: e.season, episode: e.number, watched: !shown }, "Could not change that")}>
-        <Icon name={shown ? "circle-check" : "circle"} size={18} />
+        <Icon name="circle-check" size={18} />
       </Button>
     </span>
   );
@@ -356,7 +356,7 @@ function EpisodeMenu({ imdbId, episode: e, seenable, download = null, onWatched 
       <Menu label={name} placement="bottom-end"
         trigger={<IconButton variant="ghost" icon="ellipsis-vertical" label={`More: ${name}`} />}>
         {seenable && (
-          <MenuItem icon={shown ? "circle-check" : "circle"} disabled={busy || !online}
+          <MenuItem icon="circle-check" disabled={busy || !online}
             onSelect={() => change({ imdbId, kind: "show", season: e.season, episode: e.number, watched: !shown }, "Could not change that")}>
             {shown ? "Mark unwatched" : "Mark watched"}
           </MenuItem>
