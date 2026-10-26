@@ -225,9 +225,9 @@ export interface Chapter {
   title?: string;
 }
 
-/** A stretch of an episode that can be skipped: its opening credits, or a recap of the last one. */
+/** A stretch of an episode that can be skipped: its opening credits, a recap of the last one, or its closing credits. */
 export interface Marker {
-  kind: 'intro' | 'recap';
+  kind: 'intro' | 'recap' | 'credits';
   startSeconds: number;
   endSeconds: number;
   /** What the ingest found it from: the container's chapters, or the audio itself. */

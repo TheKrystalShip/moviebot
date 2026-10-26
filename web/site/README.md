@@ -753,7 +753,7 @@ episode and forward (a film has no episode steps) above, and Episodes, Subtitles
 on TV. The still takes the player's touch handling (`player/Gestures.jsx` with `levels: false`): a tap in
 the middle plays or pauses, a double tap at a side skips, a sweep sideways scrubs and the room moves on
 release, vertical sweeps do nothing; a gesture the television took vibrates the phone where
-`navigator.vibrate` exists. Skip intro stands on the still when the player would offer it
+`navigator.vibrate` exists. A skip (intro, recap or credits) stands on the still when the player would offer it
 (`player/stretches.js`). `remoteFilm.js` reads what the television holds (manifest, the episodes either
 side, the preview sheet) for the dock.
 

@@ -15,6 +15,7 @@ import { Cues } from "./Cues.jsx";
 import { GestureHud, useStageGestures } from "./Gestures.jsx";
 import { ScrubBar } from "./ScrubBar.jsx";
 import { SkipLabels, inClosingStretch, useSkipOffer } from "./stretches.js";
+import { useMediaSession } from "./mediaSession.js";
 import { Volume } from "./Volume.jsx";
 import { Person } from "../components/Person.jsx";
 import { InvitePeople } from "../components/InvitePeople.jsx";
@@ -557,7 +558,8 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
   const everyone = solo ? [] : people(view);
   const others = view.identity ? everyone.filter((p) => p.userId !== view.identity.userId) : everyone;
   const skipOffer = useSkipOffer((seconds) => room.seek(seconds), {
-    markers: manifest && manifest.markers, titleId: view.state && view.state.titleId, ready: view.ready,
+    markers: manifest && manifest.markers, duration: manifest ? manifest.durationSeconds : 0,
+    titleId: view.state && view.state.titleId, ready: view.ready,
     auto: Boolean(view.preferences && view.preferences.skipIntros),
   }, clock.position, others.length === 0);
   const titleHeld = view.state &&(view.state.titleId ?? null) !== null;
@@ -599,6 +601,29 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
 
   const backdrop = solo ? view.artwork : posterOf(manifest);
   const frameStyle = { "--mp-poster": backdrop ? `url("${backdrop}")` : "none" };
+
+  // The lock screen, the notification and the media keys: an episode by its place and name under its
+  // show, a film by its name and year. Only somebody who may move the room is given its controls, and a
+  // television's keys are its remote's.
+  const place = manifest && manifest.episode;
+  useMediaSession({
+    title: !manifest ? null : place
+      ? [episodeCode(place), (about && about.episode && about.episode.name) || place.name].filter(Boolean).join(" · ")
+      : filmName(manifest),
+    artist: !manifest ? null : place ? (about && about.name) || filmName(manifest) : String((manifest.film && manifest.film.year) || ""),
+    artwork: backdrop,
+    duration,
+    position: clock.position,
+    paused: clock.paused,
+    ready: Boolean(manifest && view.ready && !view.gate),
+  }, viewOnly || tv ? null : {
+    togglePlay: () => room.togglePlay(),
+    seekBy: (seconds) => room.seekBy(seconds),
+    seek: (seconds) => room.seek(seconds),
+    skipSeconds: SkipSeconds,
+    previous: around && around.previous && !view.stepping ? () => room.previousEpisode() : null,
+    next: next && !view.stepping ? () => room.nextEpisode() : null,
+  });
   const carryOn = lost && view.saved && manifest && onCarryOn ? () => onCarryOn(manifest.id, clock.position) : null;
 
   if (view.guestEnded) {
@@ -805,7 +830,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
           </div>
         ))}
 
-      {manifest && view.ready && next && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
+      {manifest && view.ready && next && !skipOffer && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
         <Button variant="bare" className="mp-nextup" disabled={view.stepping} onClick={goNext}>
           <span className="mp-nextup__label">Next episode</span>
           <span className="mp-nextup__name">{episodeWords(next)}</span>

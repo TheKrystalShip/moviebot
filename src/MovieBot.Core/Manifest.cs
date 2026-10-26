@@ -156,10 +156,10 @@ public sealed class Manifest
     public ThumbnailStrip? Thumbnails { get; set; }
 
     /// <summary>
-    /// Stretches of an episode a viewer can skip: the title sequence and the recap of earlier
-    /// episodes. Settable because they are found after the transcode, from the container's
-    /// chapters or by comparing the episode's audio with the show's other episodes, and a title
-    /// the pass could not place anything in simply has none.
+    /// Stretches of an episode a viewer can skip: the title sequence, the recap of earlier
+    /// episodes and the closing credits. Settable because they are found after the transcode, from
+    /// the container's chapters or by comparing the episode's audio with the show's other episodes,
+    /// and a title the pass could not place anything in simply has none.
     /// </summary>
     public IReadOnlyList<Marker> Markers { get; set; } = [];
 }
@@ -168,7 +168,8 @@ public sealed class Manifest
 public enum MarkerKind
 {
     [JsonStringEnumMemberName("intro")] Intro,
-    [JsonStringEnumMemberName("recap")] Recap
+    [JsonStringEnumMemberName("recap")] Recap,
+    [JsonStringEnumMemberName("credits")] Credits
 }
 
 /// <summary>How a marker was found, which says how far to trust its edges.</summary>

@@ -317,7 +317,7 @@ function Remote({ dock, remoteRef, contentRef, shelf, screen, hidden, onCollapse
     onTogglePlay: toggle, onToggleControls: () => {}, onSeek: seek, onHold: setHeld, onVolume: () => {}, onBrightness: () => {},
   });
   const skipOffer = useSkipOffer((seconds) => seek(seconds), {
-    markers: manifest && manifest.markers, titleId: state && state.titleId, ready: Boolean(manifest), auto: false,
+    markers: manifest && manifest.markers, duration, titleId: state && state.titleId, ready: Boolean(manifest), auto: false,
   }, at, false);
 
   // The film's own gestures: a touch is read in full, and a mouse press plays or pauses.

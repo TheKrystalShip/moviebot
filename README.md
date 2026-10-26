@@ -109,8 +109,8 @@ tests/MovieBot.Tests/   unit and hub integration tests
 
 - .NET 10 SDK
 - Node.js and npm, for the player
-- `ffmpeg` and `ffprobe` on `PATH`, and `fpcalc` (chromaprint) beside them, which finds the intro and
-  recap of a show's episodes; without it a title is still made and only chapters mark what to skip
+- `ffmpeg` and `ffprobe` on `PATH`, and `fpcalc` (chromaprint) beside them, which finds the intro,
+  recap and credits of a show's episodes; without it a title is still made and only chapters mark what to skip
 - An NVENC-capable NVIDIA GPU, for `h264_nvenc`
 - An OpenCL device, for HDR sources only: `tonemap_opencl` converts HDR to SDR
 - A checkout of [moviebot-acquire](https://github.com/TheKrystalShip/moviebot-acquire) beside this

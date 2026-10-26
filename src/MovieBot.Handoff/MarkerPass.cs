@@ -7,11 +7,12 @@ namespace TheKrystalShip.MovieBot.Handoff;
 /// <summary>
 /// Finds the stretches of a finished episode a viewer can skip, and writes them into its manifest.
 ///
-/// A chapter the container names "Intro" or "Recap" is taken as it stands. Where there is none, the
-/// episode's audio is fingerprinted and compared with the show's other episodes: the stretch its
-/// opening shares with another episode is the title sequence, and the stretches its opening shares
-/// with episodes that came before are the clips of a recap. The comparison is chromaprint's, run
-/// on the transcoded audio, and uses the CPU alone.
+/// A chapter the container names "Intro", "Recap" or "Credits" is taken as it stands. Where there is
+/// none, the episode's audio is fingerprinted and compared with the show's other episodes: the
+/// stretch its opening shares with another episode is the title sequence, the stretch its closing
+/// shares with them is the credits, and the stretches its opening shares with episodes that came
+/// before are the clips of a recap. The comparison is chromaprint's, run on the transcoded audio,
+/// and uses the CPU alone.
 ///
 /// The pass runs once a transcode is ready and is a rider on it: an episode is watchable long before
 /// this, a failure here leaves the markers empty and nothing else, and nothing is ever written
@@ -24,7 +25,7 @@ public sealed class MarkerPass(
     TitleLocks locks,
     ILogger<MarkerPass> logger)
 {
-    /// <summary>How many other episodes a new one is compared with for its title sequence.</summary>
+    /// <summary>How many other episodes a new one is compared with for its title sequence and its credits.</summary>
     public const int PartnersTried = 3;
 
     /// <summary>
@@ -146,6 +147,7 @@ public sealed class MarkerPass(
 
         var intro = markers.FirstOrDefault(m => m.Kind == MarkerKind.Intro);
         var recap = markers.FirstOrDefault(m => m.Kind == MarkerKind.Recap);
+        var credits = markers.FirstOrDefault(m => m.Kind == MarkerKind.Credits);
         var partners = new List<(string, Marker)>();
 
         uint[]? own = null;
@@ -164,11 +166,19 @@ public sealed class MarkerPass(
 
         if (own is { Length: > 0 } && key is not null)
         {
-            if (intro is null && FindIntro(id, key, episode, own, manifest.DurationSeconds) is { } found)
+            var nearest = Nearest(id, key, episode);
+
+            if (intro is null && FindIntro(nearest, own, manifest.DurationSeconds) is { } found)
             {
                 intro = found.Marker;
                 markers.Add(intro);
                 partners.AddRange(found.Partners);
+            }
+
+            if (credits is null && FindCredits(nearest, own, manifest.DurationSeconds) is { } closing)
+            {
+                markers.Add(closing.Marker);
+                partners.AddRange(closing.Partners);
             }
 
             if (recap is null && FindRecap(id, key, episode, own, intro) is { } match)
@@ -183,9 +193,10 @@ public sealed class MarkerPass(
         foreach (var kept in manifest.Markers)
             if (!markers.Any(m => m.Kind == kept.Kind)) markers.Add(kept);
 
-        // Whatever found a title sequence, one with somebody speaking in it is cut short of the line.
+        // Whatever found a title sequence, one with somebody speaking in it is cut short of the line,
+        // and credits that begin under the scene's last lines begin after them.
         var cues = CuesOf(title);
-        markers = [.. markers.Select(m => m.Kind == MarkerKind.Intro ? IntroGuard.Guard(m, cues) : m)
+        markers = [.. markers.Select(m => Guard(m, cues))
             .OfType<Marker>()
             .OrderBy(m => m.StartSeconds)];
 
@@ -235,30 +246,34 @@ public sealed class MarkerPass(
         return items;
     }
 
-    private sealed record IntroFound(Marker Marker, IReadOnlyList<(string, Marker)> Partners);
+    private sealed record Found(Marker Marker, IReadOnlyList<(string, Marker)> Partners);
 
     /// <summary>
-    /// The title sequence this episode shares with the episodes nearest it in the show, nearest
-    /// first: the same season, then the seasons beside it. The first that shares one decides where
-    /// it is in this episode; every other that shares it where this one says is given it too, if it
-    /// has none.
+    /// The episodes nearest this one in the show whose fingerprints are kept, nearest first: the same
+    /// season, then the seasons beside it.
     /// </summary>
-    private IntroFound? FindIntro(
-        string id, string key, EpisodeIdentity episode, uint[] own, double durationSeconds)
-    {
-        var matches = new List<(StoredFingerprint Partner, IntroMatch Match)>();
-
-        var nearest = store.Episodes(key)
+    private IReadOnlyList<StoredFingerprint> Nearest(string id, string key, EpisodeIdentity episode) =>
+        store.Episodes(key)
             .Where(e => (e.Season, e.Number) != (episode.Season, episode.Number))
             .OrderBy(e => Math.Abs(e.Season - episode.Season))
             .ThenBy(e => Math.Abs(e.Number - episode.Number))
-            .Take(PartnersTried);
+            .Take(PartnersTried)
+            .Select(e => store.Load(key, e.Season, e.Number))
+            .OfType<StoredFingerprint>()
+            .Where(f => f.TitleId != id)
+            .ToList();
 
-        foreach (var (season, number) in nearest)
-        {
-            if (store.Load(key, season, number) is not { } partner || partner.TitleId == id) continue;
+    /// <summary>
+    /// The title sequence this episode shares with the episodes nearest it. The first that shares
+    /// one decides where it is in this episode; every other that shares it where this one says is
+    /// given it too, if it has none.
+    /// </summary>
+    private static Found? FindIntro(IReadOnlyList<StoredFingerprint> nearest, uint[] own, double durationSeconds)
+    {
+        var matches = new List<(StoredFingerprint Partner, IntroMatch Match)>();
+
+        foreach (var partner in nearest)
             if (IntroFinder.Find(own, partner.Items) is { } match) matches.Add((partner, match));
-        }
 
         if (matches.Count == 0) return null;
 
@@ -272,7 +287,31 @@ public sealed class MarkerPass(
                 AudioMarker(MarkerKind.Intro, m.Match.StartB, m.Match.EndB, double.MaxValue)))
             .ToList();
 
-        return new IntroFound(marker, partners);
+        return new Found(marker, partners);
+    }
+
+    /// <summary>
+    /// The credits this episode shares with the episodes nearest it, where the partners agree on
+    /// them (<see cref="CreditsFinder.Agree"/>). Each partner that agreed is given its own side of
+    /// what it shares, if it has none.
+    /// </summary>
+    private static Found? FindCredits(IReadOnlyList<StoredFingerprint> nearest, uint[] own, double durationSeconds)
+    {
+        var matches = nearest.Select(p => CreditsFinder.Find(own, p.Items)).ToList();
+        if (CreditsFinder.Agree(matches) is not var (start, end, agreeing)) return null;
+
+        // A stretch that runs to the end of the fingerprint runs to the end of the episode, which the
+        // manifest measures and the fingerprint only approaches.
+        var ownLength = Fpcalc.TimeOf(own.Length);
+        var marker = AudioMarker(MarkerKind.Credits, start, end >= ownLength ? durationSeconds : end, durationSeconds);
+
+        var partners = agreeing
+            .Select(i => (nearest[i], matches[i]!.Value))
+            .Select(p => (p.Item1.TitleId, AudioMarker(MarkerKind.Credits, p.Item2.StartB,
+                p.Item2.EndB >= Fpcalc.TimeOf(p.Item1.Items.Length) ? double.MaxValue : p.Item2.EndB, double.MaxValue)))
+            .ToList();
+
+        return new Found(marker, partners);
     }
 
     private RecapMatch? FindRecap(
@@ -293,16 +332,19 @@ public sealed class MarkerPass(
         return earlier.Count == 0 ? null : RecapFinder.Find(own, earlier, search, intro?.StartSeconds);
     }
 
-    /// <summary>A sequence found in another episode's audio, written to that episode when it has none.</summary>
+    /// <summary>
+    /// A title sequence or credits found in another episode's audio, written to that episode when it
+    /// has none of the kind.
+    /// </summary>
     private async Task WritePartnerAsync(string partnerId, Marker marker, CancellationToken ct)
     {
         using var held = await locks.AcquireAsync(partnerId, ct);
 
         if (Open(partnerId) is not { } title) return;
-        if (title.Manifest.Markers.Any(m => m.Kind == MarkerKind.Intro)) return;
+        if (title.Manifest.Markers.Any(m => m.Kind == marker.Kind)) return;
 
         var end = Math.Min(marker.EndSeconds, title.Manifest.DurationSeconds);
-        if (IntroGuard.Guard(marker with { EndSeconds = Math.Round(end, 3) }, CuesOf(title)) is not { } guarded)
+        if (Guard(marker with { EndSeconds = Math.Round(end, 3) }, CuesOf(title)) is not { } guarded)
             return;
 
         var markers = title.Manifest.Markers
@@ -314,9 +356,17 @@ public sealed class MarkerPass(
         ManifestJson.WriteAtomic(title.Path, title.Manifest);
 
         logger.LogInformation(
-            "{Id}: intro {Start:0.0}-{End:0.0} s (audio), found from another episode.",
-            partnerId, guarded.StartSeconds, guarded.EndSeconds);
+            "{Id}: {Kind} {Start:0.0}-{End:0.0} s (audio), found from another episode.",
+            partnerId, guarded.Kind.ToString().ToLowerInvariant(), guarded.StartSeconds, guarded.EndSeconds);
     }
+
+    /// <summary>A marker kept clear of the speech around it, or null when too little of it is left.</summary>
+    private static Marker? Guard(Marker marker, IReadOnlyList<Cue> cues) => marker.Kind switch
+    {
+        MarkerKind.Intro => IntroGuard.Guard(marker, cues),
+        MarkerKind.Credits => CreditsGuard.Guard(marker, cues),
+        _ => marker
+    };
 
     /// <summary>
     /// The spoken cues of the episode's subtitles: its first available text track that is not

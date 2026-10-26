@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using TheKrystalShip.MovieBot.Core;
 using TheKrystalShip.MovieBot.Handoff;
+using TheKrystalShip.MovieBot.Ingest.Markers;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;
@@ -115,6 +116,66 @@ public sealed class MarkerPassTests : IDisposable
         without.Remove("markers");
 
         Assert.Empty(ManifestJson.Deserialize(JsonSerializer.Serialize(without))!.Markers);
+    }
+
+    /// <summary>
+    /// A whole episode's fingerprint, 2400 s like the manifests here, closing on the same 40 s of
+    /// credits as every other episode, each heard a few bits apart.
+    /// </summary>
+    private void KeepClosing(int number)
+    {
+        var random = new System.Random(number);
+        var items = new uint[Fpcalc.IndexAt(2400)];
+        for (var i = 0; i < items.Length; i++) items[i] = random.NextUInt();
+
+        var theme = new System.Random(99);
+        var length = Fpcalc.IndexAt(40);
+        for (var i = 0; i < length; i++)
+            items[items.Length - length + i] = theme.NextUInt() ^ (1u << random.Next(32));
+
+        _store.Save(Show, new StoredFingerprint($"slow-horses-s05e0{number}", 5, number, items));
+    }
+
+    [Fact]
+    public async Task The_audio_finds_the_credits_where_the_partners_agree_and_gives_them_to_those_partners()
+    {
+        Write(1);
+        Write(2);
+        Write(3);
+        KeepClosing(1);
+        KeepClosing(2);
+        KeepClosing(3);
+
+        await _pass.RunAsync("slow-horses-s05e02", reuseStored: true, CancellationToken.None);
+
+        foreach (var number in new[] { 1, 2, 3 })
+        {
+            var credits = Assert.Single(Read(number).Markers);
+            Assert.Equal(MarkerKind.Credits, credits.Kind);
+            Assert.Equal(MarkerSource.Audio, credits.From);
+            Assert.InRange(credits.StartSeconds, 2359, 2361.5);
+            Assert.Equal(2400, credits.EndSeconds);
+        }
+    }
+
+    [Fact]
+    public async Task A_chapter_that_names_the_credits_is_not_searched_for_in_the_audio()
+    {
+        Write(1);
+        Write(2, chapters:
+        [
+            new() { StartSeconds = 0, Title = "Chapter 1" },
+            new() { StartSeconds = 2370, Title = "End Credits" }
+        ]);
+        KeepClosing(1);
+        KeepClosing(2);
+
+        await _pass.RunAsync("slow-horses-s05e02", reuseStored: true, CancellationToken.None);
+
+        var credits = Assert.Single(Read(2).Markers);
+        Assert.Equal(MarkerSource.Chapter, credits.From);
+        Assert.Equal(2370, credits.StartSeconds);
+        Assert.Empty(Read(1).Markers);
     }
 
     [Fact]

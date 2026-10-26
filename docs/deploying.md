@@ -50,8 +50,8 @@ You need all of these. The steps below assume they are in place.
 
 ## Step 1: Install the system packages
 
-MovieBot needs ffmpeg (to convert films), chromaprint (to find the intro and recap of a show's
-episodes), nginx and certbot (to serve it over https), and qBittorrent (to download).
+MovieBot needs ffmpeg (to convert films), chromaprint (to find the intro, recap and credits of a
+show's episodes), nginx and certbot (to serve it over https), and qBittorrent (to download).
 
 Debian or Ubuntu:
 

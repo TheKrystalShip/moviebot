@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.7.0] - 2026-10-26
+
+### Added
+- **Skip credits.** An episode's closing credits are a marker of their own (`kind: "credits"`), named by
+  a chapter (`Credits`, `End Credits`, `End Titles`, `Ending`, `Outro`, `ED`) in the episode's closing
+  stretch, or found as the longest stretch the closings of two episodes share, ending within two minutes
+  of the end of both (`CreditsFinder`). With more than one episode compared, two have to agree on where
+  the credits are, and the credits are what the agreeing ones have in common. A line spoken at the head
+  of the credits moves their start past it (`CreditsGuard`). Ingest 1.19.0, hand-off 0.20.0.
+- The player offers Next episode from the start of the credits, and Skip credits when something follows
+  them, a preview or a scene; credits are never skipped without a press. Site 0.100.0.
+- **What is playing is told to the system** (the Media Session API): the lock screen, the notification,
+  a headset, the media keys and the browser's media controls show the episode or film, its artwork and
+  where it is, and their play, pause, skips, seek and previous and next episode move the room. Site
+  0.100.0.
+
 ## [4.6.1] - 2026-10-26
 
 ### Fixed

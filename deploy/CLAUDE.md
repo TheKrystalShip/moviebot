@@ -44,7 +44,7 @@ deploy/deploy-app.sh phone      # one: phone or tv
 - **Listening needs three system libraries on hotbox**: `opus`, `libsodium`, and `libdave`, which is
   Discord's end-to-end voice encryption and is packaged in tks-assistant. Without libdave the bot runs
   and every voice connection is refused.
-- **Finding an episode's intro and recap needs `chromaprint`** (`fpcalc` in `/usr/bin`, on the
+- **Finding an episode's intro, recap and credits needs `chromaprint`** (`fpcalc` in `/usr/bin`, on the
   hand-off unit's `PATH` after the card's ffmpeg). Without it an episode gets only the markers its
   chapters name.
 - **The API and the hand-off publish as native binaries** (`PublishAot`): the publish needs `clang`

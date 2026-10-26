@@ -257,16 +257,20 @@ CLI changes.
   source is still arriving they are extracted after the main pass, and a track is advertised in the
   manifest only once its own file is whole. A `.vtt` that is still being written is never served.
 
-## Intro and recap markers (`Markers/`)
+## Intro, recap and credits markers (`Markers/`)
 
-Measured on three real episodes of one show against their container chapters; the hand-off decides
-when it runs and where fingerprints are kept (`src/MovieBot.Handoff/CLAUDE.md`).
+The intro and the recap are measured on three real episodes of one show against their container
+chapters, the credits on the whole-episode fingerprints of fifteen shows, against the `End Credits`
+and `Credits` chapters of the two that name them; the hand-off decides when it runs and where
+fingerprints are kept (`src/MovieBot.Handoff/CLAUDE.md`).
 
 - **A chapter that names the stretch is exact and is believed whole or not at all.** The whole
   normalised title has to be a name for a title sequence (`Intro`, `Opening Credits`, `Main Title`,
-  `OP1`) or a recap (`Recap`, `Previously On ...`); "Opening Heist" and "Chapter 3" are acts. A chapter
-  runs to the next chapter's start, and one longer than 150 s as an intro, 300 s as a recap, or shorter
-  than 5 s, is not one.
+  `OP1`), a recap (`Recap`, `Previously On ...`) or the credits (`Credits`, `End Credits`, `End
+  Titles`, `Ending`, `Outro`, `ED`); "Opening Heist", "The Ending" and "Chapter 3" are acts. A chapter
+  runs to the next chapter's start, and one longer than 150 s as an intro, 300 s as a recap or 600 s
+  as the credits, or shorter than 5 s, is not one. A credits chapter starts in the episode's closing
+  stretch (below), or it is an act.
 - **Everything else is chromaprint run on the transcoded audio**, `fpcalc -raw -length 0` over the
   first rendition's playlist: one 32-bit value per 4096/3 samples at 11025 Hz, about 0.124 s, each
   describing about 1.9 s of sound. It reads the HLS playlist directly, so nothing is decoded twice and
@@ -314,6 +318,29 @@ when it runs and where fingerprints are kept (`src/MovieBot.Handoff/CLAUDE.md`).
   is why the sequence, once placed, ends the search. A recap whose
   first clip is within 10 s of the start begins at 0, one that ends within 10 s of the title sequence
   runs up to it.
+- **The credits are the longest stretch the closings of two episodes share**, a closing being the
+  last quarter of an episode capped at ten minutes (`CreditsFinder`). Runs of at least 5 s are found,
+  runs less than 10 s apart on both fingerprints are one (a run broke in the credits of one show
+  measured), and the longest counts when it is at least 15 s and ends within 120 s of the end of
+  both episodes. Within 15 s of the end it runs to the end, since what is left is a logo. Measured:
+  in a procedural of 71 episodes, every episode that names an `End Credits` chapter matches it to
+  within five seconds, starting at or after it, the 60 s preview after the credits of one is left
+  after them, and all but one of the rest are found; a
+  sitcom whose credits play over each episode's own last scene shares only 5 s logos, and a drama
+  that ends on a different song each week shares scattered 6 to 64 s stretches 15 to 115 s from the
+  end, from one partner to the next.
+- **Credits found in the audio need two partners to agree** when more than one was compared
+  (`CreditsFinder.Agree`), agreeing meaning their starts or their ends lie within 5 s, and the
+  credits are what every partner agreeing with the first such pair has in common: they start late
+  and end early. That drama's stretches never agree, and are no credits. One partner, in a show of
+  two episodes, is believed alone, as it is for a title sequence.
+- **Speech at the head of the credits moves their start (`CreditsGuard`).** The closing music can
+  begin under the scene's last lines, so a spoken cue starting within the first 10 s of the credits,
+  or running into them, moves their start to 0.5 s after it, as often as there are such cues; with
+  under 15 s left they are dropped. A cue further in is left alone: the stretch is sound every
+  episode has, so a voice there is the credits' own (a studio's spoken tag lies 31 s into the credits
+  of every episode of one show measured). The `Credits` chapter of that show starts 16 s after the
+  shared sound, which carries only the closing song's lyrics, so a chapter can start late.
 - **A false recap skips story and a missing one skips nothing**, so every threshold above leans toward
   saying nothing, and the recap is searched only after the title sequence is placed so that the
   sequence bounds it. Nothing is a recap that the earlier episodes do not contain.

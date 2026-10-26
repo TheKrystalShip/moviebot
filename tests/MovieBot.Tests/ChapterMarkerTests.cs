@@ -41,6 +41,20 @@ public class ChapterMarkerTests
         Assert.Equal(MarkerKind.Recap, ChapterMarkers.Classify(title));
 
     [Theory]
+    [InlineData("Credits")]
+    [InlineData("End Credits")]
+    [InlineData("END CREDITS")]
+    [InlineData("Ending Credits")]
+    [InlineData("Closing Credits")]
+    [InlineData("End Titles")]
+    [InlineData("Ending")]
+    [InlineData("Outro")]
+    [InlineData("ED")]
+    [InlineData("ED2")]
+    public void Names_of_the_credits_are_the_credits(string title) =>
+        Assert.Equal(MarkerKind.Credits, ChapterMarkers.Classify(title));
+
+    [Theory]
     [InlineData("Chapter 3")]
     [InlineData("Chapter 1")]
     [InlineData("3")]
@@ -50,8 +64,9 @@ public class ChapterMarkerTests
     [InlineData("Hope")]
     [InlineData("The Introduction of Mr Smith")]
     [InlineData("Previously Unseen Footage Of The Chase")]
-    [InlineData("End Credits")]
-    [InlineData("Closing Credits")]
+    [InlineData("The Ending")]
+    [InlineData("End")]
+    [InlineData("Credits Roll Over The Wedding")]
     [InlineData("00:03:27.707")]
     [InlineData("")]
     [InlineData(null)]
@@ -142,5 +157,35 @@ public class ChapterMarkerTests
     public void A_container_without_chapters_gives_none()
     {
         Assert.Empty(ChapterMarkers.From([], 2500));
+    }
+
+    [Fact]
+    public void The_credits_run_to_the_next_chapter_or_the_end()
+    {
+        var markers = ChapterMarkers.From(
+            [
+                new Chapter { StartSeconds = 2512, Title = "Is She Dead" },
+                new Chapter { StartSeconds = 2554, Title = "End Credits" },
+                new Chapter { StartSeconds = 2591, Title = "Preview" }
+            ],
+            2651);
+
+        var credits = Assert.Single(markers);
+        Assert.Equal(MarkerKind.Credits, credits.Kind);
+        Assert.Equal(2554, credits.StartSeconds);
+        Assert.Equal(2591, credits.EndSeconds);
+
+        var last = ChapterMarkers.From([new Chapter { StartSeconds = 2452, Title = "Credits" }], 2475);
+        Assert.Equal(2475, Assert.Single(last).EndSeconds);
+    }
+
+    [Fact]
+    public void A_chapter_named_for_the_credits_before_the_closing_stretch_is_an_act()
+    {
+        var markers = ChapterMarkers.From(
+            [new Chapter { StartSeconds = 1200, Title = "Ending" }, new Chapter { StartSeconds = 1300, Title = "Chapter 5" }],
+            2500);
+
+        Assert.Empty(markers);
     }
 }

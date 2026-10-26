@@ -7,9 +7,10 @@ namespace TheKrystalShip.MovieBot.Ingest.Markers;
 /// <summary>
 /// Reads skippable stretches out of the chapters a container already carries.
 ///
-/// A release that names its title sequence or its recap has said exactly where each begins and ends,
-/// so nothing is measured for it. The whole of a chapter's title has to name the thing: a chapter
-/// called "Opening Heist" or "Chapter 3" is an act of the episode, and skipping it skips the story.
+/// A release that names its title sequence, its recap or its closing credits has said exactly where
+/// each begins and ends, so nothing is measured for it. The whole of a chapter's title has to name
+/// the thing: a chapter called "Opening Heist" or "Chapter 3" is an act of the episode, and skipping
+/// it skips the story.
 /// </summary>
 public static partial class ChapterMarkers
 {
@@ -21,6 +22,12 @@ public static partial class ChapterMarkers
 
     /// <summary>The longest a chapter can be and still be a recap.</summary>
     public const double MaxRecapSeconds = 300;
+
+    /// <summary>
+    /// The longest a chapter can be and still be the credits: as much as the audio searches for them
+    /// in (<see cref="CreditsFinder.ClosingCapSeconds"/>).
+    /// </summary>
+    public const double MaxCreditsSeconds = CreditsFinder.ClosingCapSeconds;
 
     /// <summary>The shortest worth a button: a chapter shorter than this is a marker on a cut.</summary>
     public const double MinSeconds = 5;
@@ -40,12 +47,21 @@ public static partial class ChapterMarkers
             var start = chapters[i].StartSeconds;
             var end = i + 1 < chapters.Count ? chapters[i + 1].StartSeconds : durationSeconds;
             var length = end - start;
-            var cap = kind == MarkerKind.Intro ? MaxIntroSeconds : MaxRecapSeconds;
+            var cap = kind switch
+            {
+                MarkerKind.Intro => MaxIntroSeconds,
+                MarkerKind.Recap => MaxRecapSeconds,
+                _ => MaxCreditsSeconds
+            };
 
             if (length < MinSeconds || length > cap) continue;
 
-            // An episode has one title sequence and one recap; a second chapter of a kind is the
-            // first one's own parts.
+            // Credits close an episode: a chapter of that name earlier than its closing stretch is
+            // an act.
+            if (kind == MarkerKind.Credits && start < CreditsFinder.ClosingStart(durationSeconds)) continue;
+
+            // An episode has one title sequence, one recap and one set of credits; a second
+            // chapter of a kind is the first one's own parts.
             if (markers.Any(m => m.Kind == kind)) continue;
 
             markers.Add(new Marker
@@ -60,7 +76,7 @@ public static partial class ChapterMarkers
         return markers;
     }
 
-    /// <summary>What a chapter's title says the chapter is, or null when it names neither.</summary>
+    /// <summary>What a chapter's title says the chapter is, or null when it names none of them.</summary>
     public static MarkerKind? Classify(string? title)
     {
         var name = Normalize(title);
@@ -68,6 +84,7 @@ public static partial class ChapterMarkers
 
         if (IntroTitle().IsMatch(name)) return MarkerKind.Intro;
         if (RecapTitle().IsMatch(name)) return MarkerKind.Recap;
+        if (CreditsTitle().IsMatch(name)) return MarkerKind.Credits;
         return null;
     }
 
@@ -91,6 +108,9 @@ public static partial class ChapterMarkers
 
     [GeneratedRegex(@"^(recap|previously( on.*)?|the story so far|last time( on.*)?)$")]
     private static partial Regex RecapTitle();
+
+    [GeneratedRegex(@"^((end|ending|closing) )?(credits|titles)$|^(ending|outro|ed)$")]
+    private static partial Regex CreditsTitle();
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();

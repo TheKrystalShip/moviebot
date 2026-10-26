@@ -747,7 +747,8 @@ contract of `kgsm-docs/reference/notifications.md`); Cinema declares the kinds a
   ],
   "markers": [
     { "kind": "recap", "startSeconds": 0.0, "endSeconds": 61.5, "from": "audio" },
-    { "kind": "intro", "startSeconds": 489.0, "endSeconds": 523.458, "from": "chapter" }
+    { "kind": "intro", "startSeconds": 489.0, "endSeconds": 523.458, "from": "chapter" },
+    { "kind": "credits", "startSeconds": 2799.8, "endSeconds": 2875.957, "from": "audio" }
   ],
   "subtitles": [
     { "id": "s3", "kind": "feature", "language": "eng", "label": "English",
@@ -788,12 +789,14 @@ gains those entries once, before `status` turns `ready`, and the master is rewri
 the same moment. A player that loaded the master earlier offers them after it loads the film again.
 
 `markers` are the stretches of an episode a viewer can skip, in time order, and are empty for a film
-and for an episode nothing was found in. `kind` is `"intro"` (the title sequence) or `"recap"` (the
-"previously on" at the head of the episode); `startSeconds` and `endSeconds` are positions in the
-episode, and skipping seeks to `endSeconds`. `from` is `"chapter"` when the container names the
+and for an episode nothing was found in. `kind` is `"intro"` (the title sequence), `"recap"` (the
+"previously on" at the head of the episode) or `"credits"` (the closing credits, which end the episode
+or are followed by a preview or a scene); `startSeconds` and `endSeconds` are positions in the
+episode, and skipping seeks to `endSeconds`. Credits that run to the end of the episode end at its
+`durationSeconds`. `from` is `"chapter"` when the container names the
 stretch, and `"audio"` when it was found by comparing the episode's sound with the show's other
 episodes, which places the start within about half a second and the end up to a second early, never
-late. A chapter's own edges are the container's and can differ from the audio's by several seconds,
+late; credits found that way can start later than the credits do, never earlier. A chapter's own edges are the container's and can differ from the audio's by several seconds,
 since a chapter named `Intro` may end before the titles do. An episode has at most one marker of
 each kind. Markers are written once the episode is `ready` and can appear
 on an episode already in the library, so a player reads them from every `TitleChanged` as well as

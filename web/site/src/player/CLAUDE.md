@@ -130,20 +130,34 @@ and does nothing that would be.
 - **Moving between episodes is a button, never automatic, and the server decides where it goes.** An
   episode has previous and next controls the whole time it plays, named from
   `/api/sessions/{room}/around`, asked again whenever the room holds something else, and from its
-  closing stretch — the last chapter when that is the credits, else the last two minutes — next is
-  offered over the film. Each sends intent (`Next`, `Previous`) and the server puts the episode on, or
-  fetches it into the room at the quality of the one playing for somebody who may download; a
-  refusal is said over the film. **One episode is asked for at a time** (`view.stepping`): from a
+  closing stretch — its credits where the manifest marks them, else the last chapter when that is the
+  credits, else the last two minutes — next is offered over the film, unless a skip is offered
+  there. Each sends intent (`Next`, `Previous`) and the server puts the episode on, or fetches it
+  into the room at the quality of the one playing for somebody who may download; a refusal is said
+  over the film. **One episode is asked for at a time** (`view.stepping`): from a
   press of Next, Previous or an episode in the menu, the buttons offer no second press until the
   room's state moves on or the step is refused, since each press of one fetches what is not here.
-- **Skipping an intro or a recap is a button over the film, and it moves the room.** The manifest's
-  `markers` name the stretches, and while the playhead is inside one the button asks the room to seek
-  to its end, as the scrub bar does, so everyone skips together. It is offered only when playback
-  entered the stretch by playing through: a seek that lands more than a couple of seconds past its
-  start says the person already chose where to be. A stretch that was skipped is not offered again.
-  With the viewer's `skipIntros` preference on and nobody else in the room, entering a stretch skips
-  it without a press; skipping on its own for somebody who is watching with others would move their
-  film too. No key is bound to it, for the reason above.
+- **Skipping an intro, a recap or the credits is a button over the film, and it moves the room.**
+  The manifest's `markers` name the stretches, and while the playhead is inside one the button asks
+  the room to seek to its end, as the scrub bar does, so everyone skips together. It is offered only
+  when playback entered the stretch by playing through: a seek that lands more than a couple of
+  seconds past its start says the person already chose where to be. A stretch that was skipped is not
+  offered again. Credits are offered only when something follows them, a preview or a scene; credits
+  that run to the end of the episode skip to nothing, and there the offer is the next episode. With
+  the viewer's `skipIntros` preference on and nobody else in the room, entering an intro or a recap
+  skips it without a press; skipping on its own for somebody who is watching with others would move
+  their film too. The credits are never skipped without a press, since what follows them is the
+  episode's own. No key is bound to it, for the reason above.
+- **What is playing is told to the system** (`mediaSession.js`, the Media Session API): the lock
+  screen, the notification, a headset's buttons, the keyboard's media keys and the browser's own
+  media controls show an episode by its place and name under its show and a film by its name and
+  year, with the artwork behind the frame and where the film is, told again only on a pause, a seek
+  or another title, since the system runs the clock on itself. Their play, pause, skips and seek move
+  the room as the player's own controls do, the skips by the buttons' step unless the system names
+  one, and a seek dragged along the notification's bar goes to the room once, when it settles.
+  Previous and next track are the episodes either side, offered only while the room names one and is
+  not already moving. A guest is told what is playing and given no controls, and a television's keys
+  are its remote's.
 - **A control that already answers a key keeps it.** The scrub bar and the volume slider handle the
   arrows when focused; taking them globally as well moves the film, or the volume, twice for one press.
 - **What anybody did to the room is said over the film, to everyone in it, them included**, with
