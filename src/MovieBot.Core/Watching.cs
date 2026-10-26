@@ -60,3 +60,16 @@ public sealed record WatchedChange
 
     public bool Watched { get; init; }
 }
+
+/// <summary>
+/// A person taking something off their Continue watching, or putting it back: a film by its library
+/// title, or a show by its IMDb id, and never both.
+/// </summary>
+public sealed record ContinueHiding
+{
+    public string? TitleId { get; init; }
+
+    public string? ShowImdbId { get; init; }
+
+    public bool Hidden { get; init; }
+}

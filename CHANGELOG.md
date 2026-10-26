@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.9.0] - 2026-10-26
+
+### Added
+- **Remove from Continue watching.** Each Continue watching card, on Home and on the phone remote's idle
+  shelf, has a remove button over its artwork's corner (shown under a hovering pointer, always on a touch
+  screen). It takes the film, or the whole show, off the row, and the toast saying so carries Undo.
+  `POST /api/me/progress/hidden` takes a film by its library title or a show by its IMDb id, kept in
+  `continue_hidden` with the moment it was taken off; it stays off until the person watches it again, and
+  what they watched is untouched, so History keeps it. API 3.7.0, site 0.102.0.
+
 ## [4.8.2] - 2026-10-26
 
 ### Changed

@@ -171,7 +171,7 @@ film onto a device is `Offline/CLAUDE.md`.
   mark on a title the library holds as that title finished at the time of the mark, unless the entry
   is newer, so every reader of entries sees it; the readers that answer for what the library does not
   hold (`LibraryShelf`, `ShowProgress.Finished`, Continue watching, a show's episodes) read the marks as
-  well. `PersonDirectory` is what turns an account into a name, learned from every token validated; a
+  well. What a person takes off Continue watching (`continue_hidden`, a film by library title, a show by IMDb id) is kept apart from their entries and marks, with the moment they did, and stays off only while nothing about it is newer, so History is untouched and watching it again lists it again. `PersonDirectory` is what turns an account into a name, learned from every token validated; a
   record never shows an id where a name belongs. When somebody was last seen is held in memory alone.
 - **The API publishes what a page needs to sign in on `/api/config`**, including its public address:
   the Activity's origin is Discord's proxy, reachable only from inside the Activity, and the poster a

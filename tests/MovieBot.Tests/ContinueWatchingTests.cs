@@ -144,4 +144,70 @@ public sealed class ContinueWatchingTests(SessionFixture fixture) : IClassFixtur
 
         Assert.DoesNotContain(listed, e => e.ShowImdbId == $"tt-{show}");
     }
+
+    private static async Task Hide(HttpClient client, object body)
+    {
+        using var sent = await client.PostAsJsonAsync("/api/me/progress/hidden", body);
+        sent.EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task A_film_taken_off_is_left_out_until_it_is_watched_again()
+    {
+        fixture.AddTitle("cw-hide-film", new Core.FilmIdentity { ImdbId = "tt7700101", Name = "Hidden" });
+        var client = fixture.CreatePersonClient("cw9");
+        Assert.Contains(await Watch(client, ("cw-hide-film", 600, 5)), e => e.TitleId == "cw-hide-film");
+
+        await Hide(client, new { titleId = "cw-hide-film", hidden = true });
+        Assert.DoesNotContain((await client.GetFromJsonAsync<List<ProgressEntry>>("/api/me/progress", Json))!, e => e.TitleId == "cw-hide-film");
+        Assert.Contains((await client.GetFromJsonAsync<List<HistoryEntry>>("/api/me/history", Json))!, e => e.TitleId == "cw-hide-film");
+
+        var again = await Watch(client, ("cw-hide-film", 900, 0));
+        Assert.Equal(900, Assert.Single(again, e => e.TitleId == "cw-hide-film").PositionSeconds);
+    }
+
+    [Fact]
+    public async Task A_show_taken_off_is_left_out_by_every_episode_until_one_is_watched_again()
+    {
+        const string show = "tt7700102";
+        foreach (var number in new[] { 1, 2, 3 }) fixture.AddEpisode($"cw-hide-show-s01e{number:00}", show, "cw-hide-show", 1, number);
+        var client = fixture.CreatePersonClient("cw10");
+        await Watch(client, ("cw-hide-show-s01e01", Finished, 60), ("cw-hide-show-s01e02", 600, 5));
+
+        await Hide(client, new { showImdbId = show, hidden = true });
+        Assert.DoesNotContain((await client.GetFromJsonAsync<List<ProgressEntry>>("/api/me/progress", Json))!, e => e.ShowImdbId == show);
+
+        var again = await Watch(client, ("cw-hide-show-s01e02", Finished, 0));
+        Assert.Equal("cw-hide-show-s01e03", Assert.Single(again, e => e.ShowImdbId == show).TitleId);
+    }
+
+    [Fact]
+    public async Task Putting_back_what_was_taken_off_lists_it_as_before()
+    {
+        fixture.AddTitle("cw-unhide", new Core.FilmIdentity { ImdbId = "tt7700103", Name = "Back" });
+        var client = fixture.CreatePersonClient("cw11");
+        await Watch(client, ("cw-unhide", 600, 5));
+
+        await Hide(client, new { titleId = "cw-unhide", hidden = true });
+        await Hide(client, new { titleId = "cw-unhide", hidden = false });
+
+        Assert.Contains((await client.GetFromJsonAsync<List<ProgressEntry>>("/api/me/progress", Json))!, e => e.TitleId == "cw-unhide");
+    }
+
+    [Fact]
+    public async Task Taking_off_names_one_film_or_one_show()
+    {
+        var client = fixture.CreatePersonClient("cw12");
+        fixture.AddEpisode("cw-hide-ep", "tt7700104", "cw-hide-ep", 1, 1);
+
+        using var both = await client.PostAsJsonAsync("/api/me/progress/hidden", new { titleId = "x", showImdbId = "tt7700104", hidden = true });
+        using var neither = await client.PostAsJsonAsync("/api/me/progress/hidden", new { hidden = true });
+        using var episode = await client.PostAsJsonAsync("/api/me/progress/hidden", new { titleId = "cw-hide-ep", hidden = true });
+        using var missing = await client.PostAsJsonAsync("/api/me/progress/hidden", new { titleId = "cw-nowhere", hidden = true });
+
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, both.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, neither.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, episode.StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, missing.StatusCode);
+    }
 }

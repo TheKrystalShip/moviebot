@@ -80,14 +80,42 @@ public static class PeopleEndpoints
         // What this person can carry on with, newest first: each film they started and did not
         // finish, and for each show one episode, the latest they watched while they have not finished
         // it, else the one after it. A title the library no longer holds is left out: there is
-        // nothing to continue and no name to show for it.
+        // nothing to continue and no name to show for it; so is what the person took off the list.
         app.MapGet("/api/me/progress", (HttpContext context, WatchRecord record, TitleLibrary library, CatalogueTitles shows,
             SessionStore sessions, TimeProvider clock) =>
         {
             if (Person(context) is not { } person) return NoPerson();
             return Results.Ok(ContinueWatching(EntriesOf(person.UserId, record, sessions, library, clock), record.Marks(person.UserId),
+                record.HiddenFromContinue(person.UserId),
                 library, shows, person.Holds(CinemaActions.Download), DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)));
         }).RequireAction(CinemaActions.ProfileRead);
+
+        // Takes a film or a show off the person's Continue watching, or puts it back. It stays off until
+        // they watch it again; what they watched is kept, so History is unchanged.
+        app.MapPost("/api/me/progress/hidden", (ContinueHiding body, HttpContext context, WatchRecord record, TitleLibrary library,
+            TimeProvider clock) =>
+        {
+            if (Person(context) is not { } person) return NoPerson();
+            if ((body.TitleId is null) == (body.ShowImdbId is null)) return Refuse("Name a film by its title or a show by its IMDb id, one of the two.");
+
+            if (body.ShowImdbId is { } imdbId)
+            {
+                if (!TitleQuery.IsImdbId(imdbId)) return Refuse("Name the show by its IMDb id.");
+                record.HideFromContinue(person.UserId, show: true, imdbId, body.Hidden, clock.GetUtcNow());
+                return Results.NoContent();
+            }
+
+            var titleId = body.TitleId!;
+            if (body.Hidden)
+            {
+                if (library.Get(titleId) is not { } manifest)
+                    return Results.Json(new ErrorReply("The library has no such title."),
+                        ApiJsonContext.Default.ErrorReply, statusCode: StatusCodes.Status404NotFound);
+                if (manifest.Episode is not null) return Refuse("An episode is taken off by its show.");
+            }
+            record.HideFromContinue(person.UserId, show: false, titleId, body.Hidden, clock.GetUtcNow());
+            return Results.NoContent();
+        }).RequireAction(CinemaActions.ProfileWrite);
 
         // Where a device that watched with no connection got to. Each entry is recorded the way a
         // room's stretch is, and only where it is newer than what is held: the person may have
@@ -286,10 +314,13 @@ public static class PeopleEndpoints
     /// place in the list. A person's mark on an episode (<paramref name="marks"/>) is that episode finished
     /// at the time of the mark, here or not, so a season watched elsewhere is carried on from the episode
     /// after it. On an episode the library holds it says what the episode's entry says, unless the entry
-    /// is newer, and the newer of the two is the one the show is listed by.
+    /// is newer, and the newer of the two is the one the show is listed by. A film or a show the person
+    /// took off the list (<paramref name="hidden"/>) is left out while nothing about it is newer than the
+    /// moment they did.
     /// </summary>
     public static List<ProgressEntry> ContinueWatching(
-        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, IReadOnlyList<WatchedMark> marks, TitleLibrary library,
+        IEnumerable<(string TitleId, WatchEntry Entry)> newestFirst, IReadOnlyList<WatchedMark> marks, HiddenFromContinue hidden,
+        TitleLibrary library,
         CatalogueTitles shows, bool mayFetch, DateOnly today)
     {
         var entries = newestFirst.ToList();
@@ -309,7 +340,7 @@ public static class PeopleEndpoints
         {
             if (mark is { } marked)
             {
-                if (!seenShows.Add(marked.ImdbId)) continue;
+                if (!seenShows.Add(marked.ImdbId) || hidden.HidesShow(marked.ImdbId, at)) continue;
                 var place = new EpisodeIdentity { Season = marked.Season, Number = marked.Number };
                 if (After(marked.ImdbId, place, shows.Card(marked.ImdbId)?.Title ?? marked.ImdbId, at) is { } carried)
                     listed.Add(carried);
@@ -321,11 +352,11 @@ public static class PeopleEndpoints
 
             if (show is null)
             {
-                if (!entry!.Finished) listed.Add(Progress(titleId!, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
+                if (!entry!.Finished && !hidden.HidesFilm(titleId!, at)) listed.Add(Progress(titleId!, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));
                 continue;
             }
 
-            if (!seenShows.Add(show)) continue;
+            if (!seenShows.Add(show) || hidden.HidesShow(show, at)) continue;
             if (!entry!.Finished)
             {
                 listed.Add(Progress(titleId!, manifest, entry.PositionSeconds, entry.DurationSeconds, entry.LastWatchedAt, shows));

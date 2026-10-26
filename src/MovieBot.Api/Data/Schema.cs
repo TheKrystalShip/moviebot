@@ -18,7 +18,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar, WatchedMarks];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar, WatchedMarks, ContinueHidden];
 
     public static int Version => Steps.Length;
 
@@ -35,6 +35,18 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string ContinueHidden = """
+        -- What each person took off their Continue watching, and when: a film by its library title
+        -- (kind 'film'), a show by its IMDb id (kind 'show'). It stays off until they watch it again.
+        CREATE TABLE continue_hidden (
+            user_id   TEXT NOT NULL,
+            kind      TEXT NOT NULL,
+            id        TEXT NOT NULL,
+            hidden_at TEXT NOT NULL,
+            PRIMARY KEY (user_id, kind, id)
+        ) WITHOUT ROWID;
+        """;
 
     private const string WatchedMarks = """
         -- What each person said they watched, or watched elsewhere, by what it is rather than by a library

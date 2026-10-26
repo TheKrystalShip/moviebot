@@ -23,6 +23,7 @@ import { useWantList } from "../wants.js";
 import markUrl from "@thekrystalship/krystal/assets/tks-mark.png";
 import { inActivity } from "../discord/launch.js";
 import { useDriving } from "../components/WatchOnTv.jsx";
+import { useContinueRemoval } from "../continueRemoval.js";
 
 const RECENT_DAYS = 14;
 /** How many of the films downloaded last the top turns through when there is no connection. */
@@ -112,6 +113,7 @@ function ServerHome() {
   // While the phone drives a television, carrying on with something puts it on the television.
   const driving = useDriving();
   const progress = useLoad(() => meApi.progress().catch(() => []), []);
+  const removal = useContinueRemoval(progress.reload);
   const showList = useLoad(() => libraryApi.shows().catch(() => []), []);
   const wanted = useWantList().list;
   const together = useLoad(() => meApi.together().catch(() => []), []).data || [];
@@ -131,7 +133,9 @@ function ServerHome() {
   // Watching now means somebody is there: an empty room is kept a while after the last person leaves.
   const watching = (rooms.data || []).filter((r) => r.titleId && r.participants > 0 && byId.has(r.titleId));
   // An episode the library does not hold yet comes with no title, and is fetched when chosen.
-  const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
+  const continuing = (progress.data || [])
+    .filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId))
+    .filter((p) => !removal.gone(p));
   const showOf = new Map(shows.filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
   const isRecent = (at) => at && Date.now() - Date.parse(at) <= RECENT_DAYS * DAY_MS;
   const films = library.filter((t) => t.kind !== "show");
@@ -171,14 +175,18 @@ function ServerHome() {
 
       {continuing.length > 0 && (
         <Shelf perView={WIDE} title="Continue watching" sub={counted(continuing.length, "title")}>
-          {continuing.map((p) => !p.titleId ? <NextEpisodeCard key={continueKey(p)} progress={p} show={showOf.get(p.showImdbId)} onTv={driving} /> : (
+          {continuing.map((p) => !p.titleId ? (
+            <NextEpisodeCard key={continueKey(p)} progress={p} show={showOf.get(p.showImdbId)} onTv={driving}
+              onRemove={() => removal.remove(p)} />
+          ) : (
             <ContinueCard
               key={continueKey(p)}
               title={byId.get(p.titleId)}
               progress={p}
               remainingSeconds={p.remainingSeconds}
               room={watching.find((r) => r.titleId === p.titleId)}
-              onTv={driving} />
+              onTv={driving}
+              onRemove={() => removal.remove(p)} />
           ))}
         </Shelf>
       )}

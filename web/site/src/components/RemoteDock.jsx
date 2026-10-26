@@ -3,6 +3,7 @@ import { Button, Drawer, EmptyState, Icon, OptionList, Rail, Toggle, toast, useD
 import { WIDE } from "../railDensity.js";
 import { episodeCode, filmName, libraryApi, meApi } from "../api/index.js";
 import { useLoad } from "../data.js";
+import { useContinueRemoval } from "../continueRemoval.js";
 import { setRemoteMode, chooseScreen, useDrivenScreen, usePairedScreens, useRemoteMode, useRemoteOpen } from "../remote.js";
 import { useRoute } from "../router.js";
 import { roomCommands, useRemotePosition, useRemoteRoom } from "../remoteRoom.js";
@@ -269,7 +270,10 @@ function Idle({ shelf }) {
   const { titles, progress, shows } = shelf;
   const byId = new Map((titles.data || []).filter((t) => t.status !== "failed").map((t) => [t.id, t]));
   const showOf = new Map((shows.data || []).filter((s) => s.imdbId).map((s) => [s.imdbId, s]));
-  const continuing = (progress.data || []).filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId));
+  const removal = useContinueRemoval(progress.reload);
+  const continuing = (progress.data || [])
+    .filter((p) => (p.titleId ? byId.has(p.titleId) : p.episode && p.showImdbId))
+    .filter((p) => !removal.gone(p));
   return (
     <>
       <EmptyState className="kc-remote__empty" icon="tv" title="Nothing playing" />
@@ -278,8 +282,9 @@ function Idle({ shelf }) {
           perView={WIDE} icon="history" title="Continue watching" count={continuing.length}
           items={continuing} itemKey={(p) => p.titleId || `${p.showImdbId}:${p.episode.season}:${p.episode.number}`}
           renderItem={(p) => !p.titleId
-            ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv />
-            : <ContinueCard title={byId.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} onTv />} />
+            ? <NextEpisodeCard progress={p} show={showOf.get(p.showImdbId)} onTv onRemove={() => removal.remove(p)} />
+            : <ContinueCard title={byId.get(p.titleId)} progress={p} remainingSeconds={p.remainingSeconds} onTv
+              onRemove={() => removal.remove(p)} />} />
       )}
     </>
   );

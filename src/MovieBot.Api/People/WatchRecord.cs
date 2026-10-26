@@ -33,6 +33,21 @@ public readonly record struct Watchable(string ImdbId, int Season, int Number)
 /// <summary>A person saying they watched something, here or elsewhere, and when they said it.</summary>
 public sealed record WatchedMark(Watchable What, DateTimeOffset MarkedAt);
 
+/// <summary>
+/// What a person took off their Continue watching and when, films by library title and shows by IMDb
+/// id. Each stays off while nothing about it is newer than the moment it was taken off.
+/// </summary>
+public sealed record HiddenFromContinue(IReadOnlyDictionary<string, DateTimeOffset> Films, IReadOnlyDictionary<string, DateTimeOffset> Shows)
+{
+    public static readonly HiddenFromContinue None = new(new Dictionary<string, DateTimeOffset>(), new Dictionary<string, DateTimeOffset>());
+
+    /// <summary>Whether a film last watched at <paramref name="at"/> is off.</summary>
+    public bool HidesFilm(string titleId, DateTimeOffset at) => Films.TryGetValue(titleId, out var hidden) && at <= hidden;
+
+    /// <summary>Whether a show whose latest activity is at <paramref name="at"/> is off.</summary>
+    public bool HidesShow(string imdbId, DateTimeOffset at) => Shows.TryGetValue(imdbId, out var hidden) && at <= hidden;
+}
+
 /// <summary>The titles the library holds, as it was last listed.</summary>
 public interface IHeldTitles
 {
@@ -66,6 +81,8 @@ public sealed class WatchRecord : IPlayHistory
     public const double FinishedFraction = 0.9;
 
     private const string SinceKey = "watch_since";
+    private const string FilmKind = "film";
+    private const string ShowKind = "show";
 
     private readonly CinemaDatabase _database;
 
@@ -210,6 +227,35 @@ public sealed class WatchRecord : IPlayHistory
                     ("$user", userId), ("$title", titleId));
         });
     }
+
+    /// <summary>What the person took off their Continue watching.</summary>
+    public HiddenFromContinue HiddenFromContinue(string userId)
+    {
+        var rows = _database.Read(c => c.Query(
+            "SELECT kind, id, hidden_at FROM continue_hidden WHERE user_id = $user",
+            r => (Kind: r.GetString(0), Id: r.GetString(1), At: r.GetInstant(2)),
+            ("$user", userId)));
+        if (rows.Count == 0) return People.HiddenFromContinue.None;
+        return new(
+            rows.Where(r => r.Kind == FilmKind).ToDictionary(r => r.Id, r => r.At, StringComparer.Ordinal),
+            rows.Where(r => r.Kind == ShowKind).ToDictionary(r => r.Id, r => r.At, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// Takes a film (by library title) or a show (by IMDb id) off the person's Continue watching as of
+    /// <paramref name="at"/>, or with <paramref name="hidden"/> false puts it back. Their entries and marks
+    /// stay as they are: History and every other reader see what they watched unchanged.
+    /// </summary>
+    public void HideFromContinue(string userId, bool show, string id, bool hidden, DateTimeOffset at) =>
+        _database.Write(c =>
+        {
+            if (hidden)
+                c.Execute("INSERT OR REPLACE INTO continue_hidden (user_id, kind, id, hidden_at) VALUES ($user, $kind, $id, $at)",
+                    ("$user", userId), ("$kind", show ? ShowKind : FilmKind), ("$id", id), ("$at", at));
+            else
+                c.Execute("DELETE FROM continue_hidden WHERE user_id = $user AND kind = $kind AND id = $id",
+                    ("$user", userId), ("$kind", show ? ShowKind : FilmKind), ("$id", id));
+        });
 
     /// <summary>Every entry somebody touched since <paramref name="since"/>: who, which title, and when.</summary>
     public IReadOnlyList<(string UserId, string TitleId, DateTimeOffset At)> WatchedSince(DateTimeOffset since) =>

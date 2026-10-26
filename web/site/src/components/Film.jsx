@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Icon, PosterCard } from "@thekrystalship/krystal";
+import { Button, Icon, IconButton, PosterCard } from "@thekrystalship/krystal";
 import { cardRating, episodeCode, filmName, posterArt, posterUrl } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
@@ -49,11 +49,27 @@ export function WatchButton({ titleId, sessionId, at, children, ...props }) {
 }
 
 /**
+ * A Continue watching card and, when `onRemove` is given, a button over its corner that takes it off
+ * the list. A pointer that hovers sees the button on the card it is over; a touch screen always does.
+ */
+function Removable({ name, onRemove, children }) {
+  if (!onRemove) return children;
+  return (
+    <div className="kc-continue-item">
+      {children}
+      <IconButton variant="ghost" size="sm" icon="x" className="kc-continue__remove"
+        label={`Remove ${name} from Continue watching`} onClick={onRemove} />
+    </div>
+  );
+}
+
+/**
  * A film started and not finished: its artwork, how far in, how much is left, and a way back into it.
  * `onTv` is the card on a phone driving a television, on its remote and on Home: choosing it puts the
  * film on the television, from where this person got to, and the glyph on it is the television's.
+ * `onRemove` takes it off Continue watching.
  */
-export function ContinueCard({ title, progress, remainingSeconds, room, onTv = false }) {
+export function ContinueCard({ title, progress, remainingSeconds, room, onTv = false, onRemove }) {
   const art = (title.card && title.card.backdrop) || posterUrl(title);
   const fraction = progress.durationSeconds > 0 ? Math.min(1, progress.positionSeconds / progress.durationSeconds) : 0;
   const link = useWatchLink(title.id, room && room.sessionId, progress.positionSeconds);
@@ -78,17 +94,26 @@ export function ContinueCard({ title, progress, remainingSeconds, room, onTv = f
       });
       setStarting(false);
     };
-    return <Button variant="bare" className="kc-continue" disabled={starting} aria-label={`Watch on TV: ${filmName(title)}`} onClick={start}>{body}</Button>;
+    return (
+      <Removable name={filmName(title)} onRemove={onRemove}>
+        <Button variant="bare" className="kc-continue" disabled={starting} aria-label={`Watch on TV: ${filmName(title)}`} onClick={start}>{body}</Button>
+      </Removable>
+    );
   }
-  return <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>{body}</a>;
+  return (
+    <Removable name={filmName(title)} onRemove={onRemove}>
+      <a className="kc-continue" {...(link.disabled ? { "aria-disabled": "true" } : link)}>{body}</a>
+    </Removable>
+  );
 }
 
 /**
  * The episode after one somebody finished, when the library does not hold it (`GET /api/me/progress`
  * with no `titleId`): its still, else the show's backdrop, the show's name and its place in it.
- * Choosing it is Watch now, which fetches it into a room and goes there.
+ * Choosing it is Watch now, which fetches it into a room and goes there. `onRemove` takes the show off
+ * Continue watching.
  */
-export function NextEpisodeCard({ progress, show, onTv = false }) {
+export function NextEpisodeCard({ progress, show, onTv = false, onRemove }) {
   const [starting, setStarting] = React.useState(false);
   const online = useOnline();
   const card = show && show.card;
@@ -104,17 +129,19 @@ export function NextEpisodeCard({ progress, show, onTv = false }) {
     if (!started || onTv) setStarting(false);
   };
   return (
-    <Button variant="bare" className="kc-continue" disabled={starting || !online} onClick={start}
-      aria-label={onTv ? `Watch on TV: ${name}` : undefined}>
-      <div className="kc-poster-art kc-poster-art--wide">
-        {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{name}</span>}
-        <span className="kc-continue__play"><Icon name={onTv ? "tv" : "play"} size={16} /></span>
-      </div>
-      <span className="kc-poster__name">{name}</span>
-      <span className="kc-poster__note">
-        {starting ? "Starting…" : progress.remainingSeconds > 0 ? timeLeft(progress.remainingSeconds) : progress.episodeName}
-      </span>
-    </Button>
+    <Removable name={progress.name} onRemove={onRemove}>
+      <Button variant="bare" className="kc-continue" disabled={starting || !online} onClick={start}
+        aria-label={onTv ? `Watch on TV: ${name}` : undefined}>
+        <div className="kc-poster-art kc-poster-art--wide">
+          {art ? <img src={art} alt="" loading="lazy" /> : <span className="kc-poster-art__name">{name}</span>}
+          <span className="kc-continue__play"><Icon name={onTv ? "tv" : "play"} size={16} /></span>
+        </div>
+        <span className="kc-poster__name">{name}</span>
+        <span className="kc-poster__note">
+          {starting ? "Starting…" : progress.remainingSeconds > 0 ? timeLeft(progress.remainingSeconds) : progress.episodeName}
+        </span>
+      </Button>
+    </Removable>
   );
 }
 

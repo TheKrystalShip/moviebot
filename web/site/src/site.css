@@ -162,6 +162,15 @@ button.kc-continue:disabled { cursor: progress; }
   position: absolute; left: 10px; bottom: 14px; width: 30px; height: 30px; border-radius: var(--r-pill);
   background: color-mix(in srgb, var(--kc-art-ink) 70%, transparent); color: var(--art-fg-white); display: flex; align-items: center; justify-content: center;
 }
+/* A Continue watching card with its remove button over the artwork's top right corner. */
+.kc-continue-item { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.kc-continue__remove.kc-continue__remove {
+  position: absolute; top: 6px; right: 6px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--kc-art-ink) 70%, transparent); color: var(--art-fg-white);
+}
+@media (hover: hover) {
+  .kc-continue-item:not(:hover):not(:focus-within) .kc-continue__remove { opacity: 0; }
+}
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--art-fg-white) 25%, transparent); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
 /* A segmented choice across its container. */

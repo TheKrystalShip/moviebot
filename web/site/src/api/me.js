@@ -29,6 +29,9 @@ export const me = {
   history: () => call("GET", "/api/me/history"),
   historyPage: (params) => call("GET", withQuery("/api/me/history/page", params)),
   forgetHistory: (id) => call("DELETE", `/api/me/history/${enc(id)}`),
+  // Takes a film (`titleId`) or a show (`showImdbId`) off Continue watching until it is watched again,
+  // or puts it back (`{ titleId | showImdbId, hidden }`); History keeps it either way.
+  hideProgress: (change) => call("POST", "/api/me/progress/hidden", change),
   // What they say they watched, here or anywhere, or take back: a film, or a show, a season of it or
   // an episode of it, by IMDb id (`{ imdbId, kind, season?, episode?, watched }`).
   setWatched: (change) => call("POST", "/api/me/watched", change),
