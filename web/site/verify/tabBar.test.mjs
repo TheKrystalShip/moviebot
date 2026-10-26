@@ -92,6 +92,27 @@ test('the API\'s record replaces the device copy when it is read', async () => {
   assert.deepEqual(readSlots(disk), ['plans', 'wants', 'anime', 'tv']);
 });
 
+test('a read carries no revision and still replaces the device copy', async () => {
+  const { bar } = rig({ record: { tabBar: ['plans', 'wants', 'anime', 'tv'] } });
+  await bar.attach();
+  assert.deepEqual(bar.slots(), ['plans', 'wants', 'anime', 'tv']);
+  await bar.refresh();
+  assert.deepEqual(bar.slots(), ['plans', 'wants', 'anime', 'tv']);
+});
+
+test('a read that a push or a change overtook while it was out is dropped', async () => {
+  const { bar, api } = rig({ record: { tabBar: null } });
+  const reading = bar.attach();
+  bar.heard({ revision: 9, tabBar: ['tv', 'anime', 'wants', 'plans'] });
+  await reading;
+  assert.deepEqual(bar.slots(), ['tv', 'anime', 'wants', 'plans']);
+  api.record = { tabBar: null };
+  const again = bar.refresh();
+  const changing = bar.change(['plans', 'wants', 'anime', 'tv']);
+  await Promise.all([again, changing]);
+  assert.deepEqual(bar.slots(), ['plans', 'wants', 'anime', 'tv']);
+});
+
 test('a push is adopted, and a push older than what is held is dropped', async () => {
   const { bar } = rig({ record: { revision: 5, tabBar: null } });
   await bar.attach();

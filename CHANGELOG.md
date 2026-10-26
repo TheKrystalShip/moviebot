@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.5.1] - 2026-10-26
+
+### Fixed
+- A device that opens Cinema with nothing stored takes the person's tab bar from their preferences. The
+  read of the preferences carries no revision, and the bar dropped it as older than the nothing it held.
+
 ## [4.5.0] - 2026-10-26
 
 ### Added

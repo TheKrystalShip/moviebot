@@ -60,7 +60,9 @@ const revisionOf = (record) => (record && record.revision) || 0;
  *
  * `slots()` is what the bar holds, null for the defaults. The API's record replaces it whenever one
  * arrives in the order the API kept its writes (`Ordered`): a push older than what is held is dropped,
- * and a push that lands while a write of this device is in flight waits for the write's answer. A change
+ * and a push that lands while a write of this device is in flight waits for the write's answer. A read
+ * carries no revision, so it replaces the bar when it is answered unless a push or a change of this
+ * device came in while it was out, which are newer than it. A change
  * is shown and kept on the device at once and written to the API as the freshest record read this
  * session with `tabBar` replaced (the API stores the whole record a write carries), after a record is
  * read when none has been; writes go one at a time, each carrying the bar as it stands then.
@@ -71,6 +73,7 @@ export function createTabBar({ storage, defaults, load, save, failed = () => {} 
   let record = null;
   let order = new Ordered(adopt);
   let chain = Promise.resolve();
+  let newer = 0;
   const listeners = new Set();
 
   function put(next) {
@@ -139,20 +142,23 @@ export function createTabBar({ storage, defaults, load, save, failed = () => {} 
     /** Reads the record again, which is how the bar catches up after the connection was away. */
     async refresh() {
       const mine = order;
+      const seen = newer;
       try {
         const answer = await read();
-        if (mine === order) order.heard(answer);
+        if (mine === order && seen === newer) adopt(answer);
       } catch { /* the bar stays as it is held */ }
     },
 
     /** The API pushed the person's preferences. */
     heard(pushed) {
+      newer += 1;
       see(pushed);
       order.heard(pushed);
     },
 
     /** The dock reported a choice: four ids, an empty slot ''. */
     change(ids) {
+      newer += 1;
       put(completed(ids, defaults));
       chain = chain.then(write);
       return chain;
