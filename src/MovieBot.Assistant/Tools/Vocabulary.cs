@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -74,7 +76,7 @@ internal sealed partial class Vocabulary(Facets facets)
     /// The title a name means, as "Heat" or "Heat (1995)": the catalogue's closest match by name, in the
     /// year where one is given. Null when there is none.
     /// </summary>
-    public static async Task<CatalogueCard?> TitleAsync(CinemaApi.PersonApi database, string said, CancellationToken ct)
+    public static async Task<TitleCard?> TitleAsync(CinemaApi.PersonApi database, string said, CancellationToken ct)
     {
         (string name, int? year) = (said, null);
         if (NameWithYear().Match(said) is { Success: true } m)

@@ -1,5 +1,14 @@
 namespace TheKrystalShip.MovieBot.Core;
 
+/// <summary>What a want is for: a film or a show, never an episode.</summary>
+public static class WantKinds
+{
+    public const string Film = "film";
+    public const string Show = "show";
+
+    public static bool IsKnown(string? kind) => kind is Film or Show;
+}
+
 /// <summary>What is measured of a title somebody wants (<see cref="WantView.State"/>).</summary>
 public static class WantStates
 {

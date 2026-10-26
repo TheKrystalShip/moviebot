@@ -416,12 +416,12 @@ public sealed class OfflineTests(OfflineTests.Fixture fixture) : IClassFixture<O
         });
         Assert.Equal(HttpStatusCode.NoContent, older.StatusCode);
 
-        var progress = await client.GetFromJsonAsync<List<Api.People.ProgressEntry>>("/api/me/progress", Json);
+        var progress = await client.GetFromJsonAsync<List<Core.ProgressEntry>>("/api/me/progress", Json);
         Assert.Equal(1200, progress!.Single(p => p.TitleId == SessionFixture.ReadyTitle).PositionSeconds);
 
         using var newer = await client.PostAsJsonAsync("/api/me/progress",
             new[] { new { titleId = SessionFixture.ReadyTitle, positionSeconds = 2400.0, watchedAt = earlier.AddHours(1) } });
-        progress = await client.GetFromJsonAsync<List<Api.People.ProgressEntry>>("/api/me/progress", Json);
+        progress = await client.GetFromJsonAsync<List<Core.ProgressEntry>>("/api/me/progress", Json);
         Assert.Equal(2400, progress!.Single(p => p.TitleId == SessionFixture.ReadyTitle).PositionSeconds);
 
         using var negative = await client.PostAsJsonAsync("/api/me/progress",

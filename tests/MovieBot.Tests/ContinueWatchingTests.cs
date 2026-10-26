@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
 using TheKrystalShip.MovieBot.Api.People;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests;

@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 

@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Client;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -17,12 +19,12 @@ internal sealed partial class AnticipatedTool(CinemaApi api) : AssistantTool<Ant
 
     protected override async ValueTask<ToolResult> RunAsync(Args args, ToolCall<Caller> call)
     {
-        List<AnticipatedTitle> titles = await api.As(call.Principal.AccessToken).AnticipatedAsync(call.CancellationToken);
+        List<AnticipatedView> titles = await api.As(call.Principal.AccessToken).AnticipatedAsync(call.CancellationToken);
         if (titles.Count == 0)
             return ToolResult.Ok("Nobody is waiting on a film that is not out yet.");
 
         var text = new StringBuilder("Films people are waiting for, most waiters first:\n");
-        foreach (AnticipatedTitle t in titles)
+        foreach (AnticipatedView t in titles)
         {
             text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append(", ").Append(TitleText.KindWord(t.Kind)).Append(". ")
                 .Append(TitleText.Count(t.Waiters)).Append(" waiting.");
@@ -32,6 +34,6 @@ internal sealed partial class AnticipatedTool(CinemaApi api) : AssistantTool<Ant
 
         return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(
             titles.Where(t => t.ImdbId is { Length: > 0 })
-                .Select(t => new TitleCard(t.ImdbId, t.Kind, t.Title, t.Year, t.PosterUrl, false, false))));
+                .Select(t => new CardTitle(t.ImdbId, t.Kind, t.Title, t.Year, t.PosterUrl, false, false))));
     }
 }

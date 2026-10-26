@@ -1,4 +1,4 @@
-namespace TheKrystalShip.MovieBot.Api.People;
+namespace TheKrystalShip.MovieBot.Core;
 
 /// <summary>
 /// A film or an episode somebody can carry on with, and how much of it is left: one they started and
@@ -15,7 +15,7 @@ public sealed record ProgressEntry(
     double DurationSeconds,
     double RemainingSeconds,
     DateTimeOffset LastWatchedAt,
-    Core.EpisodeIdentity? Episode = null,
+    EpisodeIdentity? Episode = null,
     string? ShowImdbId = null,
     string? EpisodeName = null,
     string? StillUrl = null);
@@ -28,7 +28,7 @@ public sealed record HistoryEntry(
     double DurationSeconds,
     bool Finished,
     DateTimeOffset LastWatchedAt,
-    Core.EpisodeIdentity? Episode = null,
+    EpisodeIdentity? Episode = null,
     string? ShowImdbId = null);
 
 /// <summary>Where the asking person is in a film, as the library listing carries it.</summary>

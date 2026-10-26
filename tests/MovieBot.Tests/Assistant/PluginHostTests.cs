@@ -45,7 +45,7 @@ public sealed class PluginHostTests : IAsyncLifetime
                 builder.Services.Configure<JwtBearerOptions>(
                     JwtBearerDefaults.AuthenticationScheme, o => o.BackchannelHttpHandler = new Switchable(_issuer.Handler(), () => _providerDown));
                 builder.Services.AddHttpClient<HarnessClient>().ConfigurePrimaryHttpMessageHandler(() => _harness);
-                builder.Services.AddHttpClient<CinemaApi>().ConfigurePrimaryHttpMessageHandler(() => _world);
+                builder.Services.AddHttpClient<MovieBotApiClient>().ConfigurePrimaryHttpMessageHandler(() => _world);
             });
         await _app.StartAsync();
         _client = _app.GetTestClient();
@@ -73,8 +73,9 @@ public sealed class PluginHostTests : IAsyncLifetime
         PluginProfile sent = _harness.Registered!;
         Assert.Equal("moviebot", sent.Id);
         Assert.Equal(
-            ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste", "anticipated"], sent.Tools.Select(t => t.Name));
-        Assert.Equal(5, sent.Skills.Count);
+            ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste", "anticipated",
+             "wanted_together", "my_plans", "want", "make_plan", "answer_plan", "change_plan"], sent.Tools.Select(t => t.Name));
+        Assert.Equal(6, sent.Skills.Count);
         Assert.Equal(_app.Services.GetRequiredService<PluginRegistration>().Profile.ContentHash(), sent.ContentHash());
 
         using HttpResponseMessage health = await _client.GetAsync("/health");

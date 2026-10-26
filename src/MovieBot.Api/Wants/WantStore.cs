@@ -2,15 +2,6 @@ using TheKrystalShip.MovieBot.Api.Data;
 
 namespace TheKrystalShip.MovieBot.Api.Wants;
 
-/// <summary>What a want is for: a film or a show, never an episode.</summary>
-public static class WantKinds
-{
-    public const string Film = "film";
-    public const string Show = "show";
-
-    public static bool IsKnown(string? kind) => kind is Film or Show;
-}
-
 /// <summary>One person's want of one title.</summary>
 public sealed record StoredWant
 {

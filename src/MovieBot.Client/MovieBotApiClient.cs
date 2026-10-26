@@ -21,7 +21,7 @@ namespace TheKrystalShip.MovieBot.Client;
 /// <see cref="HttpClient"/> was given, which for the bot is the service key: machine work that names
 /// nobody, such as reading the rooms and the downloads it shows in Discord.
 /// </remarks>
-public sealed class MovieBotApiClient
+public sealed partial class MovieBotApiClient
 {
     private readonly HttpClient _http;
     private readonly string? _bearer;
@@ -198,56 +198,11 @@ public sealed class MovieBotApiClient
             using var message = Request(HttpMethod.Post, "api/watch");
             message.Content = JsonContent.Create(request, ManifestJsonContext.Default.WatchNowRequest);
             using var response = await _http.SendAsync(message, ct);
-            if (response.StatusCode != HttpStatusCode.Conflict) Ensure(response, failure);
+            if (response.StatusCode != HttpStatusCode.Conflict) await EnsureAsync(response, failure, ct);
             return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.WatchNowReply, ct)
                 ?? throw new MovieBotApiException(failure);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException(failure, ex);
-        }
-    }
-
-    /// <summary>The titles the person this client acts as wants, newest first.</summary>
-    public async Task<IReadOnlyList<WantView>> ListWantsAsync(CancellationToken ct) =>
-        await GetAsync("api/me/wants",
-            ManifestJsonContext.Default.IReadOnlyListWantView, "The wants could not be read.", ct) ?? [];
-
-    /// <summary>Makes the person's want of a title. Null when the film database has no such title.</summary>
-    public async Task<SetWantReply?> SetWantAsync(string imdbId, SetWantRequest request, CancellationToken ct)
-    {
-        const string failure = "The want could not be made.";
-        try
-        {
-            using var message = Request(HttpMethod.Put, $"api/me/wants/{Uri.EscapeDataString(imdbId)}");
-            message.Content = JsonContent.Create(request, ManifestJsonContext.Default.SetWantRequest);
-            using var response = await _http.SendAsync(message, ct);
-            if (response.StatusCode == HttpStatusCode.NotFound) return null;
-            Ensure(response, failure);
-            return await response.Content.ReadFromJsonAsync(ManifestJsonContext.Default.SetWantReply, ct)
-                ?? throw new MovieBotApiException(failure);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
-                                   && !ct.IsCancellationRequested)
-        {
-            throw new MovieBotApiException(failure, ex);
-        }
-    }
-
-    /// <summary>Ends the person's want of a title. False when they had none.</summary>
-    public async Task<bool> RemoveWantAsync(string imdbId, CancellationToken ct)
-    {
-        const string failure = "The want could not be removed.";
-        try
-        {
-            using var message = Request(HttpMethod.Delete, $"api/me/wants/{Uri.EscapeDataString(imdbId)}");
-            using var response = await _http.SendAsync(message, ct);
-            if (response.StatusCode == HttpStatusCode.NotFound) return false;
-            Ensure(response, failure);
-            return true;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
                                    && !ct.IsCancellationRequested)
         {
             throw new MovieBotApiException(failure, ex);
@@ -288,7 +243,7 @@ public sealed class MovieBotApiClient
             using var request = Request(method ?? HttpMethod.Get, path);
             using var response = await _http.SendAsync(request, ct);
             if (missing && response.StatusCode == HttpStatusCode.NotFound) return default;
-            Ensure(response, failure);
+            await EnsureAsync(response, failure, ct);
             return await response.Content.ReadFromJsonAsync(type, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
@@ -307,11 +262,26 @@ public sealed class MovieBotApiClient
             using var request = Request(method, path);
             request.Content = JsonContent.Create(body, requestType);
             using var response = await _http.SendAsync(request, ct);
-            Ensure(response, failure);
+            await EnsureAsync(response, failure, ct);
             return await response.Content.ReadFromJsonAsync(responseType, ct)
                 ?? throw new MovieBotApiException(failure);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
+                                   && !ct.IsCancellationRequested)
+        {
+            throw new MovieBotApiException(failure, ex);
+        }
+    }
+
+    private async Task SendAsync(HttpMethod method, string path, string failure, CancellationToken ct)
+    {
+        try
+        {
+            using var request = Request(method, path);
+            using var response = await _http.SendAsync(request, ct);
+            await EnsureAsync(response, failure, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException
                                    && !ct.IsCancellationRequested)
         {
             throw new MovieBotApiException(failure, ex);
@@ -328,11 +298,32 @@ public sealed class MovieBotApiClient
         SendAsync(HttpMethod.Post, $"api/sessions/{Uri.EscapeDataString(sessionId)}/{control}", request, requestType,
             ManifestJsonContext.Default.RoomChanged, $"The API refused {control} in {sessionId}.", ct);
 
-    /// <summary>A refusal of the person this client acts as is its own exception, which a surface words as one.</summary>
-    private static void Ensure(HttpResponseMessage response, string failure)
+    /// <summary>
+    /// A refusal of the person this client acts as is its own exception, which a surface words as one.
+    /// Either carries the status and the API's own sentence, read from its one error shape.
+    /// </summary>
+    private static async Task EnsureAsync(HttpResponseMessage response, string failure, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode) return;
-        if (response.StatusCode == HttpStatusCode.Forbidden) throw new MovieBotAccessDeniedException(failure);
-        throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})");
+        var said = await SaidAsync(response, ct);
+        if (response.StatusCode == HttpStatusCode.Forbidden) throw new MovieBotAccessDeniedException(failure, said);
+        throw new MovieBotApiException($"{failure} ({(int)response.StatusCode})", null, response.StatusCode, said);
+    }
+
+    /// <summary>The sentence an error answer carries (<c>{"error": "..."}</c>); null when it carries none.</summary>
+    private static async Task<string?> SaidAsync(HttpResponseMessage response, CancellationToken ct)
+    {
+        try
+        {
+            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            return body.RootElement.ValueKind == JsonValueKind.Object
+                   && body.RootElement.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.String
+                ? error.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 }

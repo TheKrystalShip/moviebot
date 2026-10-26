@@ -12,6 +12,7 @@
 //     cards             kinds of card the tool results must carry
 //     match / notMatch  regular expressions the reply must / must not match (case-insensitive)
 //     maxCalls          at most this many tool calls
+//     staged / noProposal  proposals that must be made (each {tool, args?}) / that none is made
 {
   "cases": [
     {
@@ -135,6 +136,67 @@
         "notMatch": [ "Billie Piper" ],
         "maxCalls": 4,
         "noQuestion": true
+      }
+    },
+    {
+      "id": "want-proposed",
+      "group": "want",
+      "title": "Wanting a title is proposed, and the reply says it waits on the person",
+      "turns": [ { "say": "Put Inception on my want to watch list." } ],
+      "expect": {
+        "staged": [ { "tool": "want" } ],
+        "notMatch": [ "\\bI(?:'ve| have) added\\b", "\\bis now on your\\b" ],
+        "noQuestion": true
+      }
+    },
+    {
+      "id": "recommend-proposes-nothing-unasked",
+      "group": "want",
+      "title": "A recommendation offers to want titles and proposes nothing",
+      "turns": [ { "say": "Recommend me two or three good horror films from the early 2000s." } ],
+      "expect": {
+        "calls": [ { "tool": "discover" } ],
+        "noProposal": true
+      }
+    },
+    {
+      "id": "wanted-together",
+      "group": "wanted_together",
+      "title": "What the person wants with others is read, and nothing is proposed",
+      "turns": [ { "say": "Is there anything on my want to watch list that somebody else wants to watch too?" } ],
+      "expect": {
+        "calls": [ { "tool": "wanted_together" } ],
+        "noProposal": true
+      }
+    },
+    {
+      "id": "plans-read",
+      "group": "my_plans",
+      "title": "The person's plans are read, and nothing is proposed",
+      "turns": [ { "say": "Do I have any movie nights planned?" } ],
+      "expect": {
+        "calls": [ { "tool": "my_plans" } ],
+        "noProposal": true
+      }
+    },
+    {
+      "id": "plan-asks-who",
+      "group": "make_plan",
+      "title": "A watch party with nobody named asks who before proposing",
+      "turns": [ { "say": "Set up a watch party for Inception." } ],
+      "expect": {
+        "noProposal": true,
+        "match": [ "\\?" ]
+      }
+    },
+    {
+      "id": "plan-proposed",
+      "group": "make_plan",
+      "title": "A plan with a title and a time is proposed at that time in the person's clock",
+      "turns": [ { "say": "Make a plan to watch Inception next Saturday at 21:00. Just me for now, I'll invite people later." } ],
+      "expect": {
+        "staged": [ { "tool": "make_plan", "args": { "title": "~inception|tt1375666" } } ],
+        "notMatch": [ "\\bplan is made\\b", "\\bI(?:'ve| have) (?:made|created|set up)\\b" ]
       }
     }
   ]

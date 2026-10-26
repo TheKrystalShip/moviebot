@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -15,7 +17,7 @@ internal static class TitleText
     public static string Count(int n) => n.ToString("N0", Invariant);
 
     /// <summary>"Rated 7.5 on 61,000 votes at IMDb.", or nothing when the card shows no rating.</summary>
-    public static string Rating(CardRating? rating) =>
+    public static string Rating(Rating? rating) =>
         rating is { Value: { } r } ? $"Rated {r.ToString("0.0", Invariant)} on {Count(rating.Votes)} votes at {Source(rating.By)}." : "";
 
     private static string Source(string by) => by switch
@@ -41,7 +43,7 @@ internal static class TitleText
     }
 
     /// <summary>The line a search, a discovery or a list of the week gives a title.</summary>
-    public static string Line(CatalogueCard card, bool withDate = false)
+    public static string Line(TitleCard card, bool withDate = false)
     {
         var text = new StringBuilder("- ").Append(Named(card.Title, card.Year)).Append(", ").Append(KindWord(card.Kind, card.Category)).Append('.');
         if (withDate && card.Released is { Length: > 0 } date)
@@ -61,8 +63,18 @@ internal static class TitleText
         return text.ToString();
     }
 
-    public static string Lines(IEnumerable<CatalogueCard> cards, bool withDate = false) =>
+    public static string Lines(IEnumerable<TitleCard> cards, bool withDate = false) =>
         string.Join('\n', cards.Select(c => Line(c, withDate)));
+
+    /// <summary>Where a wanted title stands, as a sentence after the title: " In the library.", or nothing when nothing is known.</summary>
+    public static string WantState(string? state, double? progress) => state switch
+    {
+        "ready" => " In the library.",
+        "fetching" => progress is { } p ? $" Arriving, {Math.Round(p * 100)}% there." : " Arriving.",
+        "available" => " Out digitally, not downloaded.",
+        "waiting" => " Not out digitally yet.",
+        _ => "",
+    };
 
     /// <summary>The name a title is matched by: letters and digits only, in lower case.</summary>
     public static string Normal(string title)
@@ -83,7 +95,7 @@ internal static class TitleText
     /// this one is released; one dated only by this year or a later one is announced, since its day is not
     /// known.
     /// </summary>
-    public static string Status(CatalogueCard card, DateOnly today)
+    public static string Status(TitleCard card, DateOnly today)
     {
         if (DateOnly.TryParseExact(card.Released, "yyyy-MM-dd", Invariant, DateTimeStyles.None, out DateOnly day))
             return day > today ? "upcoming" : "released";

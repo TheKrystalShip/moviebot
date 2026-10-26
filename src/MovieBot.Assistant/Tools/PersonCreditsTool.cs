@@ -3,6 +3,8 @@ using System.Text;
 using System.Text.RegularExpressions;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -113,7 +115,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, TimeProvider cloc
     }
 
     /// <summary>One title a person is credited on, with its status on the day it was read.</summary>
-    internal sealed record Credit(CatalogueCard Card, string Status)
+    internal sealed record Credit(TitleCard Card, string Status)
     {
         public string? Role => Card.Credit?.Role is { Length: > 0 } role ? role : null;
         public int Votes => Card.Rating?.Votes ?? 0;
@@ -169,7 +171,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, TimeProvider cloc
             People = [person.Id], Role = RoleWire(role), Kind = kind, From = from, To = to, Sort = "oldest", Size = Read,
         };
         CardPage first = await database.TitlesAsync(filter, ct);
-        List<CatalogueCard> cards = first.Titles;
+        List<TitleCard> cards = first.Titles;
         if (first.Total > first.Titles.Count && first.Titles.Count == Read)
         {
             int last = (first.Total + Read - 1) / Read;
@@ -276,7 +278,7 @@ internal sealed partial class PersonCreditsTool(CinemaApi api, TimeProvider cloc
 
     private static string Write(Credit credit)
     {
-        CatalogueCard card = credit.Card;
+        TitleCard card = credit.Card;
         var text = new StringBuilder("- ");
         text.Append(card.Released is { Length: > 0 } date ? date : "no date").Append(" | ").Append(TitleText.Status(credit.Status))
             .Append(" | ").Append(TitleText.Named(card.Title, card.Year)).Append(", ").Append(TitleText.KindWord(card.Kind)).Append('.');

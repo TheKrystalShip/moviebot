@@ -5,6 +5,7 @@ using TheKrystalShip.MovieBot.Api.Data;
 using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Wants;
 using Xunit;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Tests;
 

@@ -77,7 +77,7 @@ public sealed class PlanRoomTests(SessionFixture fixture) : IClassFixture<Sessio
         var alice = fixture.CreatePersonClient("plan-alice-move", "Alice");
         var bea = fixture.CreatePersonClient("plan-bea-move", "Bea");
         await bea.GetAsync("/api/me/plans");
-        var later = PlanRules.Minute(DateTimeOffset.UtcNow.AddDays(1));
+        var later = PlanLimits.Minute(DateTimeOffset.UtcNow.AddDays(1));
 
         var made = await alice.PostAsJsonAsync("/api/plans", new MakePlanRequest
         {
@@ -208,7 +208,7 @@ public sealed class PlanRoomTests(SessionFixture fixture) : IClassFixture<Sessio
     {
         var store = fixture.Services.GetRequiredService<PlanStore>();
         var past = DateTimeOffset.UtcNow.AddHours(-2);
-        store.Make("plan-past", Heat, "film", null, null, "plan-alice-past", false, [PlanRules.Minute(past)], [], past.AddDays(-1));
+        store.Make("plan-past", Heat, "film", null, null, "plan-alice-past", false, [PlanLimits.Minute(past)], [], past.AddDays(-1));
 
         await fixture.Services.GetRequiredService<PlanKeeper>().PassAsync(CancellationToken.None);
 

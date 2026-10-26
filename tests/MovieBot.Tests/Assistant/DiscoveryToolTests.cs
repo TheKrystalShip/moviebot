@@ -1,5 +1,7 @@
 using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Client;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
@@ -361,7 +363,7 @@ public sealed class DiscoveryToolTests
     [Fact]
     public async Task An_unreachable_api_is_not_an_empty_answer()
     {
-        var api = new CinemaApi(new HttpClient(new Unreachable()) { BaseAddress = new Uri("http://api.test/") });
+        var api = new CinemaApi(new MovieBotApiClient(new HttpClient(new Unreachable()) { BaseAddress = new Uri("http://api.test/") }));
         var tool = new TheKrystalShip.MovieBot.Assistant.Tools.SearchTitlesTool(api);
 
         ToolOutcome result = await _rig.RunAsync(tool, new { query = "anything" });
@@ -390,7 +392,7 @@ public sealed class DiscoveryToolTests
     {
         public ReplayHandler World { get; } = new ReplayHandler()
             .Answer("/api/me/history", new List<HistoryEntry>())
-            .Answer("/api/me/wants", new List<Want>())
-            .Answer("/api/me/follows", new List<Follow>());
+            .Answer("/api/me/wants", new List<WantView>())
+            .Answer("/api/me/follows", new List<FollowView>());
     }
 }

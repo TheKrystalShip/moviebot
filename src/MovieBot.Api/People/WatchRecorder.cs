@@ -3,6 +3,7 @@ using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Api.Shows;
 using TheKrystalShip.MovieBot.Api.Wants;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.People;
 

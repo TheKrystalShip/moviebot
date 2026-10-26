@@ -10,10 +10,12 @@ namespace TheKrystalShip.MovieBot.Assistant;
 /// <param name="AccessToken">The token itself, which every call the tools make to the API carries.</param>
 /// <param name="Via">The client calling on the person's behalf (the token's <c>act</c>), when one is.</param>
 /// <param name="Actions">The Cinema actions the token lists.</param>
-public sealed record Caller(string UserId, string DisplayName, string AccessToken, string? Via, IReadOnlySet<string> Actions)
+/// <param name="TimeZone">The person's time zone, an IANA id their browser names; null when it named none this host knows.</param>
+public sealed record Caller(
+    string UserId, string DisplayName, string AccessToken, string? Via, IReadOnlySet<string> Actions, string? TimeZone = null)
 {
     /// <summary>The record's printed form, without the token.</summary>
-    public override string ToString() => $"Caller {{ UserId = {UserId}, DisplayName = {DisplayName}, Via = {Via} }}";
+    public override string ToString() => $"Caller {{ UserId = {UserId}, DisplayName = {DisplayName}, Via = {Via}, TimeZone = {TimeZone} }}";
 }
 
 /// <summary>The identity provider this service accepts tokens from: the same settings the API reads.</summary>
@@ -42,6 +44,9 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
 {
     public const string Watch = "cinema:watch";
 
+    /// <summary>The header the site's assistant client names the browser's time zone in.</summary>
+    public const string TimeZoneHeader = "X-Time-Zone";
+
     /// <summary>The caller, or null when the request carries no token this service accepts.</summary>
     public Caller? Resolve(HttpRequest request)
     {
@@ -57,7 +62,9 @@ public sealed class Callers(IOptions<AssistantOidcOptions> options)
         var name = identity.FindFirst("name")?.Value is { Length: > 0 } shown ? shown
             : identity.FindFirst("preferred_username")?.Value is { Length: > 0 } username ? username
             : sub;
-        return new Caller(sub, name, token, ActorOf(identity.FindFirst("act")?.Value), actions);
+        var zone = request.Headers[TimeZoneHeader].ToString().Trim();
+        return new Caller(sub, name, token, ActorOf(identity.FindFirst("act")?.Value), actions,
+            zone.Length is > 0 and <= 64 && TimeZoneInfo.TryFindSystemTimeZoneById(zone, out _) ? zone : null);
     }
 
     /// <summary>Whether the request carries a token the provider minted for Cinema, whatever it lets the person do.</summary>

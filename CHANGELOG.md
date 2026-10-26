@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.6.0] - 2026-10-26
+
+### Added
+- The assistant helps people watch together. It reads what a person wants that others want too
+  (`wanted_together`), the plans they are in with every time and answer (`my_plans`), and who else wants a
+  title (`title_details`). It proposes putting titles on a person's Want to watch or taking them off
+  (`want`), making a plan with the times and people the person gives (`make_plan`), and, through the
+  `watch-together` skill, answering a plan's times, and suggesting a time, inviting, picking the time or
+  cancelling (`answer_plan`, `change_plan`). Every one is
+  a proposal the person confirms in the chat, run as the person who confirms; picking and cancelling are
+  the maker's alone.
+- The assistant reads and writes a plan's times in the person's clock: the site's chat names the browser's
+  time zone on every call (krystal-chat 10.1.0), and a turn tells the model the time it is for the person
+  when their zone is not the harness host's.
+- The chat draws a plan the reply names as a card opening the plan's page, and each proposal under its own
+  words and icon.
+
+### Changed
+- The assistant reaches the API through `MovieBot.Client`, the client the bot uses, in the shapes the API
+  publishes; the client gains the catalogue's reads and a person's history, follows, wants, plans and
+  people, and a refusal carries the API's status and its own sentence.
+- The history, follow and show views, the plan limits (`PlanLimits`) and the kinds of a want
+  (`WantKinds`) are `MovieBot.Core`'s, shared by the API, the client and the assistant.
+
 ## [4.5.1] - 2026-10-26
 
 ### Fixed

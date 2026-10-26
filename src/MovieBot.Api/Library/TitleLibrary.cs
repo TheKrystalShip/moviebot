@@ -53,10 +53,10 @@ public sealed record TitleSummary
     /// How far the asking person has got in the film. Absent when they have not watched it, and for
     /// a caller that is nobody in particular.
     /// </summary>
-    public People.TitleProgress? Progress { get; init; }
+    public TitleProgress? Progress { get; init; }
 
     /// <summary>When anybody last played the film and who; absent when nobody has.</summary>
-    public People.TitleLastPlayed? LastPlayed { get; init; }
+    public TitleLastPlayed? LastPlayed { get; init; }
 }
 
 /// <summary>

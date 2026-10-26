@@ -1,6 +1,8 @@
 using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant.Api;
 using TheKrystalShip.MovieBot.Assistant.Tools;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
@@ -50,7 +52,7 @@ public sealed class RefusalTests
     [Fact]
     public async Task A_failure_nobody_foresaw_is_logged_and_answered_without_its_message()
     {
-        var api = new CinemaApi(new HttpClient(new Failing()) { BaseAddress = new Uri("http://api.test/") });
+        var api = new CinemaApi(new MovieBotApiClient(new HttpClient(new Failing()) { BaseAddress = new Uri("http://api.test/") }));
 
         ToolOutcome result = await _rig.RunAsync(new SearchTitlesTool(api), new { query = "anything" });
 

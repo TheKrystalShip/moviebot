@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -78,7 +80,7 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
             keywords.Add(await Vocabulary.KeywordAsync(database, word, ct)
                 ?? throw new ToolRefusal($"The film database has no keyword '{word}'. Call discover again without it, or with other words."));
 
-        CatalogueCard? like = null;
+        TitleCard? like = null;
         if (args.Like is { } likeSaid)
             like = await Vocabulary.TitleAsync(database, likeSaid, ct)
                 ?? throw new ToolRefusal($"The film database has no title named '{likeSaid}'. Find it with search_titles first.");
@@ -138,7 +140,7 @@ internal sealed partial class DiscoverTool(CinemaApi api) : AssistantTool<Discov
 
     /// <summary>What each word of the request was taken to mean, so the model can say what was actually searched.</summary>
     private static string Matched(
-        TitleFilter f, List<PersonCreditsTool.PersonMatch> people, List<Term> keywords, string? language, CatalogueCard? like)
+        TitleFilter f, List<PersonCreditsTool.PersonMatch> people, List<Term> keywords, string? language, TitleCard? like)
     {
         var parts = new List<string>();
         if (f.Category is { } category) parts.Add("only " + category);

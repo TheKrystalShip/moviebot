@@ -825,7 +825,12 @@ stream; the microphone sends a voice note to the plugin's `/speech/transcribe` a
 to the composer. A `question` frame is drawn as a form of choices and the answers go as the next turn,
 which is how the taste survey runs. A `titles` result is drawn under the reply that names it, one card
 for each title the reply names: poster, name, year, and *In library* and *Watched* where they hold,
-leading to the title's page. The assistant holds no room controls and no buttons for what a title's page does.
+leading to the title's page; a `plans` result the same way, one card for each plan whose title the reply
+names, with its picked time, leading to the plan's page. A proposal (a want, a plan, an answer to a plan's
+time, a time suggested or picked, an invite, a plan cancelled) is drawn as the chat draws one, with
+Confirm and Decline, under the button's words and icon `PROPOSALS` gives its verb, its first summary line
+as its title and the rest beneath. The chat's client names the browser's time zone on every call, so the
+assistant reads and writes a plan's times in the person's clock. The assistant holds no room controls.
 
 ## Rules
 

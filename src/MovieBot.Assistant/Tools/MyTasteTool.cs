@@ -4,13 +4,15 @@ using System.Globalization;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Client;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
 [AssistantTool("my_taste", ToolClass.Read, ResultLimit = 12000, Order = 7)]
 [Description("""
     What the asking person has watched, rated and saved: their history, the titles they want to watch and the shows they follow, newest first.
-    - Use to tailor a recommendation and to leave out what they have already seen.
+    - Use to tailor a recommendation and to leave out what they have already seen, and for "which of my list can I watch now": each want says whether it is in the library, arriving, out or not out yet.
     - Not for answering "what did I watch": the site shows that.
     """)]
 internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTasteTool.Args, Caller>
@@ -28,23 +30,23 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
 
         // Each part is read on its own: an account that may not read one of them still has the others.
         Task<Attempt<List<HistoryEntry>>> history = Attempt.OfAsync(database.HistoryAsync(ct));
-        Task<Attempt<List<Want>>> wants = Attempt.OfAsync(database.WantsAsync(ct));
-        Task<Attempt<List<Follow>>> follows = Attempt.OfAsync(database.FollowsAsync(ct));
+        Task<Attempt<List<WantView>>> wants = Attempt.OfAsync(database.WantsAsync(ct));
+        Task<Attempt<List<FollowView>>> follows = Attempt.OfAsync(database.FollowsAsync(ct));
         await Task.WhenAll(history, wants, follows);
 
         var text = new StringBuilder();
-        var cards = new List<TitleCard>();
+        var cards = new List<CardTitle>();
 
         Section(text, "Watched", await history, limit, Watched);
         text.Append('\n');
         Section(text, "Wants to watch", await wants, limit, Wanted);
         if ((await wants).Value is { } wanted)
-            cards.AddRange(wanted.Take(limit).Select(w => new TitleCard(w.ImdbId, w.Kind, w.Title, w.Card?.Year, w.Card?.Poster, w.InLibrary, w.Watched)));
+            cards.AddRange(wanted.Take(limit).Select(w => new CardTitle(w.ImdbId, w.Kind, w.Title, w.Card?.Year, w.Card?.Poster, w.InLibrary, w.Watched)));
 
         text.Append('\n');
         Section(text, "Following", await follows, limit, Followed);
         if ((await follows).Value is { } followed)
-            cards.AddRange(followed.Take(limit).Select(f => new TitleCard(f.ImdbId, "show", f.Title, f.Card?.Year, f.Card?.Poster, f.Card?.InLibrary == true, false)));
+            cards.AddRange(followed.Take(limit).Select(f => new CardTitle(f.ImdbId, "show", f.Title, f.Card?.Year, f.Card?.Poster, f.Card?.InLibrary == true, false)));
 
         return ToolResult.Ok(text.ToString().TrimEnd(), TitleCards.Of(cards));
     }
@@ -75,25 +77,18 @@ internal sealed partial class MyTasteTool(CinemaApi api) : AssistantTool<MyTaste
         return $"- {name}: {how}, last watched {e.LastWatchedAt:yyyy-MM-dd}.";
     }
 
-    private static string Wanted(Want w)
+    private static string Wanted(WantView w)
     {
         var text = new StringBuilder("- ").Append(TitleText.Named(w.Title, w.Card?.Year)).Append(", ").Append(TitleText.KindWord(w.Kind)).Append('.');
         if (w.Card is { Genres.Count: > 0 } card) text.Append(' ').Append(string.Join(", ", card.Genres)).Append('.');
         if (w.Card?.Rating is { Value: { } r }) text.Append(" Rated ").Append(r.ToString("0.0", CultureInfo.InvariantCulture)).Append('.');
-        text.Append(w.State switch
-        {
-            "ready" => " In the library.",
-            "fetching" => w.Progress is { } p ? $" Arriving, {Math.Round(p * 100)}% there." : " Arriving.",
-            "available" => " Out digitally, not downloaded.",
-            "waiting" => " Not out digitally yet.",
-            _ => "",
-        });
+        text.Append(TitleText.WantState(w.State, w.Progress));
         if (w.NextEpisode is { } next) text.Append($" Their next episode is season {next.Season} episode {next.Episode}.");
         text.Append($" id {w.ImdbId}.");
         return text.ToString();
     }
 
-    private static string Followed(Follow f)
+    private static string Followed(FollowView f)
     {
         var text = new StringBuilder($"- {TitleText.Named(f.Title, f.Card?.Year)}: followed since {f.Since:yyyy-MM-dd}.");
         if (f.NextEpisode is { } next)

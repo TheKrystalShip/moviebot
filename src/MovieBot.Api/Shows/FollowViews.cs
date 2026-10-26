@@ -5,32 +5,6 @@ using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Shows;
 
-/// <summary>An episode of a show as the film database places it in time: where it falls and the date it airs.</summary>
-public sealed record AiringView(int Season, int Episode, string? Name, string AirDate);
-
-/// <summary>What the asking person's follow of a show comes to, on the show's page.</summary>
-public sealed record ShowFollow(bool AutoDownload, DateTimeOffset Since);
-
-/// <summary>One show a person follows, as the list of their follows shows it.</summary>
-public sealed record FollowView
-{
-    public required string ImdbId { get; init; }
-    public required string Title { get; init; }
-    /// <summary>The show's card; absent for a show the catalogue does not list.</summary>
-    public TheKrystalShip.MovieBot.Catalogue.TitleCard? Card { get; init; }
-    public required DateTimeOffset Since { get; init; }
-    public bool AutoDownload { get; init; }
-
-    /// <summary>The episode the film database expects next; absent when it names none.</summary>
-    public AiringView? NextEpisode { get; init; }
-}
-
-/// <summary>Follow or change a follow: whether new episodes are downloaded for the person as well as announced.</summary>
-public sealed record FollowRequest
-{
-    public bool AutoDownload { get; init; }
-}
-
 /// <summary>What the follows read out of a show's kept description, and the one rule that turns an air date into "due".</summary>
 public static class FollowViews
 {

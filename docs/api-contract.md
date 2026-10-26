@@ -630,7 +630,7 @@ else every route below answers `404`, as if the plan did not exist. The shapes a
 `src/MovieBot.Core/Plans.cs`.
 
 A time is put forward at least 5 minutes and at most 30 days ahead, kept to the minute, and a plan holds
-at most 6 times still ahead (`PlanRules`).
+at most 6 times still ahead (`PlanLimits`, in `src/MovieBot.Core/Plans.cs`).
 
 | Route | Returns |
 |---|---|

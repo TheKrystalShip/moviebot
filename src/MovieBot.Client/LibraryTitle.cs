@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TheKrystalShip.MovieBot.Core;
@@ -54,13 +55,21 @@ public partial class ClientJsonContext : JsonSerializerContext;
 /// <summary>
 /// The API answered, but not with what was asked for, or it did not answer at all. Carried as a
 /// distinct type so a caller can say the backend is unreachable rather than failing silently into
-/// a generic error.
+/// a generic error. <see cref="Status"/> is the API's answer when it gave one, and <see cref="Said"/>
+/// the sentence it refused with, which is written for a person.
 /// </summary>
-public class MovieBotApiException(string message, Exception? inner = null)
-    : Exception(message, inner);
+public class MovieBotApiException(string message, Exception? inner = null, HttpStatusCode? status = null, string? said = null)
+    : Exception(message, inner)
+{
+    public HttpStatusCode? Status { get; } = status;
+
+    public string? Said { get; } = said;
+}
 
 /// <summary>
 /// The API refused the person the client acts as: their account does not hold the action the request
-/// needs. A surface says so rather than reporting the backend as broken.
+/// needs, or the route allows the act to somebody else alone. A surface says so rather than reporting
+/// the backend as broken.
 /// </summary>
-public sealed class MovieBotAccessDeniedException(string message) : MovieBotApiException(message);
+public sealed class MovieBotAccessDeniedException(string message, string? said = null)
+    : MovieBotApiException(message, null, HttpStatusCode.Forbidden, said);

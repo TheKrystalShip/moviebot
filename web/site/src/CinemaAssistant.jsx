@@ -1,9 +1,10 @@
 import { Icon } from "@thekrystalship/krystal";
 import React from "react";
-import { Chat, ChatSuggestionChips, createAssistantClient } from "@thekrystalship/krystal-chat";
+import { Chat, CHAT_DEFAULT_PROFILE, ChatSuggestionChips, createAssistantClient } from "@thekrystalship/krystal-chat";
 import { freshToken } from "./session.js";
-import { discoverFilmPath, showPath } from "./paths.js";
+import { discoverFilmPath, planPath, showPath } from "./paths.js";
 import { linkProps } from "./router.js";
+import { when } from "./time.js";
 import { HANDOFF_MS, settleHandoff, useHandoff } from "./assistantHandoff.js";
 
 // The assistant, behind /assistant on the same origin, spoken to as the signed-in person. One client
@@ -27,12 +28,54 @@ const SUGGESTIONS = [
 ];
 
 /**
- * How Cinema reads what the assistant sends: a `titles` result is the titles a tool named,
- * kept as they came. Any other result draws nothing.
+ * What each action the assistant proposes is offered as: the button's words, its icon and its tone
+ * (`src/MovieBot.Assistant/Tools/`, one verb per proposal).
+ */
+const PROPOSALS = {
+  want: { label: "Want to watch", icon: "bookmark-plus", tone: "info" },
+  unwant: { label: "Remove", icon: "bookmark-minus", tone: "info" },
+  plan: { label: "Make plan", icon: "calendar-plus", tone: "info" },
+  answer: { label: "Answer", icon: "calendar-check", tone: "info" },
+  suggest_time: { label: "Suggest time", icon: "calendar-clock", tone: "info" },
+  invite: { label: "Invite", icon: "user-plus", tone: "info" },
+  pick_time: { label: "Pick time", icon: "calendar-check", tone: "info" },
+  cancel_plan: { label: "Cancel plan", icon: "calendar-x", tone: "danger" },
+};
+
+/** A proposal's lines past its first: the titles, the times, who is in it. */
+function ProposalLines({ lines }) {
+  return (
+    <div className="kc-chat-proposal-lines">
+      {lines.map((line, i) => <div key={i}>{line}</div>)}
+    </div>
+  );
+}
+
+/**
+ * How Cinema reads what the assistant sends: a `titles` result is the titles a tool named and a `plans`
+ * result the plans, kept as they came; any other result draws nothing. A proposal's first summary line
+ * says what it does and the rest are drawn beneath it.
  */
 const cinemaProfile = {
-  adaptCard: (result) =>
-    result && result.kind === "titles" && Array.isArray(result.titles) ? { kind: "titles", titles: result.titles } : null,
+  ...CHAT_DEFAULT_PROFILE,
+  adaptCard: (result) => {
+    if (result && result.kind === "titles" && Array.isArray(result.titles)) return { kind: "titles", titles: result.titles };
+    if (result && result.kind === "plans" && Array.isArray(result.plans)) return { kind: "plans", plans: result.plans };
+    return null;
+  },
+  proposalLabel: (verb) => (PROPOSALS[verb] ? PROPOSALS[verb].label : CHAT_DEFAULT_PROFILE.proposalLabel(verb)),
+  proposal: (msg) => {
+    const meta = PROPOSALS[msg.verb];
+    if (!meta) return CHAT_DEFAULT_PROFILE.proposal(msg);
+    const [first, ...rest] = String(msg.summary || "").split("\n");
+    return {
+      ...CHAT_DEFAULT_PROFILE.proposal(msg),
+      meta,
+      title: first || msg.subject,
+      sub: null,
+      body: rest.length > 0 ? <ProposalLines lines={rest} /> : null,
+    };
+  },
 };
 
 /** The titles the cards carry, once each, in the order they came. */
@@ -71,12 +114,38 @@ function TitleCard({ title }) {
   );
 }
 
+/** The plans the cards carry, once each, in the order they came. */
+function plansOf(cards) {
+  const seen = new Set();
+  return (cards || [])
+    .filter((card) => card.kind === "plans")
+    .flatMap((card) => card.plans)
+    .filter((p) => p && p.id && !seen.has(p.id) && seen.add(p.id));
+}
+
+/** A plan a reply names, as the way into its page: the title's poster and name, and its time once one is picked. */
+function PlanCard({ plan }) {
+  return (
+    <a className="kc-chat-card" {...linkProps(planPath(plan.id))}>
+      <span className="kc-chat-card__art">
+        {plan.posterUrl ? <img src={plan.posterUrl} alt="" loading="lazy" /> : <Icon name="calendar" size={18} />}
+      </span>
+      <span className="kc-chat-card__body">
+        <span className="kc-chat-card__name">{plan.title}</span>
+        <span className="kc-chat-card__note">{plan.fixedTime ? when(plan.fixedTime) : "No time picked"}</span>
+      </span>
+    </a>
+  );
+}
+
 function TitleCards({ msg }) {
   const titles = titlesOf(msg.cards).filter((t) => named(t, msg.content));
-  if (titles.length === 0) return null;
+  const plans = plansOf(msg.cards).filter((p) => named(p, msg.content));
+  if (titles.length === 0 && plans.length === 0) return null;
   return (
     <div className="kc-chat-cards">
-      {titles.map((t) => <TitleCard key={t.imdbId} title={t} />)}
+      {plans.map((p) => <PlanCard key={p.id} plan={p} />)}
+      {titles.filter((t) => !plans.some((p) => p.imdbId === t.imdbId)).map((t) => <TitleCard key={t.imdbId} title={t} />)}
     </div>
   );
 }

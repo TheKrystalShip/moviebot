@@ -5,7 +5,7 @@
 import React from "react";
 import { holdPersonConnection } from "./personConnection.js";
 
-/** How soon a time may be put forward, in minutes, and how far ahead, in days (the API's `PlanRules`). */
+/** How soon a time may be put forward, in minutes, and how far ahead, in days (the API's `PlanLimits`). */
 export const SOONEST_MINUTES = 5;
 export const FURTHEST_DAYS = 30;
 

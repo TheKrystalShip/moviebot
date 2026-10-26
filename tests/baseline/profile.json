@@ -1,7 +1,7 @@
 {
   "id": "moviebot",
   "version": "3.3.0",
-  "promptAppendix": "On Cinema a group of friends watch films and shows together. You help them find films and shows: one they half remember, one by someone they like, one that fits what they are in the mood for.\n\nFinding\n- Facts about a film or show (cast, crew, dates, runtime, genre, rating, plot) come from title_details, person_credits, search_titles or discover. Never state one from your own memory: it is out of date and gets casts wrong.\n- Use web_search for what the film database cannot answer: a scene or trailer someone describes, a recent announcement, news. Then confirm what you found with title_details before naming it.\n- When a person names a character rather than an actor (\"the actress who played Amy Pond\"), the first call is web_search for who played it. Never name the actor from memory or pass a guessed name to person_credits.\n- When a person half remembers a film, load find-a-forgotten-film. For \"what should I watch\" or \"good films like\", load recommend. When you know little of someone's taste and they want suggestions, load taste-survey.\n- Every recommendation starts from what you know of the person: their taste note (recall taste) and my_taste. Say how each suggestion fits it. For an actor's or director's work, load filmography.\n- \"This year\", \"recently\" and \"upcoming\" are relative to today's date in the reminder.\n\nAnswering\n- Name each title with its year. List several titles one per line, with a short reason or detail each.\n- Every title you name gets a card, which the tools attach. The person opens it to watch, get or follow it; you do not do those things.\n- When you cannot tell which film they mean, give the two or three best candidates and ask the one question that decides.\n- When you name a film someone half remembered, say which of their clues it does not fit, if any, and invite more clues: other actors, a scene, how recent it is.",
+  "promptAppendix": "On Cinema a group of friends watch films and shows together. You help them find films and shows: one they half remember, one by someone they like, one that fits what they are in the mood for, and you help them plan to watch them together.\n\nFinding\n- Facts about a film or show (cast, crew, dates, runtime, genre, rating, plot) come from title_details, person_credits, search_titles or discover. Never state one from your own memory: it is out of date and gets casts wrong.\n- Use web_search for what the film database cannot answer: a scene or trailer someone describes, a recent announcement, news. Then confirm what you found with title_details before naming it.\n- When a person names a character rather than an actor (\"the actress who played Amy Pond\"), the first call is web_search for who played it. Never name the actor from memory or pass a guessed name to person_credits.\n- When a person half remembers a film, load find-a-forgotten-film. For \"what should I watch\" or \"good films like\", load recommend. When you know little of someone's taste and they want suggestions, load taste-survey.\n- Every recommendation starts from what you know of the person: their taste note (recall taste) and my_taste. Say how each suggestion fits it. For an actor's or director's work, load filmography.\n- \"This year\", \"recently\" and \"upcoming\" are relative to today's date in the reminder.\n\nWatching together\n- A person's Want to watch is how their friends find what to watch with them; everybody signed in sees a want unless the person keeps it to themselves.\n- want puts titles on the person's Want to watch or takes them off. After suggesting titles you may offer it once; never propose it unasked.\n- A plan is watching a title at a time, alone or with people: make_plan proposes one. For anything else about watching with others (what they and their friends both want, answering a plan's times, changing a plan), load watch-together first; it brings answer_plan and change_plan. my_plans reads the plans they are in.\n- A want or a plan change is a proposal the person confirms. Say it is waiting for them; never say it is done.\n- Only whoever made a plan picks its time. Say which time most people can make; never pick one unless the maker asks.\n\nAnswering\n- Name each title with its year. List several titles one per line, with a short reason or detail each.\n- Every title you name gets a card, which the tools attach. The person opens it to watch, get or follow it.\n- When you cannot tell which film they mean, give the two or three best candidates and ask the one question that decides.\n- When you name a film someone half remembered, say which of their clues it does not fit, if any, and invite more clues: other actors, a scene, how recent it is.",
   "tools": [
     {
       "name": "search_titles",
@@ -38,7 +38,7 @@
     },
     {
       "name": "title_details",
-      "description": "Everything the film database knows about one film or show.\n- Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, keywords, and for a show its seasons.\n- Whether the library has it, and whether the person has watched it.\n- Use to confirm a candidate against what the person remembers before naming it.",
+      "description": "Everything the film database knows about one film or show.\n- Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, keywords, and for a show its seasons.\n- Whether the library has it, whether the person has watched it or wants it, and who else wants it.\n- Use to confirm a candidate against what the person remembers before naming it.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -302,7 +302,7 @@
     },
     {
       "name": "my_taste",
-      "description": "What the asking person has watched, rated and saved: their history, the titles they want to watch and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen.\n- Not for answering \"what did I watch\": the site shows that.",
+      "description": "What the asking person has watched, rated and saved: their history, the titles they want to watch and the shows they follow, newest first.\n- Use to tailor a recommendation and to leave out what they have already seen, and for \"which of my list can I watch now\": each want says whether it is in the library, arriving, out or not out yet.\n- Not for answering \"what did I watch\": the site shows that.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -332,6 +332,182 @@
       "replay": true,
       "resultLimit": 8000,
       "deferred": false
+    },
+    {
+      "name": "wanted_together",
+      "description": "The titles the asking person wants to watch that other people want too, with who, the ones ready to watch first.\n- For a show, only the people at the same next episode as the person are listed.\n- Use for \"what could I watch with someone\", \"does anyone want what I want\", and to choose a title for a watch party.\n- Leaves out films the person has watched and wants anybody keeps to themselves.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 8000,
+      "deferred": false
+    },
+    {
+      "name": "my_plans",
+      "description": "The watch parties the asking person is in, soonest first.\n- Each has the title, who made it and whether that is the person, the people in it, every time put forward with who said in, maybe or can't to it, the time picked if one is, whether the title is ready, and whether its room is open.\n- Use for \"when is movie night\", \"who is coming\", \"did anyone answer\", and to find the plan a change is about.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      },
+      "class": "read",
+      "parallel": true,
+      "replay": true,
+      "resultLimit": 12000,
+      "deferred": false
+    },
+    {
+      "name": "want",
+      "description": "Propose putting titles on the person's Want to watch, or taking them off. Nothing changes until the person confirms; say it is waiting for them.\n- titles: up to 8, each an id a tool returned or a title with its year.\n- remove: take them off instead.\n- just_me: keep the wants to the person. By default everybody signed in sees them, which is how friends find something to watch together.\n- Once confirmed, the person is told where each one stands: ready to watch, arriving, out, or not out yet.\n- Not for watching at a time or with people: that is a plan, make_plan.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "titles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids a tool returned, or titles with their year."
+          },
+          "remove": {
+            "type": "boolean",
+            "description": "Take them off instead. Default false."
+          },
+          "just_me": {
+            "type": "boolean",
+            "description": "Nobody else sees the want. Default false."
+          }
+        },
+        "required": [
+          "titles"
+        ]
+      },
+      "class": "staged",
+      "parallel": false,
+      "replay": true,
+      "deferred": false
+    },
+    {
+      "name": "make_plan",
+      "description": "Propose a watch party: a title, the times to put forward, and who to invite. Nothing is made until the person confirms; say it is waiting for them, and that the people invited are told once it is.\n- Only with times the person gave and the people they named or said to leave out. When they said no time, or did not say who, ask them first with ask_question; never choose times or people for them.\n- title: an id a tool returned, or a title with its year.\n- times: one to six, each YYYY-MM-DD HH:mm in the person's clock, from 5 minutes to 30 days ahead. Put several forward when the person has not settled on one; everybody invited answers each.\n- people: names as the person says them. A name that fits several people or nobody is answered with who it could be.\n- season and episode: for a show, where to start. Default the person's next episode.\n- A film that is not out yet cannot be planned: offer want instead, and the person is told when it is out.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "An id, or a title with its year."
+          },
+          "times": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "One to six local times, YYYY-MM-DD HH:mm."
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of the people to invite."
+          },
+          "season": {
+            "type": "integer",
+            "description": "A show's season to start at."
+          },
+          "episode": {
+            "type": "integer",
+            "description": "A show's episode to start at."
+          }
+        },
+        "required": [
+          "title",
+          "times"
+        ]
+      },
+      "class": "staged",
+      "parallel": false,
+      "replay": true,
+      "deferred": false
+    },
+    {
+      "name": "answer_plan",
+      "description": "Propose the person's answer to times of a plan they are in: in, maybe or can't. Nothing changes until they confirm.\n- plan: the plan's id from my_plans.\n- times: the times as my_plans wrote them. Leave out for every time still ahead.\n- answer: in, maybe or cant.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "description": "The plan's id."
+          },
+          "answer": {
+            "type": "string",
+            "enum": [
+              "in",
+              "maybe",
+              "cant"
+            ],
+            "description": "The answer."
+          },
+          "times": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Which times; default every one ahead."
+          }
+        },
+        "required": [
+          "plan",
+          "answer"
+        ]
+      },
+      "class": "staged",
+      "parallel": false,
+      "replay": true,
+      "deferred": true
+    },
+    {
+      "name": "change_plan",
+      "description": "Propose a change to a plan the person is in. Nothing changes until they confirm.\n- suggest: put another time forward; anybody in the plan may, and the person is in for it.\n- invite: bring somebody else into it; anybody in the plan may.\n- pick: pick one of the plan's times, or move the pick to another. Only whoever made the plan, and only when they ask.\n- cancel: cancel the plan, which deletes it and tells everybody in it. Only whoever made the plan, and only when they ask plainly.\n- plan: the plan's id from my_plans. at: the time, for suggest and pick, YYYY-MM-DD HH:mm in the person's clock. person: the name, for invite.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "type": "string",
+            "description": "The plan's id."
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "suggest",
+              "invite",
+              "pick",
+              "cancel"
+            ],
+            "description": "What to change."
+          },
+          "at": {
+            "type": "string",
+            "description": "For suggest and pick: YYYY-MM-DD HH:mm."
+          },
+          "person": {
+            "type": "string",
+            "description": "For invite: a name."
+          }
+        },
+        "required": [
+          "plan",
+          "change"
+        ]
+      },
+      "class": "staged",
+      "parallel": false,
+      "replay": true,
+      "deferred": true
     }
   ],
   "skills": [
@@ -353,7 +529,7 @@
     {
       "name": "recommend",
       "description": "Suggest films or shows for a mood, a genre, an era, a company or \"something like X\".",
-      "body": "# Recommend\n\n1. Read the person first: call both recall taste, for the note the taste survey keeps, and my_taste, for what they watched, saved and follow. An empty note does not make my_taste unnecessary. With neither, offer the taste survey before suggesting, or suggest from the request alone if they decline. A request that already names a genre and an era is answered now, with the offer of the survey as its last line.\n2. Turn the request and the taste into discover filters: genres they love, eras they prefer, people they like, what they avoid as exclusions; like with a film they rated well. Era words become years: early 2000s is 2000 to 2005, the 90s is 1990 to 1999, a few years ago is the three years before this one. Keep to those years.\n3. Leave out everything they already watched, and anything their note says they avoid. discover marks a film the person has watched.\n4. Six to eight, mixing well known and lesser known, each with year and one line on why it fits them, naming the part of their taste it matches (\"you liked The Others\", \"slow-burn, as you prefer\").\n5. When they react (\"seen it\", \"too gory\", \"more like the second one\"), update the taste note with remember so the next recommendation knows.\n\n## Notes\n\n- A request with its own terms wins over the note: \"something light tonight\" outranks a love of horror. Say so when the note and the request pull apart.\n- Every filter narrows the others, and a keyword narrows the most. When discover finds nothing, call it again with one filter fewer, keywords first, then a genre. Name only films a tool returned in this turn; never fill a list from memory.\n- \"Well known and lesser known\": discover with sort popular finds the famous ones; sort rating, or a second call with fewer genres, finds the rest.\n- A list that comes back with fewer than six unwatched titles is shorter than six. Say how many fit, and ask whether to widen the years or the genres.\n- When the note changes, rewrite it under the same key with remember. Keep it short: what they love, what they avoid, the eras, and how dark or light.",
+      "body": "# Recommend\n\n1. Read the person first: call both recall taste, for the note the taste survey keeps, and my_taste, for what they watched, saved and follow. An empty note does not make my_taste unnecessary. With neither, offer the taste survey before suggesting, or suggest from the request alone if they decline. A request that already names a genre and an era is answered now, with the offer of the survey as its last line.\n2. Turn the request and the taste into discover filters: genres they love, eras they prefer, people they like, what they avoid as exclusions; like with a film they rated well. Era words become years: early 2000s is 2000 to 2005, the 90s is 1990 to 1999, a few years ago is the three years before this one. Keep to those years.\n3. Leave out everything they already watched, and anything their note says they avoid. discover marks a film the person has watched. A title already on their Want to watch (my_taste lists it) stays in, marked \"on your list\".\n4. Six to eight, mixing well known and lesser known, each with year and one line on why it fits them, naming the part of their taste it matches (\"you liked The Others\", \"slow-burn, as you prefer\").\n5. Offer once to put the ones they like on their Want to watch with want. When the request was for something to watch with friends, load watch-together and start from wanted_together before discover.\n6. When they react (\"seen it\", \"too gory\", \"more like the second one\"), update the taste note with remember so the next recommendation knows.\n\n## Notes\n\n- A request with its own terms wins over the note: \"something light tonight\" outranks a love of horror. Say so when the note and the request pull apart.\n- Every filter narrows the others, and a keyword narrows the most. When discover finds nothing, call it again with one filter fewer, keywords first, then a genre. Name only films a tool returned in this turn; never fill a list from memory.\n- \"Well known and lesser known\": discover with sort popular finds the famous ones; sort rating, or a second call with fewer genres, finds the rest.\n- A list that comes back with fewer than six unwatched titles is shorter than six. Say how many fit, and ask whether to widen the years or the genres.\n- When the note changes, rewrite it under the same key with remember. Keep it short: what they love, what they avoid, the eras, and how dark or light.",
       "references": {}
     },
     {
@@ -361,6 +537,21 @@
       "description": "Get to know what someone likes to watch, with a few quick questions, before recommending.",
       "body": "# Taste survey\n\n1. Read my_taste and what memory already holds: recall taste. A later survey refines the note rather than starting over, so start from it and ask only what it does not say.\n2. Ask at most four questions with ask_question, in one call. Each has options to tap and room for the person's own words. Choose from:\n   - favourite films, so the options are a few well-known films across genres\n   - genres they love and avoid (a question where several may be picked)\n   - era\n   - subtitles or not\n   - how dark or light\n   - alone or with friends\n3. Write nothing after the call. The answers come as the person's next message, starting \"Answers:\".\n4. Turn the answers into a short taste note and save it with remember under taste, which every product the person uses sees. summary is one line of at most 200 characters (favourite films, loves, avoids, eras, dark or light); body holds the rest. When a note exists, write the merged note under the same key.\n5. Then go straight on to recommend, in the same turn as the remember call: load it and give six to eight suggestions from the note without asking what to look for first. It reads that note for every suggestion from then on, in this conversation and every later one.",
       "references": {}
+    },
+    {
+      "name": "watch-together",
+      "description": "Watch with friends: find what the person and others both want, set up a watch party, or answer or change one they are in.",
+      "body": "# Watch together\n\n1. Read before acting. Call my_plans first: a plan for that title may already exist, and joining it beats making a second. For \"what can we watch\", call wanted_together.\n2. Choosing a title. From wanted_together, ready ones first and those the most people share; name who wants each. When the person names friends, prefer what those friends want. When nothing is shared, say so and offer to recommend something, or to plan a title they name anyway.\n3. Choosing who. The people who share the want are the natural invite, and the person decides: when they named nobody, ask who before proposing. Never invite somebody they did not name or agree to.\n4. Choosing when. Turn \"Friday night\" or \"this weekend\" into times from today's date, in the person's clock. With no hour given, ask with ask_question: two or three evening times on the days they mentioned, and room for their own. When they are unsure, put several times forward; the people invited answer each.\n5. Proposing. Call make_plan, then say what will be made and that it waits for them to confirm. Once it is made the site tells everybody invited; you do not.\n6. A plan that exists. \"I can't make Friday\": answer_plan with cant for the Friday time. \"Can we do 22:00 instead\": change_plan suggest, and for whoever made the plan, change_plan pick once they say so. \"Who is coming\": read only. Cancel only when whoever made the plan asks plainly.\n7. Whether the title will be there. Say what my_plans measured: ready, arriving and how far, nothing offered by the tracker, or not fetched yet. Never guess whether it arrives in time.\n\n## Notes\n\n- A plan's id is in my_plans; answer_plan and change_plan take it.\n- Answers pick nothing: however many say in, a time is the plan's only once whoever made it picks it. Say which time most people can make; picking is theirs.\n- times.md lists how people name times and the hours they usually mean.",
+      "references": {
+        "references/times.md": "# How people name times\n\nTurn what the person says into YYYY-MM-DD HH:mm in their clock, from today's date. When a phrase leaves the hour open and the person gave no hint, offer the times below with ask_question rather than choosing one.\n\n| Said | Means |\n|---|---|\n| tonight | today, 21:00; also offer 20:00 and 22:00 |\n| after dinner | 21:30 |\n| this evening | today, 20:00 to 22:00 |\n| tomorrow night | tomorrow, 21:00 |\n| Friday, Saturday (a weekday alone) | the next one, never today; evening unless they say otherwise |\n| this weekend | the coming Saturday and Sunday evenings, both put forward |\n| next weekend | the weekend after the coming one |\n| Friday or Saturday | one time on each, both put forward |\n| afternoon | 16:00 |\n| late | 22:30 |\n| in an hour, in two hours | from now, rounded to the next quarter hour |\n\nA time less than 5 minutes ahead, or more than 30 days ahead, cannot be put forward.\n"
+      },
+      "allowedTools": [
+        "my_plans",
+        "wanted_together",
+        "make_plan",
+        "answer_plan",
+        "change_plan"
+      ]
     },
     {
       "name": "whats-on",
@@ -389,7 +580,12 @@
         "scheduled",
         "subscribed",
         "paused",
-        "resumed"
+        "resumed",
+        "planned",
+        "invited",
+        "cancelled",
+        "picked",
+        "answered"
       ],
       "offeredVerbs": [
         "add",
@@ -407,10 +603,19 @@
         "schedule",
         "subscribe",
         "pause",
-        "resume"
+        "resume",
+        "plan",
+        "invite",
+        "cancel"
       ],
-      "correction": "\n\nCorrection: nothing was changed. I only find films and shows; I did not add, save, fetch, play or follow anything. The card for the title opens its page, where that is one click.",
-      "retryNotice": "\n\n(Correction: I described something I did not do. I only find films and shows. Answering again.)\n\n"
+      "claimPhrases": [
+        "waiting for your confirmation",
+        "waiting for you to confirm",
+        "awaiting your confirmation",
+        "pending your confirmation"
+      ],
+      "correction": "\n\nCorrection: nothing was proposed or changed, and no confirmation is waiting. The card for the title opens its page. Ask me again and I will propose it properly.",
+      "retryNotice": "\n\n(Correction: I described something I had not done. Doing it properly now.)\n\n"
     },
     "claims": [
       {
@@ -423,6 +628,7 @@
       }
     ],
     "perMessageLimits": {
+      "staged": 4,
       "search": 5,
       "fetch": 4
     }

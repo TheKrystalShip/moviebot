@@ -12,11 +12,19 @@ namespace TheKrystalShip.MovieBot.Tests.Assistant;
 /// <summary>The profile the service ships: its prompt, tools, skills and guard data, read the way the harness is given them.</summary>
 public sealed partial class ProfileTests
 {
-    private static readonly string[] Tools =
-        ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste", "anticipated"];
+    private static readonly string[] Reads =
+        ["search_titles", "title_details", "person_credits", "discover", "find_by_clues", "whats_new", "my_taste", "anticipated",
+         "wanted_together", "my_plans"];
+
+    /// <summary>The proposals: want and make_plan are always offered, answering and changing a plan come with the watch-together skill.</summary>
+    private static readonly string[] Proposals = ["want", "make_plan", "answer_plan", "change_plan"];
+
+    private static readonly string[] OnDemand = ["answer_plan", "change_plan"];
+
+    private static readonly string[] Tools = [.. Reads, .. Proposals];
 
     private static readonly string[] Skills =
-        ["filmography", "find-a-forgotten-film", "recommend", "taste-survey", "whats-on"];
+        ["filmography", "find-a-forgotten-film", "recommend", "taste-survey", "watch-together", "whats-on"];
 
     /// <summary>The names the harness keeps for itself, which a plugin's tool may not take.</summary>
     private static readonly string[] Reserved =
@@ -31,13 +39,25 @@ public sealed partial class ProfileTests
     }
 
     [Fact]
-    public void Every_tool_reads_and_none_is_held_back_for_tool_search()
+    public void The_tools_read_or_propose_and_only_answering_and_changing_a_plan_wait_for_their_skill()
     {
         Assert.All(Load().Tools, t =>
         {
-            Assert.Equal(ToolClasses.Read, t.Class);
-            Assert.False(t.Deferred, t.Name);
+            Assert.Equal(Proposals.Contains(t.Name) ? ToolClasses.Staged : ToolClasses.Read, t.Class);
+            Assert.Equal(OnDemand.Contains(t.Name), t.Deferred);
         });
+    }
+
+    [Fact]
+    public void The_watch_together_skill_brings_the_plan_tools_and_leaves_picking_to_the_maker()
+    {
+        ProfileSkill skill = Load().Skills.Single(s => s.Name == "watch-together");
+
+        Assert.Equal(["references/times.md"], skill.References.Keys);
+        Assert.Contains("ask who before proposing", skill.Body);
+        Assert.Contains("Never invite somebody they did not name or agree to", skill.Body);
+        Assert.Contains("Never guess whether it arrives in time", skill.Body);
+        Assert.Contains("Answers pick nothing", skill.Body);
     }
 
     [Fact]
@@ -85,6 +105,10 @@ public sealed partial class ProfileTests
         Assert.Equal(["which"], Required(profile.Tools.Single(t => t.Name == "whats_new")));
         Assert.Empty(Required(profile.Tools.Single(t => t.Name == "discover")));
         Assert.Empty(Required(profile.Tools.Single(t => t.Name == "my_taste")));
+        Assert.Equal(["titles"], Required(profile.Tools.Single(t => t.Name == "want")));
+        Assert.Equal(["title", "times"], Required(profile.Tools.Single(t => t.Name == "make_plan")));
+        Assert.Equal(["plan", "answer"], Required(profile.Tools.Single(t => t.Name == "answer_plan")));
+        Assert.Equal(["plan", "change"], Required(profile.Tools.Single(t => t.Name == "change_plan")));
     }
 
     [Fact]
@@ -99,6 +123,8 @@ public sealed partial class ProfileTests
         Assert.Equal(["acting", "directing", "writing", "any"], Enum(profile.Tools.Single(t => t.Name == "person_credits"), "role"));
         Assert.Equal(["popular", "rating", "newest", "oldest"], Enum(profile.Tools.Single(t => t.Name == "discover"), "sort"));
         Assert.Equal(["trending", "released", "upcoming", "library"], Enum(profile.Tools.Single(t => t.Name == "whats_new"), "which"));
+        Assert.Equal(["in", "maybe", "cant"], Enum(profile.Tools.Single(t => t.Name == "answer_plan"), "answer"));
+        Assert.Equal(["suggest", "invite", "pick", "cancel"], Enum(profile.Tools.Single(t => t.Name == "change_plan"), "change"));
     }
 
     [Fact]
@@ -116,7 +142,7 @@ public sealed partial class ProfileTests
     }
 
     [Fact]
-    public void The_skills_are_the_five_the_design_names_each_with_a_body()
+    public void The_skills_are_the_ones_the_design_names_each_with_a_body()
     {
         PluginProfile profile = Load();
 
@@ -184,7 +210,10 @@ public sealed partial class ProfileTests
         Assert.Contains("load find-a-forgotten-film", prompt);
         Assert.Contains("(recall taste)", prompt);
         Assert.Contains("Every title you name gets a card", prompt);
-        Assert.InRange(prompt.Length, 1200, 2200);
+        Assert.Contains("load watch-together", prompt);
+        Assert.Contains("Say it is waiting for them; never say it is done.", prompt);
+        Assert.Contains("Only whoever made a plan picks its time.", prompt);
+        Assert.InRange(prompt.Length, 1200, 3000);
     }
 
     [Fact]
@@ -257,6 +286,8 @@ public sealed partial class ProfileTests
         Assert.NotNull(guards.ActionClaims);
         Assert.Contains("added", guards.ActionClaims!.CompletedVerbs);
         Assert.Contains("add", guards.ActionClaims.OfferedVerbs);
+        Assert.Contains("planned", guards.ActionClaims.CompletedVerbs);
+        Assert.Contains("waiting for your confirmation", guards.ActionClaims.ClaimPhrases!);
         Assert.False(string.IsNullOrWhiteSpace(guards.ActionClaims.Correction));
     }
 

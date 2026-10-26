@@ -2,6 +2,7 @@ using TheKrystalShip.MovieBot.Api.Catalogue;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Shows;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Api.Wants;
 

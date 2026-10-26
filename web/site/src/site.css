@@ -439,6 +439,7 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-failed span { flex: 1; color: var(--fg-1); }
 
 /* ── The assistant's title cards ─────────────────────────────────────────────────────── */
+.kc-chat-proposal-lines { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--fg-2); }
 .kc-chat-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .kc-chat-card {
   display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: var(--r-sm); min-width: 0;

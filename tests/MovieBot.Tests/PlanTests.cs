@@ -49,7 +49,7 @@ public sealed class PlanTests : IDisposable
         Assert.Equal(["maker", "bea", "cal", "dee"], _plans.Get("p1")!.People);
         Assert.Equal(InviteOutcome.AlreadyIn, _plans.Invite("p1", "dee", Now));
 
-        for (var i = 0; i < PlanRules.MaxInvited - 3; i++) Assert.Equal(InviteOutcome.Invited, _plans.Invite("p1", $"guest{i}", Now));
+        for (var i = 0; i < PlanLimits.MaxInvited - 3; i++) Assert.Equal(InviteOutcome.Invited, _plans.Invite("p1", $"guest{i}", Now));
         Assert.Equal(InviteOutcome.Full, _plans.Invite("p1", "one-too-many", Now));
 
         Make("p2");
@@ -63,13 +63,13 @@ public sealed class PlanTests : IDisposable
     [Fact]
     public void A_plan_proposes_up_to_six_times_between_five_minutes_and_thirty_days_ahead()
     {
-        Assert.Null(PlanRules.Times([Now.AddMinutes(5)], Now).Refusal);
-        Assert.Null(PlanRules.Times([Now.AddDays(30)], Now).Refusal);
-        Assert.NotNull(PlanRules.Times([Now.AddMinutes(4)], Now).Refusal);
-        Assert.NotNull(PlanRules.Times([Now.AddDays(31)], Now).Refusal);
-        Assert.NotNull(PlanRules.Times([], Now).Refusal);
-        Assert.Null(PlanRules.Times(Enumerable.Range(1, 6).Select(h => Now.AddHours(h)), Now).Refusal);
-        Assert.NotNull(PlanRules.Times(Enumerable.Range(1, 7).Select(h => Now.AddHours(h)), Now).Refusal);
+        Assert.Null(PlanLimits.Times([Now.AddMinutes(5)], Now).Refusal);
+        Assert.Null(PlanLimits.Times([Now.AddDays(30)], Now).Refusal);
+        Assert.NotNull(PlanLimits.Times([Now.AddMinutes(4)], Now).Refusal);
+        Assert.NotNull(PlanLimits.Times([Now.AddDays(31)], Now).Refusal);
+        Assert.NotNull(PlanLimits.Times([], Now).Refusal);
+        Assert.Null(PlanLimits.Times(Enumerable.Range(1, 6).Select(h => Now.AddHours(h)), Now).Refusal);
+        Assert.NotNull(PlanLimits.Times(Enumerable.Range(1, 7).Select(h => Now.AddHours(h)), Now).Refusal);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class PlanTests : IDisposable
     [Fact]
     public void Times_are_kept_to_the_minute_and_a_repeat_is_one_time()
     {
-        var (times, refusal) = PlanRules.Times([Now.AddHours(1).AddSeconds(40), Now.AddHours(1).AddSeconds(5)], Now);
+        var (times, refusal) = PlanLimits.Times([Now.AddHours(1).AddSeconds(40), Now.AddHours(1).AddSeconds(5)], Now);
 
         Assert.Null(refusal);
         Assert.Equal([Now.AddHours(1)], times);

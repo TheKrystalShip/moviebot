@@ -58,12 +58,14 @@ Playback starts seconds after a film is requested, while it is still being trans
    from the library once it has gone its time without a play. Which films are on disk is the server's
    business alone: nothing anybody sees says whether a film is here or has to be fetched, and a film
    that has left is fetched again like any other.
-6. **The assistant** helps people find films and shows: one they half remember, one by someone they
-   like, one that fits a mood. It is a plugin to the organization's assistant harness, which runs the
-   model, the conversations and the memory; the plugin reads the catalogue and each person's
-   history, wants and follows through the API, as that person, and answers with cards that open a
-   title's page. It acts on nothing: watching, getting a film and following are buttons on the page.
-   It speaks the same chat protocol as the KGSM assistant, so one chat client serves both.
+6. **The assistant** helps people find films and shows, one they half remember, one by someone they
+   like, one that fits a mood, and plan to watch them together. It is a plugin to the organization's
+   assistant harness, which runs the model, the conversations and the memory; the plugin reads the
+   catalogue and each person's history, wants, follows and plans through the API, as that person, and
+   answers with cards that open a title's or a plan's page. Wanting a title and making, answering or
+   changing a plan are proposals the person confirms; watching, getting a film and following are
+   buttons on the page. It speaks the same chat protocol as the KGSM assistant, so one chat client
+   serves both.
 7. **Cinema** is the site: the library in a browser, for the people the identity provider
    lets watch. It searches,
    fetches and waits on films through the API as the person signed in, carries the assistant

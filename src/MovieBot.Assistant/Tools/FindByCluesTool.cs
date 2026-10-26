@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -155,7 +157,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         foreach (Found found in await Task.WhenAll(searches))
         {
             if (found.Note is not null) notes.Add(found.Note);
-            foreach (CatalogueCard hit in found.Hits)
+            foreach (TitleCard hit in found.Hits)
             {
                 Candidate c = Get(pool, hit.Id);
                 c.Fill(hit, today);
@@ -217,7 +219,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             .Append(string.Join(", ", more.Take(more.Count - 1))).Append(", or ").Append(more[^1]).Append(".\"");
 
         return ToolResult.Ok(text.ToString(), TitleCards.Of(
-            ranked.Select(c => new TitleCard(c.ImdbId, c.Kind, c.Title, c.Year, c.PosterUrl, c.InLibrary, c.Watched))));
+            ranked.Select(c => new CardTitle(c.ImdbId, c.Kind, c.Title, c.Year, c.PosterUrl, c.InLibrary, c.Watched))));
     }
 
     private static string Quoted(string word) => $"\"{word}\"";
@@ -303,7 +305,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
     private sealed record Person(PersonCreditsTool.PersonMatch? Match, PersonCreditsTool.Credits? Credits, string? Note);
 
     private sealed record Found(
-        IReadOnlyList<CatalogueCard> Hits, IReadOnlyList<string> People, IReadOnlyList<string> Look, IReadOnlyList<string> About, string? Note);
+        IReadOnlyList<TitleCard> Hits, IReadOnlyList<string> People, IReadOnlyList<string> Look, IReadOnlyList<string> About, string? Note);
 
     private readonly record struct Verdict(bool Ok, string? Why);
 
@@ -319,7 +321,7 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
         public string Status { get; private set; } = "released";
         public string? Role { get; private set; }
         public string? Plot { get; private set; }
-        public CardRating? Rating { get; private set; }
+        public Rating? Rating { get; private set; }
         public int Votes { get; private set; }
         public bool InLibrary { get; private set; }
         public bool Watched { get; private set; }
@@ -348,13 +350,13 @@ internal sealed partial class FindByCluesTool(CinemaApi api, TimeProvider clock)
             Role ??= credit.Role;
         }
 
-        public void Fill(CatalogueCard card, DateOnly today)
+        public void Fill(TitleCard card, DateOnly today)
         {
             Fill(card);
             Status = TitleText.Status(card, today);
         }
 
-        private void Fill(CatalogueCard card)
+        private void Fill(TitleCard card)
         {
             Title = card.Title; Year = card.Year; Kind = card.Kind; ImdbId = card.Id; Date = card.Released;
             Plot ??= card.Plot; Rating ??= card.Rating; Votes = Math.Max(Votes, card.Rating?.Votes ?? 0);

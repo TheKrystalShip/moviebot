@@ -164,3 +164,52 @@ public sealed record FixPlanRequest
 {
     public DateTimeOffset At { get; init; }
 }
+
+/// <summary>
+/// The limits a plan's times and people keep, the same for the API that enforces them and for anybody
+/// checking a request before making it (authority: <c>docs/api-contract.md</c>, Plans).
+/// </summary>
+public static class PlanLimits
+{
+    /// <summary>The fewest proposed times a plan carries.</summary>
+    public const int MinTimes = 1;
+
+    /// <summary>The most times a plan holds still ahead: what it is made with, and what is suggested after.</summary>
+    public const int MaxTimes = 6;
+
+    /// <summary>How soon a time put forward may be, in minutes.</summary>
+    public const int SoonestMinutes = 5;
+
+    /// <summary>How far ahead a proposed time may be, in days.</summary>
+    public const int FurthestDays = 30;
+
+    /// <summary>The most people one plan invites.</summary>
+    public const int MaxInvited = 20;
+
+    /// <summary>An instant to the minute, in UTC: what a time is called.</summary>
+    public static DateTimeOffset Minute(DateTimeOffset at)
+    {
+        var utc = at.UtcDateTime;
+        return new DateTimeOffset(utc.Year, utc.Month, utc.Day, utc.Hour, utc.Minute, 0, TimeSpan.Zero);
+    }
+
+    /// <summary>
+    /// The proposed times, to the minute and without repeats, or why they cannot be: one to
+    /// <see cref="MaxTimes"/>, each <see cref="Ahead"/>.
+    /// </summary>
+    public static (List<DateTimeOffset> Times, string? Refusal) Times(IEnumerable<DateTimeOffset>? requested, DateTimeOffset now)
+    {
+        var times = (requested ?? []).Select(Minute).Distinct().Order().ToList();
+        if (times.Count < MinTimes || times.Count > MaxTimes)
+            return (times, $"A plan proposes {MinTimes} to {MaxTimes} times.");
+
+        return times.Any(t => !Ahead(t, now)) ? (times, NotAhead) : (times, null);
+    }
+
+    /// <summary>Whether a time may be put forward: at least <see cref="SoonestMinutes"/> and at most <see cref="FurthestDays"/> ahead.</summary>
+    public static bool Ahead(DateTimeOffset at, DateTimeOffset now) =>
+        at >= Minute(now) + TimeSpan.FromMinutes(SoonestMinutes) && at <= now + TimeSpan.FromDays(FurthestDays);
+
+    /// <summary>Why a time that is not <see cref="Ahead"/> is refused.</summary>
+    public static readonly string NotAhead = $"A time is at least {SoonestMinutes} minutes and at most {FurthestDays} days ahead.";
+}

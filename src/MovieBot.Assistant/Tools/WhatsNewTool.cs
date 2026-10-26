@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Text;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Client;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -60,7 +62,7 @@ internal sealed partial class WhatsNewTool(CinemaApi api, TimeProvider clock) : 
         for (int i = 0; i < kinds.Length; i++)
         {
             text.Append(kinds[i] == "film" ? "Films:\n" : "Shows:\n");
-            foreach (CatalogueCard t in lists[i].Titles)
+            foreach (TitleCard t in lists[i].Titles)
             {
                 text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append('.');
                 if (t.Category == "anime") text.Append(" Anime.");
@@ -89,7 +91,7 @@ internal sealed partial class WhatsNewTool(CinemaApi api, TimeProvider clock) : 
         }, ct)));
 
         var text = new StringBuilder();
-        var cards = new List<CatalogueCard>();
+        var cards = new List<TitleCard>();
         for (int i = 0; i < kinds.Length; i++)
         {
             string what = anime ? "Anime " + Plural(kinds[i]).ToLowerInvariant() : Plural(kinds[i]);
@@ -97,7 +99,7 @@ internal sealed partial class WhatsNewTool(CinemaApi api, TimeProvider clock) : 
                     ? $"{what} released from {Day(from)} to {Day(to)}, newest first, the most looked at"
                     : $"{what} with a release date from {Day(from)} to {Day(to)}, soonest first, the most looked at")
                 .Append(":\n");
-            List<CatalogueCard> titles = released
+            List<TitleCard> titles = released
                 ? [.. lists[i].Titles.OrderByDescending(t => t.Released, StringComparer.Ordinal)]
                 : [.. lists[i].Titles.OrderBy(t => t.Released, StringComparer.Ordinal)];
             text.Append(titles.Count == 0 ? "None.\n" : TitleText.Lines(titles, withDate: true) + "\n");
@@ -118,7 +120,7 @@ internal sealed partial class WhatsNewTool(CinemaApi api, TimeProvider clock) : 
             return ToolResult.Ok(anime ? "The library has no anime." : "The library has no titles.");
 
         var text = new StringBuilder(anime ? "Newest anime in the library, newest first:\n" : "Newest in the library, newest first:\n");
-        foreach (CatalogueCard t in added.Titles)
+        foreach (TitleCard t in added.Titles)
         {
             text.Append("- ").Append(TitleText.Named(t.Title, t.Year)).Append(", ").Append(TitleText.KindWord(t.Kind, t.Category)).Append('.');
             if (t.Genres.Count > 0) text.Append(' ').Append(string.Join(", ", t.Genres)).Append('.');

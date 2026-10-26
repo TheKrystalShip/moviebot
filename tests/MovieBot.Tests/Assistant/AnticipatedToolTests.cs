@@ -1,5 +1,7 @@
 using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Client;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
@@ -10,10 +12,10 @@ public sealed class AnticipatedToolTests
     [Fact]
     public async Task Titles_are_listed_with_their_waiters_and_whether_the_person_is_one()
     {
-        var world = CinemaWorld.Build().Answer("/api/anticipated", new List<AnticipatedTitle>
+        var world = CinemaWorld.Build().Answer("/api/anticipated", new List<AnticipatedView>
         {
-            new() { ImdbId = "tt1000090", Title = "Long Tide", Year = 2027, Waiters = 4, Waiting = true },
-            new() { ImdbId = "tt1000091", Title = "Quiet Hour", Waiters = 1 },
+            new() { ImdbId = "tt1000090", Title = "Long Tide", Display = "Long Tide (2027)", Year = 2027, Waiters = 4, Waiting = true },
+            new() { ImdbId = "tt1000091", Title = "Quiet Hour", Display = "Quiet Hour", Waiters = 1, Waiting = false },
         });
         var rig = new ToolRig(world);
 
@@ -30,7 +32,7 @@ public sealed class AnticipatedToolTests
     [Fact]
     public async Task Nobody_waiting_is_said_and_carries_no_card()
     {
-        var rig = new ToolRig(CinemaWorld.Build().Answer("/api/anticipated", new List<AnticipatedTitle>()));
+        var rig = new ToolRig(CinemaWorld.Build().Answer("/api/anticipated", new List<AnticipatedView>()));
 
         ToolOutcome result = await rig.RunAsync(rig.Anticipated, new { });
 

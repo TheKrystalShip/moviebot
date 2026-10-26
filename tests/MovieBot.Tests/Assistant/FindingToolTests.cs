@@ -1,5 +1,7 @@
 using TheKrystalShip.Agent.Plugin.Testing;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Core;
 using Xunit;
 
 namespace TheKrystalShip.MovieBot.Tests.Assistant;
@@ -83,7 +85,7 @@ public sealed class FindingToolTests
 
         Assert.False(result.IsError);
         Assert.Equal(
-            ["GET /api/catalogue/titles?from=2018&q=the lantern keeper&size=10&to=2020", "GET /api/catalogue/titles/tt1000003"], _rig.World.Asked);
+            ["GET /api/catalogue/titles?from=2018&q=the lantern keeper&size=10&to=2020", "GET /api/catalogue/titles/tt1000003", "GET /api/titles/tt1000003/wanters"], _rig.World.Asked);
         Assert.Contains("The Lantern Keeper (2019), film. id tt1000003.", result.Text);
         Assert.Contains("Release date: 2019-10-18.", result.Text);
         Assert.Contains("Runtime: 109 minutes.", result.Text);
@@ -104,8 +106,26 @@ public sealed class FindingToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000004" });
 
-        Assert.Equal(["GET /api/catalogue/titles/tt1000004"], _rig.World.Asked);
-        Assert.Contains("In the library. The person has watched it.", result.Text);
+        Assert.Equal(["GET /api/catalogue/titles/tt1000004", "GET /api/titles/tt1000004/wanters"], _rig.World.Asked);
+        Assert.Contains("In the library. The person has watched it. Nobody else wants to watch it.", result.Text);
+    }
+
+    [Fact]
+    public async Task A_title_says_whether_the_person_wants_it_and_who_else_does()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000003" });
+
+        Assert.Contains("Not in the library. The person wants to watch it. Also wanted by Ana Ruiz, Marc.", result.Text);
+    }
+
+    [Fact]
+    public async Task Who_else_wants_a_title_is_left_unsaid_when_it_cannot_be_read()
+    {
+        ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000001" });
+
+        Assert.False(result.IsError);
+        Assert.DoesNotContain("wants to watch", result.Text);
+        Assert.DoesNotContain("wanted by", result.Text);
     }
 
     [Fact]
@@ -113,7 +133,7 @@ public sealed class FindingToolTests
     {
         ToolOutcome result = await _rig.RunAsync(_rig.Details, new { title = "tt1000006" });
 
-        Assert.Equal(["GET /api/catalogue/titles/tt1000006", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
+        Assert.Equal(["GET /api/catalogue/titles/tt1000006", "GET /api/titles/tt1000006/wanters", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
         Assert.Contains("The Salt Line (2020), show. id tt1000006.", result.Text);
         Assert.Contains("Ran from 2020 to 2022.", result.Text);
         Assert.Contains("Status: Ended.", result.Text);
@@ -130,7 +150,7 @@ public sealed class FindingToolTests
         await _rig.RunAsync(_rig.Details, new { title = "The Salt Line" });
 
         Assert.Equal(
-            ["GET /api/catalogue/titles?q=the salt line&size=10", "GET /api/catalogue/titles/tt1000006", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
+            ["GET /api/catalogue/titles?q=the salt line&size=10", "GET /api/catalogue/titles/tt1000006", "GET /api/titles/tt1000006/wanters", "GET /api/me/shows/tt1000006"], _rig.World.Asked);
     }
 
     [Fact]
@@ -209,7 +229,7 @@ public sealed class FindingToolTests
     private ToolRig LongFilmography()
     {
         ReplayHandler world = CinemaWorld.Build();
-        List<CatalogueCard> credits = [];
+        List<TitleCard> credits = [];
         for (int n = 1; n <= 30; n++)
             credits.Add(CinemaWorld.Credit($"tt20000{n:00}", $"Part {n:00}", $"{1990 + n}-06-{n:00}", role: $"Role {n}", votes: 100 * n));
         credits.Add(CinemaWorld.Credit("tt2000101", "Late Night Chat", "2015-01-01", kind: "show", role: "Self", votes: 99000));

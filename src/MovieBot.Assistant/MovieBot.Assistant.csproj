@@ -7,7 +7,7 @@
 
     <RootNamespace>TheKrystalShip.MovieBot.Assistant</RootNamespace>
     <AssemblyName>moviebot-assistant</AssemblyName>
-    <Version>3.5.1</Version>
+    <Version>3.6.0</Version>
 
     <!-- The plugin package serializes with reflection-based JSON, so this runs on
          the JIT. A service that runs for weeks gains nothing from tiering, so a method
@@ -35,6 +35,9 @@
   <ItemGroup>
     <!-- For the settings file's lookup. -->
     <ProjectReference Include="../../../moviebot-acquire/src/MovieBot.Acquire/MovieBot.Acquire.csproj" />
+
+    <!-- The API, as every program that acts for a person reaches it, in the shapes it publishes. -->
+    <ProjectReference Include="../MovieBot.Client/MovieBot.Client.csproj" />
   </ItemGroup>
 
   <ItemGroup>

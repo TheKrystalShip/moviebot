@@ -27,12 +27,12 @@ public static class PlanEndpoints
             if (body.ImdbId is not { } imdb || !TheKrystalShip.MovieBot.Catalogue.TitleQuery.IsImdbId(imdb)) return Error("That is not an IMDb id.", StatusCodes.Status400BadRequest);
             if (!WantKinds.IsKnown(body.Kind)) return Error("A plan is for a film or a show.", StatusCodes.Status400BadRequest);
 
-            var (times, refusal) = PlanRules.Times(body.Times, clock.GetUtcNow());
+            var (times, refusal) = PlanLimits.Times(body.Times, clock.GetUtcNow());
             if (refusal is not null) return Error(refusal, StatusCodes.Status400BadRequest);
 
             var invited = (body.People ?? []).Where(u => u != person.UserId).Distinct(StringComparer.Ordinal).ToList();
-            if (invited.Count > PlanRules.MaxInvited)
-                return Error($"A plan invites at most {PlanRules.MaxInvited} people.", StatusCodes.Status400BadRequest);
+            if (invited.Count > PlanLimits.MaxInvited)
+                return Error($"A plan invites at most {PlanLimits.MaxInvited} people.", StatusCodes.Status400BadRequest);
             if (invited.Any(u => people.NameOf(u) is null))
                 return Error("Nobody by that id can be invited.", StatusCodes.Status404NotFound);
 
@@ -102,7 +102,7 @@ public static class PlanEndpoints
             return outcome switch
             {
                 InviteOutcome.AlreadyIn => Error("They are in the plan already.", StatusCodes.Status409Conflict),
-                InviteOutcome.Full => Error($"A plan invites at most {PlanRules.MaxInvited} people.", StatusCodes.Status409Conflict),
+                InviteOutcome.Full => Error($"A plan invites at most {PlanLimits.MaxInvited} people.", StatusCodes.Status409Conflict),
                 InviteOutcome.NoSuchPlan => Missing(),
                 _ => Results.Ok(new InviteReply(delivery is { Pushed: > 0 } ? "push" : "bell")),
             };
@@ -113,13 +113,13 @@ public static class PlanEndpoints
         {
             if (PeopleEndpoints.Person(context) is not { } person) return NoPerson();
             if (Of(plans, id, person.UserId) is null) return Missing();
-            var at = PlanRules.Minute(body.At);
-            if (!PlanRules.Ahead(at, clock.GetUtcNow())) return Error(PlanRules.NotAhead, StatusCodes.Status400BadRequest);
+            var at = PlanLimits.Minute(body.At);
+            if (!PlanLimits.Ahead(at, clock.GetUtcNow())) return Error(PlanLimits.NotAhead, StatusCodes.Status400BadRequest);
 
             return await service.SuggestAsync(id, at, person.Actor, ct) switch
             {
                 SuggestOutcome.AlreadyThere => Error("That time is in the plan already.", StatusCodes.Status409Conflict),
-                SuggestOutcome.Full => Error($"A plan holds at most {PlanRules.MaxTimes} times ahead.", StatusCodes.Status409Conflict),
+                SuggestOutcome.Full => Error($"A plan holds at most {PlanLimits.MaxTimes} times ahead.", StatusCodes.Status409Conflict),
                 SuggestOutcome.NotInPlan => Missing(),
                 _ => Results.Ok(await present.ViewAsync(person.UserId, plans.Get(id)!, ct)),
             };
@@ -132,7 +132,7 @@ public static class PlanEndpoints
             if (Of(plans, id, person.UserId) is not { } plan) return Missing();
             if (plan.MadeBy != person.UserId) return Error("Only the person who made the plan picks its time.", StatusCodes.Status403Forbidden);
 
-            return await service.FixAsync(id, PlanRules.Minute(body.At), person.Actor, ct) switch
+            return await service.FixAsync(id, PlanLimits.Minute(body.At), person.Actor, ct) switch
             {
                 FixOutcome.NoSuchTime => Error("The plan has no such time ahead.", StatusCodes.Status404NotFound),
                 FixOutcome.NoSuchPlan => Missing(),
@@ -160,7 +160,7 @@ public static class PlanEndpoints
     {
         if (!DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out at)) return false;
-        at = PlanRules.Minute(at);
+        at = PlanLimits.Minute(at);
         return true;
     }
 

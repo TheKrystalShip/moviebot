@@ -1,8 +1,9 @@
 using System.ComponentModel;
 using System.Text;
-using System.Text.RegularExpressions;
 using TheKrystalShip.Agent.Plugin;
 using TheKrystalShip.MovieBot.Assistant.Api;
+using TheKrystalShip.MovieBot.Catalogue;
+using TheKrystalShip.MovieBot.Core;
 
 namespace TheKrystalShip.MovieBot.Assistant.Tools;
 
@@ -10,7 +11,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 [Description("""
     Everything the film database knows about one film or show.
     - Year and release date, runtime, genres, rating and vote count, plot, director and writers, main cast with their parts, original language, keywords, and for a show its seasons.
-    - Whether the library has it, and whether the person has watched it.
+    - Whether the library has it, whether the person has watched it or wants it, and who else wants it.
     - Use to confirm a candidate against what the person remembers before naming it.
     """)]
 internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<TitleDetailsTool.Args, Caller>
@@ -19,13 +20,6 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         [property: Description("The title with its year, or an id a tool returned.")] string Title);
 
     private const int CastShown = 10;
-    private const int CandidatesShown = 6;
-
-    [GeneratedRegex(@"^tt\d{5,}$", RegexOptions.IgnoreCase)]
-    private static partial Regex ImdbId();
-
-    [GeneratedRegex(@"^(?<name>.*?)\s*\((?<year>\d{4})\)\s*$")]
-    private static partial Regex NameWithYear();
 
     /// <summary>The jobs a page's crew holds that are its writing.</summary>
     private static readonly HashSet<string> WritingJobs = new(StringComparer.OrdinalIgnoreCase)
@@ -38,13 +32,25 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         var person = api.As(call.Principal.AccessToken);
         CancellationToken ct = call.CancellationToken;
 
-        (string imdbId, string? note) = await ResolveAsync(person, args.Title, ct);
+        (string imdbId, string? note) = await TitleLookup.ResolveAsync(person, args.Title, "title_details", ct);
         TitlePage page = await person.TitleAsync(imdbId, ct);
+
+        // Who else wants it is said only when it could be read: a part the API declines leaves it unsaid.
+        List<WanterView>? wanters;
+        try
+        {
+            wanters = await person.WantersAsync(imdbId, ct);
+        }
+        catch (ToolRefusal)
+        {
+            wanters = null;
+        }
+
         if (page.Kind != "show")
-            return Film(page, note);
+            return Film(page, wanters, note);
 
         // What the person has of the show is theirs: a part the API declines leaves it unsaid, never denied.
-        PersonShow? theirs;
+        PersonShowView? theirs;
         try
         {
             theirs = await person.PersonShowAsync(imdbId, ct);
@@ -54,51 +60,10 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
             theirs = null;
         }
 
-        return Show(page, theirs, note);
+        return Show(page, theirs, wanters, note);
     }
 
-    /// <summary>
-    /// The id a title is read by. A title written with its year, or without, is found through the
-    /// search first; an id is used as it is. What cannot be told apart is returned to the model as the
-    /// candidates, with their ids, rather than guessed at.
-    /// </summary>
-    private static async Task<(string Id, string? Note)> ResolveAsync(
-        CinemaApi.PersonApi person, string said, CancellationToken ct)
-    {
-        if (ImdbId().IsMatch(said))
-            return (said.ToLowerInvariant(), null);
-
-        string name = said;
-        int? year = null;
-        if (NameWithYear().Match(said) is { Success: true } m)
-        {
-            name = m.Groups["name"].Value;
-            year = int.Parse(m.Groups["year"].Value);
-        }
-
-        CardPage found = await person.TitlesAsync(new TitleFilter { Words = name, From = year - 1, To = year + 1, Size = 10 }, ct);
-        List<CatalogueCard> pages = found.Titles;
-        CatalogueCard[] named = [.. pages.Where(t => TitleText.Normal(t.Title) == TitleText.Normal(name))];
-        CatalogueCard[] sameYear = year is null ? named : [.. named.Where(t => t.Year == year)];
-
-        if (sameYear.Length == 1)
-            return (sameYear[0].Id, null);
-
-        if (sameYear.Length == 0 && named.Length == 0 && pages.Count == 1)
-            return (pages[0].Id, $"No title is named exactly '{name}'; this is the database's one close match.");
-
-        CatalogueCard[] candidates = sameYear.Length > 1 ? sameYear : named.Length > 0 ? named : [.. pages];
-        string why = candidates.Length == 0
-            ? $"The film database has no title matching '{said}' that has a page here."
-            : (sameYear.Length > 1 || (sameYear.Length == 0 && named.Length > 1)
-                ? $"More than one title is named '{said}'."
-                : $"No title is named exactly '{said}'.")
-              + " Call title_details again with the id of the one meant:\n"
-              + TitleText.Lines(candidates.Take(CandidatesShown));
-        throw new ToolRefusal(why);
-    }
-
-    private static ToolResult Film(TitlePage f, string? note)
+    private static ToolResult Film(TitlePage f, List<WanterView>? wanters, string? note)
     {
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
@@ -117,11 +82,12 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
         Cast(text, f.Cast);
         Common(text, f);
         text.Append(TitleText.Library(f.InLibrary, f.Watched, "film"));
+        Wanted(text, f, wanters);
 
         return ToolResult.Ok(text.ToString(), TitleCards.Of([f]));
     }
 
-    private static ToolResult Show(TitlePage s, PersonShow? theirs, string? note)
+    private static ToolResult Show(TitlePage s, PersonShowView? theirs, List<WanterView>? wanters, string? note)
     {
         var text = new StringBuilder();
         if (note is not null) text.Append(note).Append('\n');
@@ -157,8 +123,19 @@ internal sealed partial class TitleDetailsTool(CinemaApi api) : AssistantTool<Ti
             text.Append($"The person picks up at season {resume.Season} episode {resume.Episode}.\n");
 
         text.Append(TitleText.Library(s.InLibrary, false, "show"));
+        Wanted(text, s, wanters);
 
         return ToolResult.Ok(text.ToString(), TitleCards.Of([s with { You = s.You is { } you ? you with { Watched = false } : null }]));
+    }
+
+    /// <summary>Whether the person wants the title, and who else visibly does.</summary>
+    private static void Wanted(StringBuilder text, TitlePage page, List<WanterView>? wanters)
+    {
+        if (page.You?.Wanted == true) text.Append(" The person wants to watch it.");
+        if (wanters is null) return;
+        text.Append(wanters.Count == 0
+            ? " Nobody else wants to watch it."
+            : " Also wanted by " + string.Join(", ", wanters.Select(w => w.Name ?? "somebody with no name")) + ".");
     }
 
     /// <summary>What a film's and a show's pages both hold, after the people.</summary>

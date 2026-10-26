@@ -14,7 +14,7 @@ public sealed record StoredPlan
     /// <summary>The canonical <c>tt0458352</c> form.</summary>
     public required string ImdbId { get; init; }
 
-    /// <summary>One of <see cref="Wants.WantKinds"/>.</summary>
+    /// <summary>One of <see cref="WantKinds"/>.</summary>
     public required string Kind { get; init; }
 
     /// <summary>For a show, the episode the plan starts at.</summary>
@@ -153,14 +153,14 @@ public sealed class PlanStore(CinemaDatabase database)
 
     /// <summary>
     /// Adds a person to a plan, after everybody already in it, while it invites fewer
-    /// than <see cref="PlanRules.MaxInvited"/> people besides its maker.
+    /// than <see cref="PlanLimits.MaxInvited"/> people besides its maker.
     /// </summary>
     public InviteOutcome Invite(string id, string userId, DateTimeOffset now) => database.Write(c =>
     {
         if (c.Count("SELECT COUNT(*) FROM plans WHERE id = $id", ("$id", id)) == 0) return InviteOutcome.NoSuchPlan;
         if (c.Count("SELECT COUNT(*) FROM plan_people WHERE plan_id = $id AND user_id = $user", ("$id", id), ("$user", userId)) > 0)
             return InviteOutcome.AlreadyIn;
-        if (c.Count("SELECT COUNT(*) FROM plan_people WHERE plan_id = $id", ("$id", id)) > PlanRules.MaxInvited)
+        if (c.Count("SELECT COUNT(*) FROM plan_people WHERE plan_id = $id", ("$id", id)) > PlanLimits.MaxInvited)
             return InviteOutcome.Full;
 
         c.Execute("INSERT INTO plan_people (plan_id, user_id, invited_at) VALUES ($id, $user, $at)",
@@ -170,7 +170,7 @@ public sealed class PlanStore(CinemaDatabase database)
 
     /// <summary>
     /// Puts another time forward in a plan, with its suggester <c>in</c> for it, while
-    /// the plan holds fewer than <see cref="PlanRules.MaxTimes"/> times still ahead of <paramref name="now"/>.
+    /// the plan holds fewer than <see cref="PlanLimits.MaxTimes"/> times still ahead of <paramref name="now"/>.
     /// </summary>
     public SuggestOutcome Suggest(string id, DateTimeOffset at, string userId, DateTimeOffset now) => database.Write(c =>
     {
@@ -178,7 +178,7 @@ public sealed class PlanStore(CinemaDatabase database)
                 ("$id", id), ("$user", userId)) == 0) return SuggestOutcome.NotInPlan;
         if (c.Count("SELECT COUNT(*) FROM plan_times WHERE plan_id = $id AND at = $at", ("$id", id), ("$at", at)) > 0)
             return SuggestOutcome.AlreadyThere;
-        if (c.Count("SELECT COUNT(*) FROM plan_times WHERE plan_id = $id AND at > $now", ("$id", id), ("$now", now)) >= PlanRules.MaxTimes)
+        if (c.Count("SELECT COUNT(*) FROM plan_times WHERE plan_id = $id AND at > $now", ("$id", id), ("$now", now)) >= PlanLimits.MaxTimes)
             return SuggestOutcome.Full;
 
         c.Execute("INSERT INTO plan_times (plan_id, at, suggested_by) VALUES ($id, $at, $by)", ("$id", id), ("$at", at), ("$by", userId));
