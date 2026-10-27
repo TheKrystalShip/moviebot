@@ -105,7 +105,7 @@ public sealed partial class ProfileTests
         Assert.Equal(["which"], Required(profile.Tools.Single(t => t.Name == "whats_new")));
         Assert.Empty(Required(profile.Tools.Single(t => t.Name == "discover")));
         Assert.Empty(Required(profile.Tools.Single(t => t.Name == "my_taste")));
-        Assert.Equal(["titles"], Required(profile.Tools.Single(t => t.Name == "want")));
+        Assert.Equal(["title"], Required(profile.Tools.Single(t => t.Name == "want")));
         Assert.Equal(["title", "times"], Required(profile.Tools.Single(t => t.Name == "make_plan")));
         Assert.Equal(["plan", "answer"], Required(profile.Tools.Single(t => t.Name == "answer_plan")));
         Assert.Equal(["plan", "change"], Required(profile.Tools.Single(t => t.Name == "change_plan")));

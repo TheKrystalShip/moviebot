@@ -361,11 +361,11 @@
     },
     {
       "name": "want",
-      "description": "Propose putting titles on the person's Want to watch, or taking them off. Nothing changes until the person confirms; say it is waiting for them.\n- titles: up to 8, each an id a tool returned or a title with its year.\n- remove: take them off instead.\n- just_me: keep the wants to the person. By default everybody signed in sees them, which is how friends find something to watch together.\n- Once confirmed, the person is told where each one stands: ready to watch, arriving, out, or not out yet.\n- Not for watching at a time or with people: that is a plan, make_plan.",
+      "description": "Propose putting titles on the person's Want to watch, or taking them off. Nothing changes until the person confirms; say it is waiting for them.\n- title: up to 8, each an id a tool returned or a title with its year.\n- remove: take them off instead.\n- just_me: keep the wants to the person. By default everybody signed in sees them, which is how friends find something to watch together.\n- Once confirmed, the person is told where each one stands: ready to watch, arriving, out, or not out yet.\n- Not for watching at a time or with people: that is a plan, make_plan.",
       "parameters": {
         "type": "object",
         "properties": {
-          "titles": {
+          "title": {
             "type": "array",
             "items": {
               "type": "string"
@@ -382,7 +382,7 @@
           }
         },
         "required": [
-          "titles"
+          "title"
         ]
       },
       "class": "staged",

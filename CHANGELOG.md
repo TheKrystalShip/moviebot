@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.10.1] - 2026-10-27
+
+### Fixed
+- **Asking the assistant to put a film on Want to watch works after reading its page.** The `want` tool
+  takes `title`, as `title_details` and `make_plan` do, one title or a list of them.
+- **A reply the assistant takes back is cleared as it is taken back.** On Agent.Plugin 1.0.0-dev.26 and
+  krystal 10.2.0, the chat clears a reply the review rejected when `text.reset` arrives, and the
+  conversation keeps only the reply written after it.
+- The assistant suite asks for a want after a film's page is read, and for two films found earlier in
+  the conversation.
+
 ## [4.10.0] - 2026-10-27
 
 ### Added

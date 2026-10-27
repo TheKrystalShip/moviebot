@@ -161,7 +161,7 @@ public sealed class TogetherToolTests
         var world = World().Answer("PUT", "/api/me/wants/tt1000004", new SetWantReply { Outcome = WantOutcomes.InLibrary });
         var rig = Rig(world);
 
-        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { titles = new[] { "tt1000004", "tt1000003" } });
+        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { title = new[] { "tt1000004", "tt1000003" } });
 
         Assert.NotNull(proposed.Proposal);
         Assert.Contains("Already on the person's Want to watch: The Lantern Keeper (2019).", proposed.Text);
@@ -183,7 +183,7 @@ public sealed class TogetherToolTests
         var world = World().Answer("PUT", "/api/me/wants/tt1000004", new SetWantReply { Outcome = WantOutcomes.Wanted });
         var rig = Rig(world);
 
-        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { titles = new[] { "tt1000004" }, just_me = true });
+        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { title = new[] { "tt1000004" }, just_me = true });
         await proposed.ConfirmAsync(rig.Person);
 
         Assert.EndsWith("\nKept to you.", proposed.Proposal!.Summary);
@@ -196,7 +196,7 @@ public sealed class TogetherToolTests
         var world = World().Answer("DELETE", "/api/me/wants/tt1000003", "", 204);
         var rig = Rig(world);
 
-        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { titles = new[] { "The Lantern Keeper (2019)" }, remove = true });
+        ToolOutcome proposed = await rig.RunAsync(rig.Want, new { title = new[] { "The Lantern Keeper (2019)" }, remove = true });
         StagedConfirmation confirmed = await proposed.ConfirmAsync(rig.Person);
 
         Assert.Equal("Take The Lantern Keeper (2019) off your Want to watch", proposed.Proposal!.Summary);
@@ -209,7 +209,7 @@ public sealed class TogetherToolTests
     {
         var rig = Rig();
 
-        ToolOutcome result = await rig.RunAsync(rig.Want, new { titles = new[] { "tt1000003" } });
+        ToolOutcome result = await rig.RunAsync(rig.Want, new { title = new[] { "tt1000003" } });
 
         Assert.Null(result.Proposal);
         Assert.Contains("Nothing was proposed.", result.Text);

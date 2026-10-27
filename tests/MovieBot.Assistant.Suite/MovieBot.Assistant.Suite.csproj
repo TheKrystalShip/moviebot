@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TheKrystalShip.Agent.Plugin.Testing" Version="1.0.0-dev.11" />
+    <PackageReference Include="TheKrystalShip.Agent.Plugin.Testing" Version="1.0.0-dev.12" />
   </ItemGroup>
 
   <!-- The cases, beside the binary where the runner looks for them. -->

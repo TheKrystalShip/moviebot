@@ -150,6 +150,35 @@
       }
     },
     {
+      "id": "want-after-details",
+      "group": "want",
+      "title": "A title read with title_details is then wanted, and the want carries it",
+      "turns": [
+        { "say": "Do you have Hidden Figures?" },
+        { "say": "Tell me more about it, who directed it and how long is it?" },
+        { "say": "Sounds good. Could you add it to my want to watch list?" }
+      ],
+      "expect": {
+        "calls": [ { "tool": "title_details" } ],
+        "staged": [ { "tool": "want", "args": { "title": "~hidden figures|tt4846340" } } ],
+        "notMatch": [ "\\bI(?:'ve| have) added\\b", "\\bis now on your\\b", "error" ]
+      }
+    },
+    {
+      "id": "want-two-found",
+      "group": "want",
+      "title": "Two titles found earlier in the conversation are wanted in one proposal",
+      "turns": [
+        { "say": "Tell me about Inception." },
+        { "say": "And what about Heat, the one with Al Pacino?" },
+        { "say": "Could you add both of those to my want to watch list?" }
+      ],
+      "expect": {
+        "staged": [ { "tool": "want", "args": { "title": "~(?s)(inception|tt1375666).*(heat|tt0113277)|(heat|tt0113277).*(inception|tt1375666)" } } ],
+        "notMatch": [ "\\bI(?:'ve| have) added\\b", "\\bis now on your\\b", "error" ]
+      }
+    },
+    {
       "id": "recommend-proposes-nothing-unasked",
       "group": "want",
       "title": "A recommendation offers to want titles and proposes nothing",

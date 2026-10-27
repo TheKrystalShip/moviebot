@@ -10,7 +10,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 [AssistantTool("want", ToolClass.Staged, Parallel = false, Order = 11)]
 [Description("""
     Propose putting titles on the person's Want to watch, or taking them off. Nothing changes until the person confirms; say it is waiting for them.
-    - titles: up to 8, each an id a tool returned or a title with its year.
+    - title: up to 8, each an id a tool returned or a title with its year.
     - remove: take them off instead.
     - just_me: keep the wants to the person. By default everybody signed in sees them, which is how friends find something to watch together.
     - Once confirmed, the person is told where each one stands: ready to watch, arriving, out, or not out yet.
@@ -19,7 +19,7 @@ namespace TheKrystalShip.MovieBot.Assistant.Tools;
 internal sealed partial class WantTool(CinemaApi api) : AssistantTool<WantTool.Args, Caller>
 {
     public sealed record Args(
-        [property: Description("Ids a tool returned, or titles with their year.")] string[] Titles,
+        [property: Description("Ids a tool returned, or titles with their year.")] string[] Title,
         [property: Description("Take them off instead. Default false.")] bool Remove = false,
         [property: Description("Nobody else sees the want. Default false.")] bool JustMe = false);
 
@@ -29,7 +29,7 @@ internal sealed partial class WantTool(CinemaApi api) : AssistantTool<WantTool.A
     {
         var person = api.As(call.Principal.AccessToken);
         CancellationToken ct = call.CancellationToken;
-        string[] said = [.. args.Titles.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct()];
+        string[] said = [.. args.Title.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct()];
         if (said.Length == 0) throw new ToolRefusal("Name at least one title.");
         if (said.Length > MostTitles) throw new ToolRefusal($"Propose at most {MostTitles} titles at a time.");
 
