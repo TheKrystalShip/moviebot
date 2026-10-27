@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TheKrystalShip.MovieBot.Acquire.Download;
@@ -423,8 +424,14 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         var sessions = fixture.Services.GetRequiredService<SessionStore>();
         sessions.Enter("one-thing", "6001");
         sessions.LoadTitle("one-thing", SessionFixture.Heat, new Actor("6001", "Sam"));
+        // What the room was told, push by push: the fetch runs on after the answer and reports on its own
+        // download, so the room's latest state may already be that report by the time it is read.
+        await using var sam = await fixture.ConnectAsync("one-thing", "6001", "Sam");
+        var told = new ConcurrentQueue<SessionState>();
+        sam.On<SessionStatePush>("StateChanged", push => told.Enqueue(push.State));
 
-        // Asking for an episode that is not here puts it in the room at once, in place of the film.
+        // Asking for an episode that is not here puts it in the room at once, in place of the film, as
+        // the person who asked; how the download gets on is the server's report and names nobody.
         using var episode = await Member().PostAsJsonAsync("/api/watch", new WatchNowRequest
         {
             ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 3)], Room = "one-thing",
@@ -433,7 +440,11 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         var holding = Room("one-thing");
         Assert.Null(holding.TitleId);
         Assert.Equal((1, 3), (holding.Preparing!.Season, holding.Preparing.Episode));
-        Assert.Equal("6001", holding.UpdatedBy?.UserId);
+        await Until(() => told.Any(s => s.Preparing?.Stage == PreparingStages.Downloading));
+        var held = told.First(s => s.Preparing is { Season: 1, Episode: 3 });
+        Assert.Equal(PreparingStages.Finding, held.Preparing!.Stage);
+        Assert.Equal("6001", held.UpdatedBy?.UserId);
+        Assert.Null(told.First(s => s.Preparing?.Stage == PreparingStages.Downloading).UpdatedBy);
         await Until(() => fixture.Torrents.Held.TryGetValue(WatchNowFixture.ShowHash, out var held)
             && held.Tags.Contains("watch:one-thing:s01e03"));
 
