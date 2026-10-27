@@ -325,7 +325,9 @@ export interface RoomPreparing {
   release?: string;
   /** From 0 to 1, while downloading. */
   progress?: number;
-  /** Why it will not arrive: notOffered, refused, unavailable or notWatchable. */
+  /** Why it is late while downloading: stalled, when none of it has arrived for a minute. */
+  delay?: 'stalled';
+  /** Why it will not arrive: notOffered, refused, unavailable, notWatchable or notArriving. */
   problem?: string;
   refusal?: string;
 }

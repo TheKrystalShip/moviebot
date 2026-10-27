@@ -9,8 +9,15 @@ public static class PreparingStages
     /// <summary>The film is arriving; the room loads it the moment it can be opened.</summary>
     public const string Downloading = "downloading";
 
-    /// <summary>It will not arrive: nothing was offered, the download was refused, or it could not be made watchable.</summary>
+    /// <summary>It will not arrive: nothing was offered, the download was refused or stopped, or it could not be made watchable.</summary>
     public const string Failed = "failed";
+}
+
+/// <summary>Why something still arriving is late, as <see cref="RoomPreparing.Delay"/> says it.</summary>
+public static class PreparingDelays
+{
+    /// <summary>Nothing of it has arrived for a minute; it is still in the torrent client.</summary>
+    public const string Stalled = "stalled";
 }
 
 /// <summary>
@@ -39,7 +46,14 @@ public sealed record RoomPreparing
     /// <summary>How much of it has arrived, from 0 to 1, while downloading.</summary>
     public double? Progress { get; init; }
 
-    /// <summary>Why it will not arrive, as a word: <c>notOffered</c>, <c>refused</c>, <c>unavailable</c> or <c>notWatchable</c>.</summary>
+    /// <summary>Why it is late while downloading, as one of <see cref="PreparingDelays"/>; absent while it is arriving.</summary>
+    public string? Delay { get; init; }
+
+    /// <summary>
+    /// Why it will not arrive, as a word: <c>notOffered</c>, <c>refused</c>, <c>unavailable</c>,
+    /// <c>notWatchable</c>, or <c>notArriving</c> (its download stopped in a way that will not mend:
+    /// the torrent failed, left the client, or no longer fetches the file).
+    /// </summary>
     public string? Problem { get; init; }
 
     /// <summary>What the torrent client or the tracker said when it refused, where it said something.</summary>

@@ -56,7 +56,9 @@ public static class SitePaths
 /// beside who asked, and taken off once they have been told, so a restart in the middle of a long
 /// download tells them still and a download nobody was promised news of is never announced. A
 /// download fetched for people's wants (<see cref="TorrentTags.Want"/>) tells every person whose want
-/// on the title lets the server fetch it, read from the wants when the news is told.
+/// on the title lets the server fetch it, read from the wants when the news is told. A person a
+/// waiting room promised news of one film or episode (<see cref="TorrentTags.TellOf"/>) is told of that
+/// alone: a season's torrent is watchable long before every episode of it is.
 /// </summary>
 public sealed class ReadyNotices(
     AcquisitionService acquisition,
@@ -90,30 +92,79 @@ public sealed class ReadyNotices(
     {
         foreach (var download in await acquisition.ListAsync(ct))
         {
-            if (!download.Tags.Contains(TorrentTags.Tell)) continue;
+            if (download.Tags.Contains(TorrentTags.Tell)) await TellAskersAsync(download, ct);
+            await TellPromisedAsync(download, ct);
+        }
+    }
 
-            var failed = download.Tags.Contains(TorrentTags.IngestFailed);
-            if (!failed && !download.Tags.Contains(TorrentTags.Watchable)) continue;
+    private async Task TellAskersAsync(DownloadStatus download, CancellationToken ct)
+    {
+        var failed = download.Tags.Contains(TorrentTags.IngestFailed);
+        if (!failed && !download.Tags.Contains(TorrentTags.Watchable)) return;
 
-            var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
-            var manifest = id is null ? null : library.Get(id);
-            var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
+        var id = download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null);
+        var manifest = id is null ? null : library.Get(id);
+        var name = manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
 
-            foreach (var person in Owed(download))
+        foreach (var person in Owed(download))
+        {
+            if (id is not null && !failed && Watching(person, id)) continue;
+
+            await notifier.TellAsync(person, new NotificationDraft
             {
-                if (id is not null && !failed && Watching(person, id)) continue;
+                Kind = NotificationKinds.Ready,
+                Key = $"ready:{download.Hash}",
+                Text = failed ? $"{name} could not be made ready to watch." : $"{name} is ready to watch.",
+                Url = failed || manifest is null ? SitePaths.Profile("requests") : Naming.PathOf(manifest),
+                Action = failed ? null : "Watch",
+            }, ct);
+        }
 
+        await acquisition.ClearTagAsync(download.Hash, TorrentTags.Tell, ct);
+    }
+
+    /// <summary>
+    /// Keeps the promises a waiting room made when what it waited on stopped arriving: each person is
+    /// told once the film or episode can be watched, or once it will not be, by the same key a request
+    /// for the same thing is told by.
+    /// </summary>
+    private async Task TellPromisedAsync(DownloadStatus download, CancellationToken ct)
+    {
+        var show = download.Tags.Select(TorrentTags.ReadImdb).FirstOrDefault(i => i is not null);
+        var failed = download.Tags.Contains(TorrentTags.IngestFailed) || download.State == DownloadState.Failed;
+
+        foreach (var tag in download.Tags)
+        {
+            if (TorrentTags.ReadTellOf(tag) is not { } promised) continue;
+            var (person, episode) = promised;
+            // An episode is ready when its own title can play; a film when the hand-off marks its torrent.
+            var id = episode is { } e
+                ? show is null ? null : Acquisition.WatchNow.PlayableEpisode(library, show, e)
+                : download.Tags.Contains(TorrentTags.Watchable)
+                    ? download.Tags.Select(TorrentTags.ReadLibrary).FirstOrDefault(i => i is not null)
+                    : null;
+            // An episode whose file is no longer fetched will not come either.
+            if (id is null && !failed && (episode is not { } asked
+                    || (await Acquisition.WatchNowLoader.EpisodeArrivalAsync(acquisition, download, asked, ct)).Fetched))
+                continue;
+
+            var manifest = id is null ? null : library.Get(id);
+            if (id is null || !Watching(person, id))
+            {
+                var name = episode is { } numbered
+                    ? $"{manifest?.Film?.Name ?? ReleaseParser.ParseName(download.Name).Title} {numbered}"
+                    : manifest is null ? ReleaseParser.ParseName(download.Name).Display : Naming.Name(manifest);
                 await notifier.TellAsync(person, new NotificationDraft
                 {
                     Kind = NotificationKinds.Ready,
-                    Key = $"ready:{download.Hash}",
-                    Text = failed ? $"{name} could not be made ready to watch." : $"{name} is ready to watch.",
-                    Url = failed || manifest is null ? SitePaths.Profile("requests") : Naming.PathOf(manifest),
-                    Action = failed ? null : "Watch",
+                    Key = episode is { } keyed ? $"ready:{download.Hash}:{keyed}" : $"ready:{download.Hash}",
+                    Text = id is null ? $"{name} could not be made ready to watch." : $"{name} is ready to watch.",
+                    Url = manifest is null ? SitePaths.Profile("requests") : Naming.PathOf(manifest),
+                    Action = id is null ? null : "Watch",
                 }, ct);
             }
 
-            await acquisition.ClearTagAsync(download.Hash, TorrentTags.Tell, ct);
+            await acquisition.ClearTagAsync(download.Hash, tag, ct);
         }
     }
 

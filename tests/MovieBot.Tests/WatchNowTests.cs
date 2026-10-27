@@ -11,6 +11,8 @@ using TheKrystalShip.MovieBot.Acquire.Download;
 using TheKrystalShip.MovieBot.Acquire.Search;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Acquire.Tracker;
+using Microsoft.Extensions.Time.Testing;
+using TheKrystalShip.MovieBot.Api.Acquisition;
 using TheKrystalShip.MovieBot.Api.Sessions;
 using TheKrystalShip.MovieBot.Core;
 using Xunit;
@@ -51,6 +53,9 @@ public sealed class WatchNowFixture : SessionFixture
 
     public TorrentClientStub Torrents { get; } = new();
 
+    /// <summary>The clock a room's wait is measured against, moved by hand.</summary>
+    public FakeTimeProvider Clock { get; } = new(DateTimeOffset.UtcNow);
+
     public WatchNowFixture()
     {
         // The catalogue lists the show: three episodes in its first season.
@@ -72,6 +77,8 @@ public sealed class WatchNowFixture : SessionFixture
         services.RemoveAll<IShowSearch>();
         services.AddSingleton<IShowSearch>(new OneSeasonPack());
         services.AddHttpClient<QBittorrentClient>().ConfigurePrimaryHttpMessageHandler(() => Torrents);
+        services.RemoveAll<ArrivalWatch>();
+        services.AddSingleton(new ArrivalWatch(Clock));
         services.AddHttpClient<TrackerClient>().ConfigurePrimaryHttpMessageHandler(() => new Answer(r =>
             !r.RequestUri!.AbsolutePath.EndsWith("download.php", StringComparison.Ordinal) ? null
             : r.RequestUri.Query.Contains($"={ShowTorrentId}", StringComparison.Ordinal) ? ShowTorrentFile
@@ -148,6 +155,12 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
     /// <summary>Each held torrent's files, as path and priority, in the torrent's order.</summary>
     public ConcurrentDictionary<string, List<(string Path, int Priority)>> Files { get; } = new();
 
+    /// <summary>The client's own word for each torrent's state; <c>downloading</c> for one not named.</summary>
+    public ConcurrentDictionary<string, string> States { get; } = new();
+
+    /// <summary>The torrents the client was asked to start, in the order asked.</summary>
+    public ConcurrentQueue<string> Started { get; } = new();
+
     public void Tag(string hash, params string[] tags)
     {
         lock (Held) foreach (var t in tags) Held[hash].Tags.Add(t);
@@ -208,7 +221,15 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
             }
             return Ok("");
         }
-        if (path.EndsWith("torrents/start", StringComparison.Ordinal)) return Ok("");
+        if (path.EndsWith("torrents/start", StringComparison.Ordinal))
+        {
+            foreach (var hash in (HttpUtility.ParseQueryString(body)["hashes"] ?? "").Split('|'))
+            {
+                Started.Enqueue(hash);
+                States.TryRemove(hash, out _);
+            }
+            return Ok("");
+        }
         if (path.EndsWith("torrents/addTags", StringComparison.Ordinal) || path.EndsWith("torrents/removeTags", StringComparison.Ordinal))
         {
             var form = HttpUtility.ParseQueryString(body);
@@ -225,7 +246,7 @@ public sealed partial class TorrentClientStub : HttpMessageHandler
             var only = query["hashes"];
             lock (Held)
                 return Ok("[" + string.Join(",", Held.Where(h => only is null || h.Key == only).Select(h =>
-                    $$"""{"hash":"{{h.Key}}","name":"{{h.Value.Name}}","state":"downloading","progress":{{h.Value.Progress.ToString(System.Globalization.CultureInfo.InvariantCulture)}},"size":1048576,"content_path":"/x","seq_dl":true,"tags":"{{string.Join(", ", h.Value.Tags)}}"}""")) + "]");
+                    $$"""{"hash":"{{h.Key}}","name":"{{h.Value.Name}}","state":"{{States.GetValueOrDefault(h.Key, "downloading")}}","progress":{{h.Value.Progress.ToString(System.Globalization.CultureInfo.InvariantCulture)}},"size":1048576,"content_path":"/x","seq_dl":true,"tags":"{{string.Join(", ", h.Value.Tags)}}"}""")) + "]");
         }
         return new HttpResponseMessage(HttpStatusCode.NotFound);
     }
@@ -461,6 +482,95 @@ public sealed class WatchNowTests(WatchNowFixture fixture) : IClassFixture<Watch
         Assert.Equal(3, (int)around!["next"]!["number"]!);
         Assert.Null(around["next"]!["titleId"]);
     }
+
+    /// <summary>Asks for the show's third episode in <paramref name="room"/> as 6003, and waits until it is arriving.</summary>
+    private async Task WaitOnTheThirdAsync(string room)
+    {
+        using var pressed = await Member("6003", "Kit").PostAsJsonAsync("/api/watch", new WatchNowRequest
+        {
+            ImdbId = WatchNowFixture.Show, Episodes = [new EpisodePick(1, 3)], Room = room,
+        });
+        Assert.Equal("preparing", (await pressed.Content.ReadFromJsonAsync<WatchNowReply>())!.Outcome);
+        fixture.Services.GetRequiredService<SessionStore>().Join(room, $"{room}-conn", new Participant { UserId = "6003", DisplayName = "Kit" });
+        await Until(() => Room(room).Preparing?.Stage == PreparingStages.Downloading);
+    }
+
+    [Fact]
+    public Task An_episode_that_stops_arriving_is_said_late_and_its_room_is_told_once_it_will_not_come() => OnTheShowTorrentAsync(async () =>
+    {
+        await WaitOnTheThirdAsync("show-late");
+        Assert.Null(Room("show-late").Preparing!.Delay);
+
+        // Nothing of it arrives for a minute: the room says it is late, and everybody in it is promised
+        // news. The clock runs on while the loader looks, since when it first looks is its own.
+        await Until(() =>
+        {
+            fixture.Clock.Advance(TimeSpan.FromSeconds(2));
+            return Room("show-late").Preparing?.Delay == PreparingDelays.Stalled;
+        });
+        Assert.Equal(PreparingStages.Downloading, Room("show-late").Preparing!.Stage);
+        var promise = TorrentTags.TellOf("6003", new EpisodeNumber(1, 3));
+        Assert.Contains(promise, fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
+
+        // It could not be made watchable: the promise is kept with that news, once, and taken off.
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, TorrentTags.IngestFailed);
+        await Until(() => !fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Contains(promise), seconds: 25);
+        var bell = await NotificationTests.Bell(Member("6003", "Kit"));
+        Assert.Contains(bell.Items, n => n.Text == "Show S01E03 could not be made ready to watch.");
+    });
+
+    [Fact]
+    public Task A_room_whose_download_no_torrent_names_any_more_is_told_it_will_not_arrive() => OnTheShowTorrentAsync(async () =>
+    {
+        await WaitOnTheThirdAsync("show-gone");
+
+        lock (fixture.Torrents.Held) fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Remove("watch:show-gone:s01e03");
+
+        await Until(() => Room("show-gone").Preparing?.Stage == PreparingStages.Failed);
+        Assert.Equal("notArriving", Room("show-gone").Preparing!.Problem);
+    });
+
+    [Fact]
+    public Task A_room_whose_episode_file_is_switched_off_is_told_it_will_not_arrive() => OnTheShowTorrentAsync(async () =>
+    {
+        await WaitOnTheThirdAsync("show-off");
+        var promise = TorrentTags.TellOf("6004", new EpisodeNumber(1, 3));
+        fixture.Torrents.Tag(WatchNowFixture.ShowHash, promise);
+
+        lock (fixture.Torrents.Held)
+        {
+            var files = fixture.Torrents.Files[WatchNowFixture.ShowHash];
+            var third = files.FindIndex(f => f.Path.EndsWith("E03.720p.mkv", StringComparison.Ordinal));
+            files[third] = (files[third].Path, 0);
+        }
+
+        await Until(() => Room("show-off").Preparing?.Stage == PreparingStages.Failed);
+        Assert.Equal("notArriving", Room("show-off").Preparing!.Problem);
+        Assert.DoesNotContain("watch:show-off:s01e03", fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags);
+
+        // Somebody promised news of it is told it will not come.
+        await Until(() => !fixture.Torrents.Held[WatchNowFixture.ShowHash].Tags.Contains(promise), seconds: 25);
+        var bell = await NotificationTests.Bell(Member("6004", "Ash"));
+        Assert.Contains(bell.Items, n => n.Text == "Show S01E03 could not be made ready to watch.");
+    });
+
+    [Fact]
+    public Task A_download_stopped_while_a_room_waits_on_it_is_started_again() => OnTheShowTorrentAsync(async () =>
+    {
+        await WaitOnTheThirdAsync("show-stopped");
+        while (fixture.Torrents.Started.TryDequeue(out _)) { }
+
+        fixture.Torrents.States[WatchNowFixture.ShowHash] = "stoppedDL";
+        try
+        {
+            await Until(() => fixture.Torrents.Started.Contains(WatchNowFixture.ShowHash));
+            Assert.Equal(PreparingStages.Downloading, Room("show-stopped").Preparing!.Stage);
+        }
+        finally
+        {
+            fixture.Torrents.States.TryRemove(WatchNowFixture.ShowHash, out _);
+        }
+    });
 
     /// <summary>
     /// Runs <paramref name="test"/> against the show's season torrent held by the client, and puts

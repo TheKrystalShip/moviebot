@@ -473,11 +473,16 @@ those out of a show's release and is how a show is watched.
 
 A room holds one thing. What is arriving is put into the room the moment it is asked for, in place
 of whatever the room held, as the person who asked: the room's state has no `titleId` and carries
-`preparing: {imdbId, season?, episode?, name, stage, release?, progress?, problem?, refusal?}`, pushed
-to everybody in it, `season` and `episode` naming an episode. `stage` is `finding` (the release is
-being picked), `downloading` (`progress` from 0 to 1) or `failed` (`problem`: `notOffered`,
-`refused`, `unavailable`, `notWatchable`); a report of how it is getting on names nobody in
-`updatedBy`. The download carries the room as `watch:<room>`; once the hand-off marks it watchable
+`preparing: {imdbId, season?, episode?, name, stage, release?, progress?, delay?, problem?, refusal?}`,
+pushed to everybody in it, `season` and `episode` naming an episode. `stage` is `finding` (the
+release is being picked), `downloading` (`progress` from 0 to 1) or `failed` (`problem`:
+`notOffered`, `refused`, `unavailable`, `notWatchable`, or `notArriving` when its download stopped
+for good: the torrent failed, left the torrent client, or no longer fetches the file). While
+downloading, `delay` is `stalled` once none of it has arrived for a minute, and goes when it arrives
+again; everybody in the room with an account is then owed a `ready` notification for it, sent once
+it can be watched or will not be, unless they are in a room playing it. A download stopped in the
+torrent client while a room waits on it is started again. A report of how it is getting on names
+nobody in `updatedBy`. The download carries the room as `watch:<room>`; once the hand-off marks it watchable
 it is loaded into the room and played as the person who pressed it, and `preparing` goes. A room
 given anything else meanwhile is no longer waiting on it: the download stops naming the room, and
 nothing it reports reaches the room. A room kept across a restart keeps what it holds; one still
@@ -490,7 +495,7 @@ releases at `quality` (`720p` unless `1080p` is asked): the season's pack at it,
 file, else a release of the episode alone, else either at what the tracker has. The download carries
 `watch:<room>:s05e03`, and the room is loaded once that episode's own title can play, since its
 season's torrent may be watchable for another episode already; `progress` is that episode's file.
-An episode watched now owes nobody a "ready" notification.
+An episode watched now owes nobody a "ready" notification until it stalls.
 
 **The episode after the one a room watches is fetched ahead**, one and no more, at the quality of
 the one being watched (1080p for a picture 1800 or more wide, else 720p), out of the season's pack

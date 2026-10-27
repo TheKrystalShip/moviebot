@@ -129,10 +129,11 @@ and does nothing that would be.
   device, where the site offers Download.
 - **Moving between episodes is a button, never automatic, and the server decides where it goes.** An
   episode has previous and next controls the whole time it plays, named from
-  `/api/sessions/{room}/around`, asked again whenever the room holds something else, and from its
-  closing stretch — its credits where the manifest marks them, else the last chapter when that is the
-  credits, else the last two minutes — next is offered over the film, unless a skip is offered
-  there. Each sends intent (`Next`, `Previous`) and the server puts the episode on, or fetches it
+  `/api/sessions/{room}/around`, asked again whenever the room holds something else and every half
+  minute while the next is not here, and from its closing stretch — its credits where the manifest
+  marks them, else the last chapter when that is the credits, else the last two minutes — next is
+  offered over the film, unless a skip is offered there; a next the library cannot play yet is
+  offered as not ready yet, and pressing it waits on it in the room. Each sends intent (`Next`, `Previous`) and the server puts the episode on, or fetches it
   into the room at the quality of the one playing for somebody who may download; a refusal is said
   over the film. **One episode is asked for at a time** (`view.stepping`): from a
   press of Next, Previous or an episode in the menu, the buttons offer no second press until the

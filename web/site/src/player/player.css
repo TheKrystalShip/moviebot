@@ -235,6 +235,7 @@
 .mp-prepare__steps { display: flex; flex-direction: column; gap: 14px; }
 .mp-prepare__bar { height: 6px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden; }
 .mp-prepare__bar > div { height: 100%; background: var(--krystal-teal); transition: width 400ms var(--ease-out); }
+.mp-prepare__bar.is-stalled > div { background: var(--warning-fg); }
 .mp-step { display: grid; grid-template-columns: 22px 1fr; column-gap: 12px; row-gap: 2px; align-items: center; }
 .mp-step__dot {
   grid-row: span 2; align-self: start; width: 22px; height: 22px; border-radius: var(--r-pill);

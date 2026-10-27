@@ -52,6 +52,14 @@ and this directory is where the API calls them.
   `passed:sXXeYY`; the hand-off, which knows whether the episode's transcode has begun, decides
   whether the file is switched off (`src/MovieBot.Handoff/CLAUDE.md`). A room left holding nothing
   was not moved past anything, and leaves no `passed:`.
+- **A room is told when what it waits on is late, and when it will not come** (`WatchNowLoader`).
+  Late is measured from what arrives (`ArrivalWatch`): none of it for a minute is `stalled`, since
+  the torrent client's own stalled state flips on a download that is fine. Late promises everybody in
+  the room with an account news of it (`tell:sXXeYY:<account>`, `tell:film:<account>`), because the
+  room tells them they will have it. A download that failed, left the client (no torrent names the
+  room on two passes running), or no longer fetches the episode's file is `failed` with
+  `notArriving`. A download found stopped on two passes running is started again: nothing here
+  stops a download for longer than a pick takes, so it was stopped by hand, and a room is waiting.
 - **A room's wait on an episode reads the episode before the torrent.** An episode that can play is
   loaded whatever else the torrent says; `ingest-failed` is about the torrent, and fails a room only
   while what it waits on cannot play.

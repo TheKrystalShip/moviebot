@@ -111,14 +111,19 @@ function heldKey(state) {
   return p ? `${p.imdbId}:${p.season ?? ""}:${p.episode ?? ""}` : null;
 }
 
+/** How often the episodes either side are asked again while the next is not here yet. */
+const NextReadyPollMs = 30_000;
+
 /**
  * The episode the room holds and the ones either side, as the server decides them, asked again
- * whenever the room is given something else. A film has none, and a question that fails answers with
- * none: the controls it feeds are an addition to the player.
+ * whenever the room is given something else, and every half minute while the next is not here, so
+ * the offer at the end of an episode knows when it arrives. A film has none, and a question that
+ * fails answers with none: the controls it feeds are an addition to the player.
  */
 function useAround(view) {
   const key = view.solo || view.viewOnly ? null : heldKey(view.state);
   const [around, setAround] = React.useState(null);
+  const awaiting = Boolean(around && around.next && !around.next.titleId);
   React.useEffect(() => {
     setAround(null);
     if (!key) return undefined;
@@ -126,6 +131,14 @@ function useAround(view) {
     api.around(view.sessionId).then((a) => live && setAround(a), () => {});
     return () => { live = false; };
   }, [key, view.sessionId]);
+  React.useEffect(() => {
+    if (!key || !awaiting) return undefined;
+    let live = true;
+    const timer = setInterval(() => {
+      api.around(view.sessionId).then((a) => live && setAround(a), () => {});
+    }, NextReadyPollMs);
+    return () => { live = false; clearInterval(timer); };
+  }, [key, awaiting, view.sessionId]);
   return around;
 }
 
@@ -733,10 +746,10 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
       )}
       {/* What the room holds while it arrives. */}
       {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage !== "failed" && (
-        <Fetching preparing={view.state.preparing} onBack={onBack} />
+        <Fetching preparing={view.state.preparing} onBack={onBack} told={!viewOnly} />
       )}
       {!view.fatal && view.state && view.state.preparing && view.state.preparing.stage === "failed" && (
-        <Message icon="circle-alert" title={`${view.state.preparing.name} could not be fetched`}
+        <Message icon="circle-alert" title={fetchTitle(view.state.preparing)}
           text={fetchProblem(view.state.preparing)}
           action={onBack ? { label: "Back", go: onBack } : null} />
       )}
@@ -832,7 +845,7 @@ function Stage({ room, view, size, online, frameRef, videoRef, onBack, onEmpty, 
 
       {manifest && view.ready && next && !skipOffer && !(view.state && view.state.preparing) && size !== "tiny" && inClosingStretch(manifest, clock.position) && (
         <Button variant="bare" className="mp-nextup" disabled={view.stepping} onClick={goNext}>
-          <span className="mp-nextup__label">Next episode</span>
+          <span className="mp-nextup__label">{next.titleId ? "Next episode" : "Next episode · not ready yet"}</span>
           <span className="mp-nextup__name">{episodeWords(next)}</span>
           <Icon name="skip-forward" size={18} />
         </Button>
@@ -1127,12 +1140,14 @@ function Preparing({ manifest, head }) {
  * the room says, so everybody in it sees the same panel. It starts on its own; leaving does not stop
  * the download.
  */
-function Fetching({ preparing, onBack }) {
+function Fetching({ preparing, onBack, told }) {
   const finding = preparing.stage === "finding";
   const progress = preparing.progress || 0;
+  const stalled = preparing.delay === "stalled";
+  const what = preparing.season != null ? "this episode" : "this film";
   const steps = [
     { label: "Finding a release", sub: finding ? "Searching the tracker by IMDb ID" : `Matched on IMDb${preparing.release ? ` · ${preparing.release}` : ""}`, done: !finding, active: finding },
-    { label: "Downloading", sub: finding ? "" : `${Math.floor(progress * 100)}% · transcoding live as it arrives`, active: !finding },
+    { label: "Downloading", sub: finding ? "" : `${Math.floor(progress * 100)}% · ${stalled ? "taking longer than expected" : "transcoding live as it arrives"}`, active: !finding },
     { label: "Starting playback", sub: "" },
   ];
   return (
@@ -1140,7 +1155,11 @@ function Fetching({ preparing, onBack }) {
       <div className="mp-prepare__head">
         <span className="mp-prepare__eyebrow">Watch</span>
         <span className="mp-prepare__name">{preparing.name}</span>
-        <span className="mp-prepare__text">Playback starts on its own as soon as the server can stream it.</span>
+        <span className="mp-prepare__text">
+          {stalled
+            ? `We're fetching ${what} but it's taking longer than expected.${told ? " We'll let you know when it's ready." : ""}`
+            : "Playback starts on its own as soon as the server can stream it."}
+        </span>
       </div>
       <div className="mp-prepare__steps">
         {steps.map((s) => (
@@ -1154,7 +1173,7 @@ function Fetching({ preparing, onBack }) {
           </div>
         ))}
       </div>
-      <div className="mp-prepare__bar"><div style={{ width: `${finding ? 8 : 24 + progress * 76}%` }} /></div>
+      <div className={"mp-prepare__bar" + (stalled ? " is-stalled" : "")}><div style={{ width: `${finding ? 8 : 24 + progress * 76}%` }} /></div>
       {onBack && (
         <div className="mp-prepare__foot">
           <span className="mp-prepare__text">Closing won't cancel the download.</span>
@@ -1165,12 +1184,24 @@ function Fetching({ preparing, onBack }) {
   );
 }
 
+/** An episode nothing will fetch: none is offered, or its download stopped for good. */
+function notFound(preparing) {
+  return preparing.season != null && (preparing.problem === "notOffered" || preparing.problem === "notArriving");
+}
+
+/** What a room says of a film it waited on that will not arrive. */
+function fetchTitle(preparing) {
+  return notFound(preparing) ? `Could not find ${preparing.name}` : `${preparing.name} could not be fetched`;
+}
+
 /** Why a film a room waited on will not arrive, in words. */
 function fetchProblem(preparing) {
+  if (notFound(preparing)) return "Sorry for the inconvenience.";
   switch (preparing.problem) {
     case "notOffered": return "The tracker has no release of it at a quality worth watching.";
     case "refused": return preparing.refusal || "The download was refused.";
     case "notWatchable": return "It arrived, but it could not be made watchable.";
+    case "notArriving": return "Its download stopped and will not finish.";
     default: return "The tracker or the torrent client is not answering. Try again in a minute.";
   }
 }

@@ -35,6 +35,14 @@ public class PassedEpisodesTests
         Assert.False(PassedEpisodes.LetGo(Picked(keep), Four, FourFile, started: false));
 
     [Fact]
+    public void Somebody_promised_news_of_it_keeps_it() =>
+        Assert.False(PassedEpisodes.LetGo(Picked(TorrentTags.TellOf("usr_1", Four)), Four, FourFile, started: false));
+
+    [Fact]
+    public void Somebody_promised_news_of_another_episode_does_not_keep_it() =>
+        Assert.True(PassedEpisodes.LetGo(Picked(TorrentTags.TellOf("usr_1", new EpisodeNumber(2, 5))), Four, FourFile, started: false));
+
+    [Fact]
     public void Its_transcode_having_begun_keeps_it() =>
         Assert.False(PassedEpisodes.LetGo(Picked(), Four, FourFile, started: true));
 

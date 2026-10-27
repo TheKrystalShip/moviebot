@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.10.0] - 2026-10-27
+
+### Added
+- **A room says when what it waits on is late, and when it will not come.** While a room waits on a film or
+  an episode, none of it arriving for a minute marks it `stalled` (`preparing.delay`); the player says
+  "We're fetching this episode but it's taking longer than expected. We'll let you know when it's ready.",
+  and everybody in the room with an account is owed a `ready` notification once it can be watched, or
+  once it will not be. A download that failed in the torrent client, left it, or no longer fetches the
+  episode's file fails the room with `notArriving`, and an episode with no release or whose download
+  stopped reads "Could not find Grimm S04E13 / Sorry for the inconvenience." A download stopped in the
+  torrent client while a room waits on it is started again. The hand-off keeps an episode somebody was
+  promised news of. API 3.8.0, hand-off 0.21.0, site 0.103.0.
+- The end-of-episode Next offer says "not ready yet" while the next episode cannot play, and the player
+  asks again every half minute until it can. Site 0.103.0.
+
 ## [4.9.0] - 2026-10-26
 
 ### Added

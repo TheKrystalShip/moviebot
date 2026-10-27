@@ -158,6 +158,7 @@ builder.Services.AddSingleton<WatchNow>();
 builder.Services.AddSingleton<RoomEpisodes>();
 // The episode after the one a room is watching, fetched so next has something to play.
 builder.Services.AddHostedService<NextEpisodes>();
+builder.Services.AddSingleton<ArrivalWatch>();
 builder.Services.AddHostedService<WatchNowLoader>();
 
 // The rule for when a settled film leaves the library. It is answered here and acted on by the

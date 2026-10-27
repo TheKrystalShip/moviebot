@@ -405,6 +405,19 @@ public sealed class SessionStore(TitleLibrary library, TimeProvider clock)
         return rooms;
     }
 
+    /// <summary>The rooms waiting on a download, with what each waits on.</summary>
+    public IReadOnlyList<(string SessionId, RoomPreparing Preparing)> Arriving()
+    {
+        var rooms = new List<(string, RoomPreparing)>();
+        foreach (var (id, entry) in _sessions)
+        {
+            RoomPreparing? preparing;
+            lock (entry.Gate) preparing = entry.State.Preparing;
+            if (preparing is { Stage: PreparingStages.Downloading }) rooms.Add((id, preparing));
+        }
+        return rooms;
+    }
+
     /// <summary>
     /// Ends every stretch of playing at once, for a server that is stopping: the people in the rooms
     /// are about to be disconnected without leaving one by one.

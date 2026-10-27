@@ -363,9 +363,11 @@ public sealed class WatchNow(
 /// far it has got until then.
 ///
 /// The download's tag is the record of which room waits on it, so this reads the torrent client on
-/// every pass and holds nothing: a restart picks every waiting room back up. A film that could not be
-/// made watchable is said so in the room. Once loaded, the room plays: the person pressed Watch, and
-/// the panel says it starts on its own.
+/// every pass and holds nothing it cannot lose: a restart picks every waiting room back up. A film that
+/// could not be made watchable, or whose download stopped for good, is said so in the room; one that
+/// has stopped arriving for a while is said to be late (<see cref="ArrivalWatch"/>), and everybody in
+/// the room is promised news of it. Once loaded, the room plays: the person pressed Watch, and the
+/// panel says it starts on its own.
 /// </summary>
 public sealed class WatchNowLoader(
     AcquisitionService acquisition,
@@ -373,10 +375,20 @@ public sealed class WatchNowLoader(
     SessionStore sessions,
     RoomControls controls,
     PersonDirectory people,
+    ArrivalWatch arrival,
     ILogger<WatchNowLoader> logger) : BackgroundService
 {
     /// <summary>Somebody is looking at the panel; this is how stale its percentage may be.</summary>
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(3);
+
+    /// <summary>The rooms that waited on a download no torrent named on the last pass.</summary>
+    private readonly HashSet<string> _unnamed = new(StringComparer.Ordinal);
+
+    /// <summary>The downloads found stopped on the last pass.</summary>
+    private readonly HashSet<string> _stopped = new(StringComparer.Ordinal);
+
+    /// <summary>The downloads found stopped on this pass.</summary>
+    private readonly HashSet<string> _stoppedNow = new(StringComparer.Ordinal);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -396,6 +408,8 @@ public sealed class WatchNowLoader(
 
     public async Task PassAsync(CancellationToken ct)
     {
+        var named = new HashSet<string>(StringComparer.Ordinal);
+        _stoppedNow.Clear();
         foreach (var download in await acquisition.ListAsync(ct))
         {
             foreach (var tag in download.Tags.Where(t => t.StartsWith(TorrentTags.WatchPrefix, StringComparison.Ordinal)).ToList())
@@ -405,9 +419,30 @@ public sealed class WatchNowLoader(
                     await acquisition.ClearTagAsync(download.Hash, tag, ct);
                     continue;
                 }
+                named.Add(room.Room);
                 await TendAsync(download, tag, room, ct);
             }
         }
+        await UnnamedAsync(named, ct);
+        _stopped.Clear();
+        _stopped.UnionWith(_stoppedNow);
+    }
+
+    /// <summary>
+    /// Fails the rooms waiting on a download that no torrent names: it left the torrent client. Said on
+    /// the second pass to find a room so, since a room is told it is downloading a moment before the
+    /// torrent naming it is read back.
+    /// </summary>
+    private async Task UnnamedAsync(HashSet<string> named, CancellationToken ct)
+    {
+        var unnamed = sessions.Arriving().Where(r => !named.Contains(r.SessionId)).ToList();
+        foreach (var (room, preparing) in unnamed)
+        {
+            if (_unnamed.Add(room)) continue;
+            logger.LogWarning("Room {Room} waited on {Name}, which no download in the torrent client names.", room, preparing.Name);
+            await StoppedAsync(room, preparing, ct);
+        }
+        _unnamed.IntersectWith(unnamed.Select(r => r.SessionId));
     }
 
     private async Task TendAsync(DownloadStatus download, string tag, WatchTag watch, CancellationToken ct)
@@ -429,6 +464,7 @@ public sealed class WatchNowLoader(
             if (watch.Episode is { } passed && (current is not null || sessions.GetOrCreate(room).TitleId is not null))
                 await acquisition.TagAsync(download.Hash, TorrentTags.Passed(passed), ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
+            arrival.Forget(room);
             return;
         }
         var name = current!.Name;
@@ -443,8 +479,9 @@ public sealed class WatchNowLoader(
                 : null;
         if (libraryId is null && download.Tags.Contains(TorrentTags.IngestFailed))
         {
-            await PrepareAsync(room, current with { Stage = PreparingStages.Failed, Problem = "notWatchable", Progress = null }, ct);
+            await PrepareAsync(room, current with { Stage = PreparingStages.Failed, Problem = "notWatchable", Progress = null, Delay = null }, ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
+            arrival.Forget(room);
             return;
         }
 
@@ -456,28 +493,80 @@ public sealed class WatchNowLoader(
             await controls.ApplyAsync(room, "load", actor, a => sessions.LoadTitle(room, libraryId, a), ct: ct);
             await controls.ApplyAsync(room, "play", actor, a => sessions.Play(room, 0, a), ct: ct);
             await acquisition.ClearTagAsync(download.Hash, tag, ct);
+            arrival.Forget(room);
             logger.LogInformation("Loaded {Title} into room {Room}, which was waiting on it.", libraryId, room);
             return;
+        }
+
+        var (progress, fetched) = watch.Episode is { } wanted
+            ? await EpisodeArrivalAsync(acquisition, download, wanted, ct)
+            : (download.Progress, true);
+        if (download.State == DownloadState.Failed || !fetched)
+        {
+            logger.LogWarning("Room {Room} waited on {Name}, whose download {Download} stopped for good ({State}, file fetched: {Fetched}).",
+                room, name, download.Name, download.State, fetched);
+            await StoppedAsync(room, current, ct);
+            await acquisition.ClearTagAsync(download.Hash, tag, ct);
+            return;
+        }
+
+        // Nothing here stops a download for long, so one stopped on two passes running was stopped by
+        // hand, and a room is waiting on it. A download is added stopped and started once its files
+        // are picked, which is the stop a single pass may see.
+        if (download.State == DownloadState.Paused && _stoppedNow.Add(download.Hash) && _stopped.Contains(download.Hash))
+        {
+            await acquisition.ResumeAsync(download.Hash, ct);
+            logger.LogInformation("Resumed {Download}, which room {Room} waits on.", download.Name, room);
+        }
+
+        var stalled = arrival.Stalled(room, $"{download.Hash}:{watch.Episode}", progress);
+        if (stalled && current.Delay != PreparingDelays.Stalled)
+        {
+            await PromiseAsync(download, room, watch.Episode, ct);
+            logger.LogInformation("{Name} has stopped arriving for room {Room}: {State}, {Seeds} seeds connected.",
+                name, room, download.State, download.Seeds);
         }
 
         await PrepareAsync(room, current with
         {
             Stage = PreparingStages.Downloading,
             // Hundredths: a push per pass is as often as the panel is redrawn, and no oftener.
-            Progress = Math.Round(watch.Episode is { } wanted ? await EpisodeProgressAsync(download, wanted, ct) : download.Progress, 2),
+            Progress = Math.Round(progress, 2),
+            Delay = stalled ? PreparingDelays.Stalled : null,
         }, ct);
     }
 
     /// <summary>
-    /// How much of one episode's file has arrived. A season's torrent reports its picked files
-    /// together, and the room waits on one of them.
+    /// Promises everybody in the room with an account news of what it waits on, since the room tells
+    /// them they will have it: <see cref="TorrentTags.TellOf"/> for each, which
+    /// <see cref="Notifications.ReadyNotices"/> keeps once it can be watched or will not be.
     /// </summary>
-    private async Task<double> EpisodeProgressAsync(DownloadStatus download, EpisodeNumber episode, CancellationToken ct)
+    private async Task PromiseAsync(DownloadStatus download, string room, EpisodeNumber? episode, CancellationToken ct)
+    {
+        foreach (var person in sessions.Participants(room).Where(p => !p.Guest).Select(p => p.UserId).Distinct(StringComparer.Ordinal))
+            await acquisition.TagAsync(download.Hash, TorrentTags.TellOf(person, episode), ct);
+    }
+
+    /// <summary>Says in the room that what it waits on will not arrive: its download stopped for good.</summary>
+    private Task StoppedAsync(string room, RoomPreparing preparing, CancellationToken ct)
+    {
+        arrival.Forget(room);
+        return PrepareAsync(room, preparing with { Stage = PreparingStages.Failed, Problem = "notArriving", Progress = null, Delay = null }, ct);
+    }
+
+    /// <summary>
+    /// How much of one episode's file has arrived, and whether the file is still being fetched. A
+    /// season's torrent reports its picked files together, and the room waits on one of them.
+    /// </summary>
+    internal static async Task<(double Progress, bool Fetched)> EpisodeArrivalAsync(
+        AcquisitionService acquisition, DownloadStatus download, EpisodeNumber episode, CancellationToken ct)
     {
         var files = await acquisition.FilesAsync(download.Hash, ct);
         var mapped = EpisodeFiles.Map(files.Select(f => (f.Name, f.Size)), EpisodeMarker.Read(download.Name));
         var path = mapped.FirstOrDefault(f => f.Episodes.Contains(episode))?.Path;
-        return files.FirstOrDefault(f => f.Name == path)?.Progress ?? download.Progress;
+        return files.FirstOrDefault(f => f.Name == path) is { } file
+            ? (file.Progress, file.Priority > 0 || file.Progress >= 1)
+            : (download.Progress, true);
     }
 
     private Task PrepareAsync(string room, RoomPreparing preparing, CancellationToken ct) =>

@@ -27,6 +27,12 @@ tells anybody anything.
   requester's account). `ReadyNotices` tells them once it can be watched or could not be made
   watchable, and takes the tag off; a download that never carried them is news to
   nobody, which is also why the first start of this service announces nothing it finds already done.
+- **A room that said it would tell people, tells them.** When what a room waits on stalls, the
+  loader writes a promise per person in the room on the torrent (`TorrentTags.TellOf`), naming the
+  episode or the film; `ReadyNotices` keeps it with a `ready` once that episode's own title can play
+  (a season's torrent is watchable long before every episode is) or once it will not be (the torrent
+  failed, or no longer fetches the episode's file), and takes it off. A person in a room playing it
+  is not told, and the promise goes all the same.
 - **A download fetched for people's wants tells all of them.** The prefetcher (`Acquisition/CLAUDE.md`,
   "Prefetch") tags the torrent `want:<imdbId>` and the first wanter as its requester; `ReadyNotices`
   tells that person and every other person whose want on the title can be fetched, each once by the
