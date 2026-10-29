@@ -29,7 +29,8 @@ so recommendations are useful from the first day rather than after months of wat
 | Who sees a vote | Only the person who cast it. Votes feed group recommendations as an aggregate and are never shown per person |
 | "Liked by people you watch with" | Not built; it would show votes §2 keeps private |
 | Group recommendations | For a room and for a plan: each member's score, nothing any member disliked, ranked by the lowest member's score (§4·d) |
-| Votes on cards | In a card's menu (long press, or hover), the same vote as the page's, so For you is tuned from itself |
+| The buttons | Two frameless icon buttons, Like and Dislike (krystal's ghost look: no fill, no border), at the end of a title's action row and in a person's, franchise's or studio's heading, at the size of what they sit beside. A vote lights its icon, filled and bright, and nothing else. On a television they end the spotlight's row at its 40px, and focus is the television's own |
+| Votes on cards | The same vote as the page's, so For you is tuned from itself. With a pointer, the pair shows at the foot of a card's poster under hover or keyboard focus, clear of the Want ribbon. On a touch screen, a long press on a card opens a sheet: the title, Like and Dislike (the lit one checked), Want and More info. The long press is new to the site: no card has a press of its own today |
 | After the credits | Each viewer is asked, privately, whether they liked it. Never shared state: the room's state carries nothing of it |
 | Television and Discord | The TV app's title page has the two buttons; the bot has none |
 | Seeing and undoing | A taste page under Profile: every vote with undo, what Cinema reads the person as liking (the profile's strongest features, as they are), and reset |
@@ -148,8 +149,10 @@ and measure how many come back in the top of For you. The weights in §4·b move
 
 ### 6·a Votes
 
-`taste_votes`, the routes, `myVote` on every subject, the buttons on the film, show, person and franchise
-pages and the TV app's title page, Like and Dislike in a card's menu, the taste page's list with undo.
+`taste_votes`, the routes, `myVote` on every subject, the buttons on the film, show, person, franchise
+and studio pages and the television's film, show and person pages, the pair on a card under hover or
+focus, the card's long press and its sheet on a touch screen, the taste page's list with undo. The
+design is the wireframe canvas `Cinema Like and Dislike wireframes`.
 
 ### 6·b For you
 
