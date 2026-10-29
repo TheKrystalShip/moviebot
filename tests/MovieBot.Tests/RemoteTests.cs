@@ -187,9 +187,9 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
         Sessions.Watched -= spans.Add;
     }
 
-    private static async Task<List<List<Participant>>> Drain(Heard<List<Participant>> heard)
+    private static async Task<List<T>> Drain<T>(Heard<T> heard)
     {
-        var all = new List<List<Participant>>();
+        var all = new List<T>();
         while (!heard.Silent) all.Add(await heard.Next());
         return all;
     }
@@ -248,17 +248,19 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
         var told = await moved.Until(r => r.Push?.State.SessionId == second);
         Assert.True(told.Admitted);
 
+        // The second room's own pushes from loading the film can still be on their way, so the phone
+        // waits for the room playing rather than taking the next push it hears.
         var heardOnPhone = new Heard<SessionStatePush>(phone, "StateChanged");
-        await phone.InvokeAsync<SessionStatePush>("Play", 7.0);
-        var heard = await heardOnPhone.Next();
-        Assert.Equal(second, heard.State.SessionId);
-        Assert.False(heard.State.Paused);
+        var played = await phone.InvokeAsync<SessionStatePush>("Play", 7.0);
+        Assert.Equal(second, played.State.SessionId);
+        Assert.False(played.State.Paused);
+        await heardOnPhone.Until(s => s.State.SessionId == second && !s.State.Paused);
         Assert.True(Sessions.Get(first)!.Paused);
 
         // Nothing said in the room it left reaches it any more.
         Sessions.Play(first, 1.0, new Actor("nobody", "Nobody"));
         await Task.Delay(300);
-        Assert.True(heardOnPhone.Silent);
+        Assert.DoesNotContain(await Drain(heardOnPhone), s => s.State.SessionId == first);
     }
 
     [Fact]
