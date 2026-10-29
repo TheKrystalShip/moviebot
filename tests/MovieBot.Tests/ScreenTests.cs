@@ -334,8 +334,11 @@ public sealed class ScreenTests(SessionFixture fixture) : IClassFixture<SessionF
         var person = Unique("p-");
         var (tv, tvSid, phone, _) = await Paired(person);
         var arrived = new Heard<ScreenView>(phone, "ScreenArrived");
+        var changed = new Heard<ScreenView>(phone, "ScreenChanged");
 
+        // The server hears the screen go after StopAsync returns; one that comes back before then never left.
         await tv.StopAsync();
+        await changed.Until(s => !s.Connected);
         await fixture.ConnectScreenAsync(person, tvSid, "Living room");
 
         var again = await arrived.Next();
@@ -387,7 +390,8 @@ public sealed class ScreenTests(SessionFixture fixture) : IClassFixture<SessionF
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(tvSid, await left.Next());
-        Assert.Empty(await phonesChanged.Next());
+        // Pairing's own push, listing the phone, can still reach the screen after the test listens.
+        await phonesChanged.Until(phones => phones.Count == 0);
         Assert.Empty(await phone.InvokeAsync<List<ScreenView>>("Screens"));
     }
 

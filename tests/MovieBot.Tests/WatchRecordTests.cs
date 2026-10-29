@@ -83,8 +83,10 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         await using var bob = await fixture.ConnectAsync(session, "w-bob-2", "Bob");
 
         await alice.DisposeAsync();
-        // The hub drops a connection when it learns of the disconnect, which is a moment later.
-        await Eventually(() => Sessions.Participants(session).Count == 1);
+        // The hub drops a connection when it learns of the disconnect, a moment later, and the record
+        // is credited after that.
+        await Conditions.Eventually(() => Record.EntryOf("w-alice-2", Film) is not null);
+        Assert.Single(Sessions.Participants(session));
 
         Near(100, Record.EntryOf("w-alice-2", Film)!.PositionSeconds);
         // Bob is still watching: nothing ended for him.
@@ -100,7 +102,7 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         // Moved while paused, then left: nothing was watched past the pause.
         await alice.InvokeAsync<SessionStatePush>("Seek", 4000.0);
         await alice.DisposeAsync();
-        await Eventually(() => Sessions.Participants(session).Count == 0);
+        await Conditions.Eventually(() => Sessions.Participants(session).Count == 0);
 
         Near(500, Record.EntryOf("w-alice-8", Film)!.PositionSeconds);
     }
@@ -313,13 +315,6 @@ public sealed class WatchRecordTests(SessionFixture fixture) : IClassFixture<Ses
         Assert.Equal(100, second.EntryOf("u", Film)!.PositionSeconds);
         Assert.Equal(at, second.LastPlayedAt(Film));
         Assert.Equal(first.RecordingSince, second.RecordingSince);
-    }
-
-    private static async Task Eventually(Func<bool> condition)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!condition() && DateTime.UtcNow < deadline) await Task.Delay(20);
-        Assert.True(condition());
     }
 }
 

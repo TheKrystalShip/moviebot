@@ -136,7 +136,8 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
         await using var alice = await fixture.ConnectAsync(session, "u1", "Alice");
         await using var bob = await fixture.ConnectAsync(session, "u2", "Bob");
 
-        var sawWaiting = Next<List<Participant>>(alice, "ParticipantsChanged");
+        // Bob's arrival reaches Alice as a roster push too, and can do so after she starts listening.
+        var sawWaiting = Next<List<Participant>>(alice, "ParticipantsChanged", r => r.Any(p => p.Buffering));
         await bob.InvokeAsync("Buffering", true, 0.0);
         var waiting = await sawWaiting;
         Assert.True(waiting.Single(p => p.DisplayName == "Bob").Buffering);
@@ -302,10 +303,13 @@ public sealed class SessionSyncTests(SessionFixture fixture) : IClassFixture<Ses
     private static Task<SessionStatePush> NextPush(HubConnection connection, string method) =>
         Next<SessionStatePush>(connection, method);
 
-    private static Task<T> Next<T>(HubConnection connection, string method)
+    private static Task<T> Next<T>(HubConnection connection, string method, Func<T, bool>? match = null)
     {
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var subscription = connection.On<T>(method, value => completion.TrySetResult(value));
+        var subscription = connection.On<T>(method, value =>
+        {
+            if (match is null || match(value)) completion.TrySetResult(value);
+        });
 
         _ = Task.Delay(PushTimeout).ContinueWith(_ =>
         {

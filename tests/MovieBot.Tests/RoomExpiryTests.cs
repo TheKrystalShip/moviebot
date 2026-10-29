@@ -15,8 +15,9 @@ namespace TheKrystalShip.MovieBot.Tests;
 /// </summary>
 public sealed class RoomExpiryTests : IDisposable
 {
-    private readonly string _mediaRoot = Path.Combine(
-        Path.GetTempPath(), "moviebot-expiry", Guid.NewGuid().ToString("n"));
+    // Each test's library, database and subtitles sit in a directory of its own.
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "moviebot-expiry-" + Guid.NewGuid().ToString("n"));
+    private string MediaRoot => Path.Combine(_root, "media");
 
     private readonly FakeTimeProvider _clock = new(DateTimeOffset.Parse("2026-09-01T20:00:00Z"));
     private readonly SessionStore _sessions;
@@ -26,11 +27,11 @@ public sealed class RoomExpiryTests : IDisposable
 
     public RoomExpiryTests()
     {
-        var database = new CinemaDatabase(Path.Combine(_mediaRoot, "..", "moviebot.db"));
+        var database = new CinemaDatabase(Path.Combine(_root, "moviebot.db"));
         WriteManifest(TitleId);
         var library = new TitleLibrary(
-            new MediaRoots(_mediaRoot),
-            new SubtitleStore(Path.Combine(_mediaRoot, "..", "subtitles"), database),
+            new MediaRoots(MediaRoot),
+            new SubtitleStore(Path.Combine(_root, "subtitles"), database),
             new PinStore(database),
             NullLogger<TitleLibrary>.Instance);
         _sessions = new SessionStore(library, _clock);
@@ -38,7 +39,7 @@ public sealed class RoomExpiryTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_mediaRoot)) Directory.Delete(_mediaRoot, recursive: true);
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
 
     [Fact]
@@ -160,6 +161,6 @@ public sealed class RoomExpiryTests : IDisposable
             Subtitles = []
         };
 
-        ManifestJson.WriteAtomic(Path.Combine(_mediaRoot, id, "manifest.json"), manifest);
+        ManifestJson.WriteAtomic(Path.Combine(MediaRoot, id, "manifest.json"), manifest);
     }
 }

@@ -204,7 +204,8 @@ public sealed class RemoteTests(SessionFixture fixture) : IClassFixture<SessionF
 
         await tv.StopAsync();
 
-        Assert.Empty(Sessions.Participants(room));
+        // The server hears the screen go after StopAsync returns.
+        await Conditions.Eventually(() => Sessions.Participants(room).Count == 0);
         Assert.DoesNotContain(Sessions.Occupied(), r => r.SessionId == room);
     }
 

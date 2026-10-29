@@ -167,7 +167,11 @@ public sealed class TrackTests(SessionFixture fixture) : IClassFixture<SessionFi
         var otherDevice = await fixture.ConnectOutsideAsync(ann, "Cy", via: "cinema-activity");
         var bob = Unique("tr-bob-");
         var bobsPhone = await fixture.ConnectPhoneAsync(bob, Unique("phone-"));
+        // Bob's arrival reaches the screen as a roster push, after the screen's own earlier pushes, and
+        // the change is made only once it has: nothing from setting the room up is still on its way.
+        var tvRoster = new Heard<List<Participant>>(tv, "ParticipantsChanged");
         var bobsRoom = await fixture.ConnectAsync(room, bob, "Bob");
+        while (!(await tvRoster.Next()).Any(p => p.UserId == bob)) { }
 
         var tvHears = new Heard<FilmTracks>(tv, "TracksChanged");
         var phoneHears = new Heard<FilmTracks>(phone, "TracksChanged");
@@ -175,7 +179,6 @@ public sealed class TrackTests(SessionFixture fixture) : IClassFixture<SessionFi
         var bobHears = new Heard<FilmTracks>(bobsPhone, "TracksChanged");
         var bobInRoomHears = new Heard<FilmTracks>(bobsRoom, "TracksChanged");
         var tvState = new Heard<SessionStatePush>(tv, "StateChanged");
-        var tvRoster = new Heard<object>(tv, "ParticipantsChanged");
         var bobState = new Heard<SessionStatePush>(bobsRoom, "StateChanged");
 
         using var put = await As(ann).PutAsJsonAsync(Route(), new TrackChoice { SubtitleId = "s1", AudioId = "a1" });
