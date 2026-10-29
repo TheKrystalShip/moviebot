@@ -100,7 +100,8 @@ public sealed class RungHeadsTests(SessionFixture fixture) : IClassFixture<Sessi
         await using var carol = await fixture.ConnectAsync(room, "u3", "Carol");
         var joined = await carol.InvokeAsync<JoinReply>("Join", room);
         var wire = System.Text.Json.JsonSerializer.Serialize(joined, ManifestJsonContext.Default.JoinReply);
-        Assert.DoesNotContain("480", wire);
+        // 480 as a value of its own: the room's epoch is hex and can hold those digits.
+        Assert.DoesNotMatch(@"(?<![0-9A-Za-z])480(?![0-9A-Za-z])", wire);
         Assert.DoesNotContain("uality", wire);
     }
 
