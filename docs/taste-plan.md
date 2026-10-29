@@ -66,19 +66,21 @@ CREATE TABLE taste_votes (
 ```
 
 A subject is named by an id that outlives a rebuild of the catalogue, never the catalogue's own integer:
-a title by its IMDb id, a person by their TMDB id, a franchise by its source and source id (`tmdb:<n>`,
-`wikidata:Q<n>`), a company by its TMDB id. Cleared is no row.
+a title by its IMDb id, a person by their TMDB id, a franchise by the source id the catalogue serves it
+by (`c<collection>`, or a Wikidata item), a company by its TMDB id. Cleared is no row.
 
 | Route | Does |
 |---|---|
-| `PUT /api/me/votes/{kind}/{id}` | `{ "vote": 1 \| -1 }`; answers the record with its revision |
-| `DELETE /api/me/votes/{kind}/{id}` | Clears it |
-| `GET /api/me/votes` | Every vote, newest first, each with its subject's card |
+| `PUT /api/me/votes/{kind}/{id}` | `{ "vote": 1 \| -1 }`; answers the vote as the list gives it |
+| `DELETE /api/me/votes/{kind}/{id}` | Clears it; `204` whether or not there was one |
+| `GET /api/me/votes` | Every vote, newest first: `{kind, id, vote, votedAt, name?, image?, card?}`, a title's with its card |
 | `GET /api/me/taste` | The profile's strongest features, liked and disliked, as the taste page shows them |
 
-Every title, person, franchise and company the API serves carries `myVote` for the person asking, so
-a page draws its buttons lit with no second read. A vote is pushed to the person's other devices as
-preferences are.
+On the wire a person is the catalogue's person id and a company its id, as every other route names
+them; the API maps them to what it keeps. A device reads the person's votes once, as it reads their
+wants (`web/site/src/votes.js`), and again when the page comes back into view, the connection returns
+or the account changes: a person's votes are a few hundred at most, so one read lights every button on
+every page, and nothing the API serves carries a vote of its own.
 
 ### 4·b The profile
 
@@ -149,10 +151,8 @@ and measure how many come back in the top of For you. The weights in §4·b move
 
 ### 6·a Votes
 
-`taste_votes`, the routes, `myVote` on every subject, the buttons on the film, show, person, franchise
-and studio pages and the television's film, show and person pages, the pair on a card under hover or
-focus, the card's long press and its sheet on a touch screen, the taste page's list with undo. The
-design is the wireframe canvas `Cinema Like and Dislike wireframes`.
+Landed: `docs/api-contract.md` (Votes), `src/MovieBot.Api/CLAUDE.md`, `web/site/README.md` (the title pages,
+the headings, cards and their sheet, Profile's Taste), krystal's `Verdict`.
 
 ### 6·b For you
 

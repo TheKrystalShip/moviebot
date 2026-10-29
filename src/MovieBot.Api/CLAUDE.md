@@ -155,6 +155,12 @@ film onto a device is `Offline/CLAUDE.md`.
   `WatchRecorder` sees the finishing, for a film and for a show's last aired episode. The wish for a
   film nothing has yet is kept while some want on it has `may_wish`, and goes with the last, in the
   transaction that ends that want (`Wants/WantStore`).
+- **A vote is keyed by the person and an id that outlives the catalogue** (`Votes/`). A title is kept by
+  its IMDb id, a franchise by its collection or Wikidata id, and a person and a company by the film
+  database's own id, never by the catalogue's row number, which a rebuild reassigns; a person is mapped
+  from the catalogue's id on a write and back on a read. A vote on a subject the catalogue no longer
+  lists stays, and a person it does not map is left out of the list until it maps again. A list reads
+  the catalogue once per kind, not once per vote.
 - **What a person watched comes from the room, the one source of where a film is** (`People/`). A
   room's state is a position at an instant and everything between two changes follows from it, so
   nothing polls the rooms. `SessionStore` raises `Watched` when a stretch of playing ends — a pause,

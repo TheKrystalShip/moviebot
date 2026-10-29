@@ -3,6 +3,7 @@ import { cardRating, posterArt } from "../api/index.js";
 import { discoverFilmPath, discoverPath, moviePath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
 import { watchHref } from "./Film.jsx";
+import { VotableCard } from "./VotableCard.jsx";
 import { useWantRibbon } from "./WantButton.jsx";
 
 // Poster cards for titles that are not on a shelf: a search's answers and what somebody waits on. Every
@@ -65,12 +66,14 @@ export function FoundCard({ found, here, held, line }) {
   const playable = here && here.status === "ready";
   const status = line || (found.credit && found.credit.role) || (found.starring || []).join(", ");
   const [ribbon, wantMenu] = useWantRibbon(found.id, show ? "show" : "film", found.title);
+  const to = foundPage(found, here, held);
   return (
     <>
+      <VotableCard imdbId={found.id} kind={show ? "show" : "film"} name={found.title} year={found.year} category={found.category} art={posterArt(found)} to={to}>
       <PosterCard
         name={found.title}
         art={posterArt(found)}
-        onPick={() => navigate(foundPage(found, here, held))}
+        onPick={() => navigate(to)}
         facts={[
           { icon: "star", value: cardRating(found), label: "Rating" },
           { value: found.year || null, label: "Year" },
@@ -78,6 +81,7 @@ export function FoundCard({ found, here, held, line }) {
         status={status ? { label: status, title: status } : null}
         action={playable ? { label: "Watch", onClick: () => navigate(watchHref(here.id)) } : undefined}
         ribbon={ribbon} />
+      </VotableCard>
       {wantMenu}
     </>
   );
@@ -93,15 +97,18 @@ export function waitersWords(waiters, waiting) {
 /** A film not out yet that people wait on, from the Anticipated row: its year, how many wait, and its ribbon. */
 export function AnticipatedCard({ film }) {
   const [ribbon, wantMenu] = useWantRibbon(film.imdbId, "film", film.title);
+  const art = film.posterUrl ? `url("${film.posterUrl}")` : null;
   return (
     <>
+      <VotableCard imdbId={film.imdbId} kind="film" name={film.title} year={film.year} art={art} to={discoverFilmPath(film.imdbId)}>
       <PosterCard
         name={film.title}
-        art={film.posterUrl ? `url("${film.posterUrl}")` : null}
+        art={art}
         onPick={() => navigate(discoverFilmPath(film.imdbId))}
         facts={[{ value: film.year || null, label: "Year" }]}
         status={{ icon: "bell", label: waitersWords(film.waiters, film.waiting) }}
         ribbon={ribbon} />
+      </VotableCard>
       {wantMenu}
     </>
   );

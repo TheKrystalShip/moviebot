@@ -598,14 +598,20 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         .GroupBy(x => x.Franchise, x => x.Entry)
         .ToDictionary(g => g.Key, g => g.ToList()));
 
-    public Franchise? Franchise(string id) => reader.Read(c =>
+    private static FranchiseCard? FranchiseHead(SqliteConnection c, string id)
     {
         var (source, sourceId) = id.StartsWith('c') ? ("tmdb", id[1..]) : ("wikidata", id);
-        var card = c.First($"""
+        return c.First($"""
             SELECT {FranchiseColumns} FROM franchises f
             LEFT JOIN franchise_titles ft ON ft.franchise_id = f.id LEFT JOIN titles t ON t.id = ft.title_id AND t.listed = 1
             WHERE f.source = $source AND f.source_id = $id GROUP BY f.id
             """, FranchiseOf, ("$source", source), ("$id", sourceId));
+    }
+
+    public Franchise? Franchise(string id) => reader.Read(c =>
+    {
+        var (source, sourceId) = id.StartsWith('c') ? ("tmdb", id[1..]) : ("wikidata", id);
+        var card = FranchiseHead(c, id);
         if (card is null) return null;
         var parts = c.Query($"""
             SELECT {FranchiseColumns} FROM franchise_parts pa JOIN franchises u ON u.id = pa.universe_id
@@ -621,6 +627,35 @@ public sealed class CatalogueQueries(CatalogueReader reader)
         "SELECT tmdb_id, id FROM people WHERE tmdb_id IN (SELECT value FROM json_each($ids))",
         r => (r.GetInt32(0), r.GetInt64(1)),
         ("$ids", JsonSerializer.Serialize(tmdbIds.Select(i => (long)i).ToArray(), StoreJson.Default.Int64Array))).ToDictionary(x => x.Item1, x => x.Item2));
+
+    /// <summary>The film database's person id of the catalogue's person, which is the id that outlives a rebuild; null for nobody.</summary>
+    public int? TmdbOfPerson(long id) => reader.Read(c => c.First(
+        "SELECT tmdb_id FROM people WHERE id = $id", r => (int?)r.GetInt32(0), ("$id", id)));
+
+    /// <summary>The catalogue's people by the film database's person ids; an id the catalogue does not map is left out.</summary>
+    public Dictionary<int, Person> PeopleOfTmdb(IReadOnlyCollection<int> tmdbIds) => reader.Read(c => c.Query("""
+        SELECT p.tmdb_id, p.id, p.name, (SELECT i.path FROM images i WHERE i.path = p.profile AND i.size = 'w185'), p.department,
+               (SELECT count(DISTINCT x.title_id) FROM credits x JOIN titles t ON t.id = x.title_id AND t.listed = 1 WHERE x.person_id = p.id)
+        FROM people p WHERE p.tmdb_id IN (SELECT value FROM json_each($ids))
+        """, r => (Tmdb: r.GetInt32(0), Person: new Person(r.GetInt64(1), r.GetString(2), ImageUrls.Of(r.GetStringOrNull(3), ImageUrls.Portrait),
+            r.GetStringOrNull(4), r.GetInt32(5))),
+        ("$ids", JsonSerializer.Serialize(tmdbIds.Select(i => (long)i).ToArray(), StoreJson.Default.Int64Array))).ToDictionary(x => x.Tmdb, x => x.Person));
+
+    /// <summary>The companies by the film database's company ids, which the catalogue keeps as its own; an id it does not hold is left out.</summary>
+    public Dictionary<long, Company> Companies(IReadOnlyCollection<long> ids) => reader.Read(c => c.Query("""
+        SELECT o.id, o.name, (SELECT i.path FROM images i WHERE i.path = o.logo AND i.size = 'w500') FROM companies o
+        WHERE o.id IN (SELECT value FROM json_each($ids))
+        """, r => new Company(r.GetInt64(0), r.GetString(1), ImageUrls.Of(r.GetStringOrNull(2), ImageUrls.Logo)),
+        ("$ids", JsonSerializer.Serialize(ids.ToArray(), StoreJson.Default.Int64Array))).ToDictionary(x => x.Id));
+
+    /// <summary>The franchises' cards by their ids (<c>c…</c> or a Wikidata item); an id the catalogue does not hold is left out.</summary>
+    public Dictionary<string, FranchiseCard> FranchiseCards(IReadOnlyCollection<string> ids) => reader.Read(c =>
+    {
+        var cards = new Dictionary<string, FranchiseCard>(StringComparer.Ordinal);
+        foreach (var id in ids.Distinct(StringComparer.Ordinal))
+            if (FranchiseHead(c, id) is { } card) cards[id] = card;
+        return cards;
+    });
 
     /// <summary>The rankings the catalogue holds, by name.</summary>
     public List<string> Rankings() => reader.Read(c => c.Query("SELECT DISTINCT list FROM rankings ORDER BY list", r => r.GetString(0)));

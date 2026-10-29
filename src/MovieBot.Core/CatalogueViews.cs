@@ -139,6 +139,9 @@ public sealed record Facets(int Total, List<FacetSection> Sections);
 
 public sealed record Person(long Id, string Name, string? Portrait, string? Department, int Titles);
 
+/// <summary>A production company: the film database's id, its name and its logo when the catalogue keeps one.</summary>
+public sealed record Company(long Id, string Name, string? Logo);
+
 /// <summary>A franchise: a film database collection (<c>c…</c>) or a Wikidata universe (<c>Q…</c>).</summary>
 public sealed record FranchiseCard(string Id, string Kind, string Name, string? Poster, string? Backdrop, int Titles, int? FirstYear, int? LastYear);
 

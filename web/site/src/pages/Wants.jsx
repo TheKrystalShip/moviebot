@@ -10,6 +10,7 @@ import { refreshWants, useWantList } from "../wants.js";
 import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { FilterField, useListedFilter } from "../components/FilterField.jsx";
 import { CardsSkeleton } from "../components/TitleCards.jsx";
+import { VotableCard } from "../components/VotableCard.jsx";
 import { useWantRibbon } from "../components/WantButton.jsx";
 
 /** How often a title being fetched is asked after, so its progress moves on the page. */
@@ -44,6 +45,7 @@ export function WantCard({ want: w, action }) {
   const next = w.nextEpisode;
   return (
     <>
+      <VotableCard imdbId={w.imdbId} kind={w.kind} name={w.title} year={w.card && w.card.year} category={w.card && w.card.category} art={posterArt(w.card)} to={wantHref(w)}>
       <PosterCard
         name={w.title}
         art={posterArt(w.card)}
@@ -62,6 +64,7 @@ export function WantCard({ want: w, action }) {
           ? { label: "Watch", onClick: () => navigate(watchHref(w.libraryId)) }
           : undefined)}
         ribbon={ribbon} />
+      </VotableCard>
       {menu}
     </>
   );

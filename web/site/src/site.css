@@ -106,6 +106,9 @@
 
 .kc-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px; }
 
+/* The pair closing a title's action row stands a little apart from the actions. */
+.kc-actions__vote { margin-left: 4px; }
+
 /* ── Posters and shelves ─────────────────────────────────────────────────────────────── */
 .kc-poster-art {
   position: relative; aspect-ratio: 2 / 3; border-radius: var(--r-sm); overflow: hidden;
@@ -171,6 +174,35 @@ button.kc-continue:disabled { cursor: progress; }
 @media (hover: hover) {
   .kc-continue-item:not(:hover):not(:focus-within) .kc-continue__remove { opacity: 0; }
 }
+
+/* A title's card with its verdict: Like and Dislike over the foot of the poster on a pointer's hover or
+   focus, and a touch screen's long press for the sheet. The overlay is the poster's own height, beside
+   the card so its buttons never reach the card's link, and rises with the card on hover. */
+.kc-card { position: relative; min-width: 0; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.kc-card__votes {
+  position: absolute; top: 0; left: 0; right: 0; aspect-ratio: 2 / 3; z-index: 4; pointer-events: none;
+  display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(to top, color-mix(in srgb, var(--kc-art-ink) 72%, transparent), transparent 34%);
+  transition: opacity var(--d-base) var(--ease-out), transform var(--d-base) var(--ease-out);
+}
+.kc-card__vote { pointer-events: auto; }
+@media (hover: hover) and (pointer: fine) {
+  .kc-card:hover .kc-card__votes { transform: translateY(-3px); }
+  .kc-card:not(:hover):not(:focus-within) .kc-card__votes { opacity: 0; }
+}
+@media not ((hover: hover) and (pointer: fine)) {
+  .kc-card__votes { display: none; }
+}
+/* The sheet a long press opens: the title over its verdict and its actions. */
+.kc-sheet__head { display: flex; align-items: center; gap: 12px; min-width: 0; width: 100%; }
+.kc-sheet__art {
+  flex: none; width: 40px; aspect-ratio: 2 / 3; border-radius: var(--r-sm); border: var(--edge);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface-1) 70%) center / cover;
+}
+.kc-sheet__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kc-sheet__name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-sheet__meta { font-size: 12.5px; color: var(--fg-3); }
 .kc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--art-fg-white) 25%, transparent); }
 .kc-bar > span { display: block; height: 100%; background: var(--krystal-teal); }
 /* A segmented choice across its container. */
@@ -243,6 +275,9 @@ button.kc-continue:disabled { cursor: progress; }
   .kc-tt .kc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .kc-tt .kc-actions > :first-child,
   .kc-tt .kc-actions > :last-child:nth-child(even) { grid-column: 1 / -1; }
+  /* The pair takes one cell wherever it falls (`VoteButtons` splits it between its buttons); `:nth-child(n)`
+     matches it always and outranks the spanning rule above. */
+  .kc-tt .kc-actions > .kc-actions__vote:nth-child(n) { grid-column: auto; margin-left: 0; }
 }
 
 /* A title's trailer in its hero's place: YouTube's player at 16:9, as large as the hero holds. */
@@ -428,6 +463,8 @@ button.kc-continue:disabled { cursor: progress; }
 .kc-browse-head__face { width: 72px; height: 72px; }
 .kc-browse-head__text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .kc-browse-head__text h2 { margin: 0; font-size: 24px; font-weight: 700; overflow-wrap: anywhere; }
+/* The pair follows the name on its last line, its icons on the baseline: the baseline of the pair is the foot of its buttons, which the margin lifts out by the room under an icon (a 38px button holding a 15px icon). */
+.kc-browse-head__aside { display: inline-flex; vertical-align: baseline; margin: 0 0 -11.5px 8px; white-space: nowrap; }
 @media (max-width: 430px) {
   .kc-browse-head { gap: 12px; }
   .kc-browse-head__face { width: 56px; height: 56px; }
@@ -558,6 +595,13 @@ button.kc-episode:disabled { cursor: progress; }
 .kc-wanters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .kc-wanters__face { display: inline-flex; border-radius: 50%; }
 .kc-wanters__avatar { width: 32px; height: 32px; font-size: 12px; border: var(--edge); }
+/* ── Taste ── the profile tab listing the person's Likes and Dislikes. */
+.kc-taste { display: flex; flex-direction: column; gap: 28px; }
+.kc-taste .kc-section h2 { display: flex; align-items: center; gap: 8px; }
+.kc-taste__skeleton { display: flex; flex-direction: column; gap: 8px; }
+.kc-taste__lead { width: 36px; height: 54px; border-radius: var(--r-sm); background: var(--surface-2) center / cover no-repeat; display: inline-flex; align-items: center; justify-content: center; color: var(--fg-3); flex-shrink: 0; }
+.kc-taste__lead--person { width: 44px; height: 44px; border-radius: var(--r-pill); }
+.kc-taste__lead--company { width: 54px; height: 36px; background-size: contain; background-color: transparent; }
 .kc-profile__wants { display: none; }
 @media (max-width: 768px) { .kc-profile__wants { display: block; } }
 .kc-plan-picker { display: flex; flex-direction: column; gap: 20px; }

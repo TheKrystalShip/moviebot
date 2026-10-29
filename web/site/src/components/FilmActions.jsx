@@ -14,6 +14,7 @@ import { WantButton } from "./WantButton.jsx";
 import { PlanButton } from "./PlanButton.jsx";
 import { WatchedButton } from "./WatchedButton.jsx";
 import { Wanters } from "./Wanters.jsx";
+import { VoteButtons } from "./VoteButtons.jsx";
 
 /**
  * What can be done with a film that has to be fetched, from what its availability says: Watch when it
@@ -21,9 +22,9 @@ import { Wanters } from "./Wanters.jsx";
  * of the others who want it, and Download onto this device when it can be watched, in the order a
  * library film's page puts them. `state` is the `useLoad` of `library.availability`, which the caller
  * asks for and can reload; `film` is the film's catalogue card. `compact` keeps to the actions that watch or wait, for a film shown among others;
- * `afterWatch` follows Watch (a page's Trailer), and `children` follow the actions on their row.
+ * `vote` closes the row with the person's Like and Dislike, on a film's own page; `afterWatch` follows Watch (a page's Trailer), and `children` follow the actions on their row.
  */
-export function FilmActions({ imdbId, film, state, compact = false, afterWatch = null, children }) {
+export function FilmActions({ imdbId, film, state, compact = false, vote = false, afterWatch = null, children }) {
   const downloading = useCan("cinema:download");
   const saving = useOffersSaving();
   const online = useOnline();
@@ -99,6 +100,7 @@ export function FilmActions({ imdbId, film, state, compact = false, afterWatch =
             still: film.poster, portrait: true, backdrop: film.backdrop || film.poster,
           }} />
         )}
+        {vote && <VoteButtons kind="title" id={imdbId} name={film.title} row className="kc-actions__vote" />}
         {children}
       </div>
       {!compact && <Wanters imdbId={imdbId} />}

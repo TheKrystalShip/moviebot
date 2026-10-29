@@ -6,6 +6,7 @@ import { discoverFilterPath, discoverPath } from "../../paths.js";
 import { linkProps, navigate } from "../../router.js";
 import { Failed, watchHref } from "../../components/Film.jsx";
 import { WantButton } from "../../components/WantButton.jsx";
+import { VoteButtons } from "../../components/VoteButtons.jsx";
 import { foundPage } from "../../components/TitleCards.jsx";
 import { startFilm } from "./TvFilm.jsx";
 import { TvCategory, TvDiscoverFront, TvList, TvTitleCard } from "./TvDiscoverShelves.jsx";
@@ -23,6 +24,12 @@ function listQueryOf(query) {
   const list = {};
   for (const [key, value] of query) if (!PAGE_PARAMS.has(key)) (list[key] ||= []).push(value);
   return list;
+}
+
+/** The studio a list is of, by its id: the list that holds nothing but one company. */
+function studioOf(list) {
+  const keys = Object.keys(list);
+  return keys.length === 1 && keys[0] === "company" && list.company.length === 1 ? list.company[0] : null;
 }
 
 /**
@@ -94,7 +101,8 @@ export function TvDiscover({ query }) {
       <div className="kc-tvd__answer" inert={drawer.open ? "" : undefined} style={{ display: "contents" }}>
       {mode === "person" && <PersonWork key={person} personId={person} {...listed} />}
       {mode === "franchise" && <FranchiseTitles key={franchise} id={franchise} {...listed} />}
-      {mode === "list" && <TvList key={JSON.stringify(listQuery)} query={listQuery} {...listed} eyebrow="Discover" title={listName || "Titles"} />}
+      {mode === "list" && <TvList key={JSON.stringify(listQuery)} query={listQuery} {...listed} eyebrow="Discover" title={listName || "Titles"}
+        aside={studioOf(listQuery) && <VoteButtons kind="company" id={studioOf(listQuery)} name={listName} size="lg" className="kc-tv-vote" />} />}
       {mode === "filter" && <TvList query={FILTER_BASE} {...listed} eyebrow="Discover" title="Filter" />}
       {mode === "browse" && <TvCategory key={category} id={category} index={index} picks={picks} where={where} />}
       {mode === "index" && index.error && !index.data && <div className="kc-tv-pad"><Failed error={index.error} onRetry={index.reload} /></div>}
@@ -146,6 +154,7 @@ function PersonWork({ personId, sort, picks, where }) {
   if (!p) return null;
   return (
     <TvList query={{ person: personId }} sort={sort} picks={picks} where={where} title={p.name} eyebrow={KNOWN_AS[p.department] || p.department}
+      aside={<VoteButtons kind="person" id={personId} name={p.name} size="lg" className="kc-tv-vote" />}
       lead={<Avatar src={p.portrait} name={p.name} tone="muted" size="css" imagePosition="center 20%" className="kc-tv-person__face kc-tvd__face" />} />
   );
 }
@@ -158,7 +167,8 @@ function FranchiseTitles({ id, sort, picks, where }) {
   if (!f) return null;
   return (
     <TvList query={{ franchise: id }} sort={sort} picks={picks} where={where} title={f.card.name}
-      eyebrow={f.card.kind === "universe" ? "Universe" : "Franchise"} />
+      eyebrow={f.card.kind === "universe" ? "Universe" : "Franchise"}
+      aside={<VoteButtons kind="franchise" id={id} name={f.card.name} size="lg" className="kc-tv-vote" />} />
   );
 }
 

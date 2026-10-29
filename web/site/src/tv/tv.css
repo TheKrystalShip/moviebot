@@ -103,6 +103,13 @@
 .kc-tvf__spot { max-width: 520px; }
 .kc-tvf { padding-bottom: 200px; }
 
+/* The pair is two buttons apart by a spotlight row's gap, so each takes the remote's focus as its own stop. */
+:root[data-tv] .kc-tv-vote { gap: 12px; }
+
+/* The pair in a page's heading follows the name on its baseline: its `lg` buttons are 38px around a 15px
+   icon, so it hangs 11.5px below the line to set the icon's foot on it. */
+.kc-tv-aside { display: inline-flex; vertical-align: baseline; margin: 0 0 -11.5px 18px; }
+
 /* ── A page's search field, with its filter drawer, and the line when nothing matches ── */
 
 .kc-tv-search {

@@ -15,6 +15,7 @@ import { FilmScore } from "../components/FilmDetails.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
+import { VoteButtons } from "../components/VoteButtons.jsx";
 import { CardsSkeleton, FoundCard, foundPage } from "../components/TitleCards.jsx";
 import {
   BrowseHead, BrowseSkeleton, CategoryPage, DiscoverRows, FrontSkeleton, LIST_ORDERS, ListPage, MoreCards, OWN_ORDERS, UNWATCHED,
@@ -35,6 +36,12 @@ function listQueryOf(query) {
   const list = {};
   for (const [key, value] of query) if (!PAGE_PARAMS.has(key)) (list[key] ||= []).push(value);
   return list;
+}
+
+/** The studio a list is of, by its id: the list that holds nothing but one company. */
+function studioOf(list) {
+  const keys = Object.keys(list);
+  return keys.length === 1 && keys[0] === "company" && list.company.length === 1 ? list.company[0] : null;
 }
 
 /**
@@ -124,7 +131,10 @@ export function Discover({ query }) {
       {mode === "franchise" && <FranchiseTitles key={franchise} id={franchise} {...listed} />}
       {mode === "list" && (
         <ListPage key={JSON.stringify(listQuery)} query={listQuery} {...listed}
-          head={(count) => <BrowseHead eyebrow="Discover" title={listName || "Titles"} count={count} />} />
+          head={(count) => (
+            <BrowseHead eyebrow="Discover" title={listName || "Titles"} count={count}
+              aside={studioOf(listQuery) && <VoteButtons kind="company" id={studioOf(listQuery)} name={listName} size="lg" />} />
+          )} />
       )}
       {mode === "filter" && (
         <ListPage query={FILTER_BASE} {...listed} icon="sliders-horizontal"
@@ -229,6 +239,7 @@ function PersonWork({ personId, sort, picks, where }) {
     <ListPage query={{ person: personId }} sort={sort} picks={picks} where={where} icon="user" empty="No credits"
       head={(count) => (
         <BrowseHead eyebrow={KNOWN_AS[p.department] || p.department} title={p.name} count={count}
+          aside={<VoteButtons kind="person" id={personId} name={p.name} size="lg" />}
           face={<Avatar src={p.portrait} name={p.name} tone="muted" size="css" className="kc-cast__face kc-browse-head__face" />} />
       )} />
   );
@@ -251,7 +262,8 @@ function FranchiseTitles({ id, sort, picks, where }) {
         </div>
       )}
       <ListPage query={{ franchise: id }} sort={sort} picks={picks} where={where} icon="library"
-        head={(count) => <BrowseHead eyebrow={f.card.kind === "universe" ? "Universe" : "Franchise"} icon="library" title={f.card.name} count={count} />} />
+        head={(count) => <BrowseHead eyebrow={f.card.kind === "universe" ? "Universe" : "Franchise"} icon="library" title={f.card.name} count={count}
+          aside={<VoteButtons kind="franchise" id={id} name={f.card.name} size="lg" />} />} />
     </>
   );
 }

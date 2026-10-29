@@ -171,14 +171,20 @@ function ShelfRail({ head, where, skip, least = 1, picks }) {
   );
 }
 
-/** A heading over a category or a list: what it is in, its name, and how many. */
-export function BrowseHead({ eyebrow, icon, title, count, face }) {
+/**
+ * A heading over a category or a list: what it is in, its name, and how many. `face` leads it and
+ * `aside` follows the name, on the name's last line, with its icons on the name's baseline (a subject's
+ * Like and Dislike).
+ */
+export function BrowseHead({ eyebrow, icon, title, count, face, aside = null }) {
   return (
     <div className="kc-browse-head">
       {face}
       <div className="kc-browse-head__text">
         {eyebrow && <span className="kc-eyebrow">{eyebrow}</span>}
-        <h2>{icon && <span className="kc-browse-head__mark"><Icon name={icon} size={18} /></span>}{title}</h2>
+        <h2>{icon && <span className="kc-browse-head__mark"><Icon name={icon} size={18} /></span>}
+          <span>{title}{aside && <span className="kc-browse-head__aside">{aside}</span>}</span>
+        </h2>
       </div>
       {count != null && <span className="kc-count">{count}</span>}
     </div>

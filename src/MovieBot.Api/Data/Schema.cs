@@ -18,7 +18,7 @@ namespace TheKrystalShip.MovieBot.Api.Data;
 /// </summary>
 internal static class Schema
 {
-    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar, WatchedMarks, ContinueHidden];
+    private static readonly string[] Steps = [Tables, Sorts, Wants, Together, Plans, TitleScores, PlanSuggestions, ImdbTitles, Franchises, Catalogued, TabBar, WatchedMarks, ContinueHidden, TasteVotes];
 
     public static int Version => Steps.Length;
 
@@ -35,6 +35,21 @@ internal static class Schema
         connection.Execute($"PRAGMA user_version = {Version};");
         transaction.Commit();
     }
+
+    private const string TasteVotes = """
+        -- What each person likes or dislikes, by what it is: a title by its IMDb id, a person by the
+        -- film database's person id, a franchise by its collection or Wikidata id and a company by the
+        -- film database's company id. None is an id of the catalogue's own, so a vote survives the
+        -- catalogue being rebuilt. vote is 1 for a like and -1 for a dislike.
+        CREATE TABLE taste_votes (
+            user_id      TEXT NOT NULL,
+            subject_kind TEXT NOT NULL CHECK (subject_kind IN ('title', 'person', 'franchise', 'company')),
+            subject_id   TEXT NOT NULL,
+            vote         INTEGER NOT NULL CHECK (vote IN (-1, 1)),
+            voted_at     TEXT NOT NULL,
+            PRIMARY KEY (user_id, subject_kind, subject_id)
+        ) WITHOUT ROWID;
+        """;
 
     private const string ContinueHidden = """
         -- What each person took off their Continue watching, and when: a film by its library title

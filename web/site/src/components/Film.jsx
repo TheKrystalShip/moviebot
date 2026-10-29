@@ -3,6 +3,7 @@ import { Button, Icon, IconButton, PosterCard } from "@thekrystalship/krystal";
 import { cardRating, episodeCode, filmName, posterArt, posterUrl } from "../api/index.js";
 import { useOnline } from "../connectivity.js";
 import { useSave } from "../offline/hooks.js";
+import { VotableCard } from "./VotableCard.jsx";
 import { useWantRibbon } from "./WantButton.jsx";
 import { moviePath, playSavedPath, roomPath, showPath } from "../paths.js";
 import { linkProps, navigate } from "../router.js";
@@ -196,12 +197,15 @@ export function FilmCard({ title, room, isNew, download }) {
     : d && d.genres.length > 0 ? { label: d.genres.slice(0, 2).join(" · ") }
     : null;
 
+  const name = (d && d.title) || film.name || title.title;
+  const to = moviePath(title.id, d && d.category);
   return (
     <>
+      <VotableCard imdbId={film.imdbId} kind="film" name={name} year={(d && d.year) || film.year} category={d && d.category} art={poster ? `url("${poster}")` : null} to={to}>
       <PosterCard
-        name={(d && d.title) || film.name || title.title}
+        name={name}
         art={poster ? `url("${poster}")` : null}
-        onPick={() => navigate(moviePath(title.id, d && d.category))}
+        onPick={() => navigate(to)}
         badge={isNew ? { tone: "info", label: "New" } : null}
         {...downloadMarks(download)}
         facts={[
@@ -214,6 +218,7 @@ export function FilmCard({ title, room, isNew, download }) {
           ? { label: room ? "Join" : progress ? "Resume" : "Watch", icon: room ? "users" : "play", onClick: () => navigate(link.href) }
           : undefined}
         ribbon={ribbon} />
+      </VotableCard>
       {wantMenu}
     </>
   );
@@ -236,13 +241,15 @@ export function ShowCard({ show, downloaded = 0 }) {
   const link = useWatchLink(to, null, resume && resume.positionSeconds);
   const [ribbon, wantMenu] = useWantRibbon(show.imdbId, "show", show.title);
 
+  const page = show.imdbId ? showPath(show.imdbId, { category: d && d.category }) : moviePath(show.firstTitleId, d && d.category);
   return (
     <>
+      <VotableCard imdbId={show.imdbId} kind="show" name={show.title} year={d && d.year} category={d && d.category} art={posterArt(d)} to={page}>
       <PosterCard
         name={show.title}
         segments={show.seasonProgress ? show.seasonProgress.map((x) => (x.episodes > 0 ? x.watched / x.episodes : 0)) : null}
         art={posterArt(d)}
-        onPick={() => navigate(show.imdbId ? showPath(show.imdbId, { category: d && d.category }) : moviePath(show.firstTitleId, d && d.category))}
+        onPick={() => navigate(page)}
         {...(downloaded > 0 ? { corner: { icon: "circle-check", label: `${downloaded} downloaded`, tone: "accent" } } : {})}
         facts={[
           { icon: "star", value: cardRating(d), label: "Rating" },
@@ -252,6 +259,7 @@ export function ShowCard({ show, downloaded = 0 }) {
         status={status}
         action={link.disabled ? undefined : { label: resume ? "Resume" : "Watch", onClick: () => navigate(link.href) }}
         ribbon={ribbon} />
+      </VotableCard>
       {wantMenu}
     </>
   );

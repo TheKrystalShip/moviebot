@@ -8,7 +8,7 @@ import { removeWant, setWant, useWant, wantWords } from "../wants.js";
  * want (visible to everybody), say who sees it, and remove it. The store shows each change at once and
  * takes it back if the API refuses it.
  */
-function useWantActions(imdbId, kind, title) {
+export function useWantActions(imdbId, kind, title) {
   const [busy, setBusy] = React.useState(false);
 
   const run = async (work, failure) => {
@@ -33,16 +33,17 @@ function useWantActions(imdbId, kind, title) {
   };
 }
 
-/** The menu of a want: who sees it, and removing it. */
-function WantItems({ want, actions, disabled }) {
+/** The menu of a want: who sees it, and removing it. `onChosen` follows any choice, for a menu that closes on one. */
+export function WantItems({ want, actions, disabled, onChosen = null }) {
+  const done = () => { if (onChosen) onChosen(); };
   return (
     <>
-      <MenuRadioGroup value={want.visible ? "everyone" : "me"} onChange={(value) => actions.show(value === "everyone")}>
+      <MenuRadioGroup value={want.visible ? "everyone" : "me"} onChange={(value) => { done(); void actions.show(value === "everyone"); }}>
         <MenuRadioItem value="me" icon="lock" disabled={disabled}>Just me</MenuRadioItem>
         <MenuRadioItem value="everyone" icon="users" disabled={disabled}>Everyone</MenuRadioItem>
       </MenuRadioGroup>
       <MenuSeparator />
-      <MenuItem icon="x" tone="danger" disabled={disabled} onSelect={actions.remove}>Remove</MenuItem>
+      <MenuItem icon="x" tone="danger" disabled={disabled} onSelect={() => { done(); void actions.remove(); }}>Remove</MenuItem>
     </>
   );
 }

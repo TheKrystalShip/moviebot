@@ -12,6 +12,7 @@ using TheKrystalShip.MovieBot.Api.Discord;
 using TheKrystalShip.MovieBot.Acquire.Tmdb;
 using TheKrystalShip.MovieBot.Api.Library;
 using TheKrystalShip.MovieBot.Api.Plans;
+using TheKrystalShip.MovieBot.Api.Votes;
 using TheKrystalShip.MovieBot.Api.Wants;
 using TheKrystalShip.MovieBot.Api.People;
 using TheKrystalShip.MovieBot.Api.Subtitles;
@@ -196,6 +197,8 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<FollowWatcher>());
 
 // What each person wants to watch, and what turns a want into what a page shows.
 builder.Services.AddSingleton<WantStore>();
+builder.Services.AddSingleton<VoteStore>();
+builder.Services.AddSingleton<VotePresenter>();
 builder.Services.AddSingleton<WantMatcher>();
 builder.Services.AddSingleton<WantPresenter>();
 builder.Services.AddHostedService<TogetherDigest>();
@@ -385,6 +388,7 @@ app.MapShows();
 app.MapListedPages();
 app.MapFollows();
 app.MapWants();
+app.MapVotes();
 app.MapPlans();
 app.MapCinemaNotifications();
 app.MapInvites();

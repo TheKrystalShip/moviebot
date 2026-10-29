@@ -6,6 +6,7 @@ import { PROFILE_TABS } from "./paths.js";
 const FACES = {
   history: { icon: "history", label: "History" },
   following: { icon: "tv", label: "Following" },
+  taste: { icon: "thumbs-up", label: "Taste" },
   notifications: { icon: "bell-ring", label: "Notifications" },
   playback: { icon: "play", label: "Playback" },
   remote: { icon: "smartphone", label: "Remote" },

@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.11.0] - 2026-10-29
+
+### Added
+- **Like and Dislike.** A person likes or dislikes a film, a show, a person, a franchise or a studio, at
+  any time and without watching it. The pair is two frameless buttons (krystal 10.3.0's `Verdict`):
+  - at the end of a film's or a show's action row, one cell of the row's grid on a phone;
+  - in a person's, franchise's or studio's heading, on the name's baseline;
+  - at the end of a television's spotlight row, and in its list headings.
+  Pressing the lit one clears the vote and pressing the other moves it. API 3.9.0, site 0.104.0.
+- **Votes on cards.** With a pointer, the pair shows at the foot of a title card's poster under hover or
+  keyboard focus. On a touch screen a long press on a card opens its sheet: the title, Like and Dislike,
+  the want's actions and More info. Site 0.104.0.
+- **Profile → Taste** lists every vote, Liked and Disliked, newest first, each movable or clearable where
+  it stands, a cleared one with Undo. Site 0.104.0.
+- `PUT` and `DELETE /api/me/votes/{kind}/{id}` and `GET /api/me/votes` (`docs/api-contract.md`, Votes),
+  kept in `taste_votes` by the person and an id that outlives the catalogue: a title by IMDb id, a person
+  by TMDB id, a franchise and a company by the ids the catalogue serves them by. API 3.9.0.
+
 ## [4.10.1] - 2026-10-27
 
 ### Fixed

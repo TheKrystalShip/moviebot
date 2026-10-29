@@ -64,6 +64,11 @@ export const me = {
   // What they want to watch, film or show, here or not: the one signal the server acts on. Making a
   // want answers what the checks found; removing one already gone is no failure. Who else wants a
   // title is `wanters`, which names only the people with a visible want.
+  // What they like and dislike: a vote is on a subject, `{ kind, id }` (`title`, `person`, `franchise`,
+  // `company`), and is `1` or `-1`; clearing one already gone is no failure (`votes.js`).
+  votes: () => call("GET", "/api/me/votes"),
+  vote: (kind, id, vote) => call("PUT", `/api/me/votes/${enc(kind)}/${enc(id)}`, { vote }),
+  unvote: (kind, id) => call("DELETE", `/api/me/votes/${enc(kind)}/${enc(id)}`),
   wants: () => call("GET", "/api/me/wants"),
   wantsPage: (params) => call("GET", withQuery("/api/me/wants/page", params)),
   want: (imdbId, kind, visible) => call("PUT", `/api/me/wants/${enc(imdbId)}`, visible === undefined ? { kind } : { kind, visible }),

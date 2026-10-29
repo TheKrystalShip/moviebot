@@ -10,9 +10,9 @@ import { About } from "../../pages/About.jsx";
 import { TvRemote, TvRemoteName } from "../TvRemote.jsx";
 
 /**
- * The profile's sections on a television: every tab but the browser's pushes, which a TV does not take.
+ * The profile's sections on a television: every tab but the browser's pushes, which a TV does not take, and Taste, which has no television page.
  */
-const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications");
+const SECTIONS = PROFILE_TAB_FACES.filter((t) => t.id !== "notifications" && t.id !== "taste");
 
 /**
  * Who is signed in and everything that is theirs, on a television: the person and their sections down

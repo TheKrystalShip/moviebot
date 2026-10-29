@@ -10,6 +10,7 @@ import { airDay, clock, timeLeft } from "../../time.js";
 import { Failed, watchLink } from "../../components/Film.jsx";
 import { FollowButton } from "../../components/FollowButton.jsx";
 import { WantButton } from "../../components/WantButton.jsx";
+import { VoteButtons } from "../../components/VoteButtons.jsx";
 import { episodeRelease, watchNow, watchOpening, openingEpisode } from "../../watchNow.js";
 import { SpotFacts, SpotStage, useSpotlight } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
@@ -123,6 +124,7 @@ export function TvShow({ imdbId, season, inLibrary }) {
             <TrailerButton size="lg" />
             {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
             {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
+            {s.imdbId && <VoteButtons kind="title" id={s.imdbId} name={s.title} className="kc-tv-vote" />}
           </div>
         </TvGroup>
       </TvTitleHero>

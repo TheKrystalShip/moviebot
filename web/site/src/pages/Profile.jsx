@@ -19,6 +19,7 @@ import { Empty, Failed, PageHead, watchHref } from "../components/Film.jsx";
 import { TabStage } from "../components/PageStage.jsx";
 import { CardsSkeleton } from "../components/TitleCards.jsx";
 import { FilterField, useListedFilter } from "../components/FilterField.jsx";
+import { Taste } from "./ProfileTaste.jsx";
 import { Cues } from "../player/Cues.jsx";
 import { SubtitleStyleEditor } from "../player/SubtitleStyleEditor.jsx";
 import { BufferAheadLevels, bufferAhead, setBufferAhead } from "../player/engine/media/bufferAhead.ts";
@@ -27,7 +28,7 @@ import { inActivity } from "../discord/launch.js";
 
 // The tabs that show what only the server holds. With no connection they are drawn disabled; the
 // others show what the device keeps (Playback and Subtitles, read-only) or the browser's own (Appearance).
-const SERVER_TABS = new Set(["history", "following", "notifications"]);
+const SERVER_TABS = new Set(["history", "following", "taste", "notifications"]);
 
 /** The tab a profile opened with no connection shows when its address names none it can. */
 const DEVICE_TAB = "playback";
@@ -83,6 +84,7 @@ export function Profile({ tab: named, fromDevice = false }) {
 export function panel(tab, session) {
   switch (tab) {
     case "following": return <Following />;
+    case "taste": return <Taste />;
     case "notifications": return <NotificationSettings client={notificationsClient} />;
     case "playback": return <Playback />;
     case "subtitles": return <SubtitleLook />;

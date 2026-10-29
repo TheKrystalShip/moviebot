@@ -183,16 +183,18 @@ function TvSeriesGrid() {
 /**
  * Every title one list query names on a television, in rows that wrap, a page at a time: `query` is the
  * list's own (a shelf's, a genre's, a person's, a franchise's, the filter's), narrowed by the filter's
- * `picks` and in the order `sort`. `eyebrow`, `title` and `lead` head it.
+ * `picks` and in the order `sort`. `eyebrow`, `title` and `lead` head it, and `aside` follows the name on
+ * its baseline (a subject's Like and Dislike), reached by the remote beside the name.
  */
-export function TvList({ query, sort, picks, where, eyebrow, title, lead }) {
+export function TvList({ query, sort, picks, where, eyebrow, title, lead, aside = null }) {
   const asked = { ...narrowed(query, apiPicks(picks)), ...(sort ? { sort } : {}) };
   const list = usePaged(pagesOf(asked), [JSON.stringify(asked)]);
   if (list.error && !list.data) return <div className="kc-tv-pad"><Failed error={list.error} onRetry={list.reload} /></div>;
   if (!list.titles) return null;
   return (
     <section className="kc-tvd__browse">
-      <TvHeading as="h1" size="lg" eyebrow={eyebrow} title={title} count={list.data.total} lead={lead} />
+      <TvHeading as="h1" size="lg" eyebrow={eyebrow}
+        title={aside ? <>{title}<span className="kc-tv-aside">{aside}</span></> : title} count={list.data.total} lead={lead} />
       {list.titles.length === 0 && <p className="kc-tv-none">{pickCount(picks) > 0 ? "Nothing matches." : "Nothing here."}</p>}
       <div className="kc-tvsv__grid">
         {list.titles.map((t, i) => <TvTitleCard key={t.kind + t.id} card={t} where={where} data-tv-initial={i === 0 ? "" : undefined} />)}

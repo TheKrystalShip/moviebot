@@ -56,7 +56,7 @@ export function CatalogueFilm({ imdbId }) {
           {a && a.notOut && (
             <Pill tone="warn" icon="calendar-clock" className="kc-tt__notout">Not out digitally yet</Pill>
           )}
-          <FilmActions imdbId={imdbId} film={d} state={state} afterWatch={<TrailerButton />} />
+          <FilmActions imdbId={imdbId} film={d} state={state} vote afterWatch={<TrailerButton />} />
         </HeroGroup>
       </TitleHero>
       <TitleSections page={d} facts={titleFacts(d)} />

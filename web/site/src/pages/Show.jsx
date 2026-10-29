@@ -16,6 +16,7 @@ import { FollowButton } from "../components/FollowButton.jsx";
 import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
+import { VoteButtons } from "../components/VoteButtons.jsx";
 import { DownloadMark, SeasonDownload, useDownloadMark, useDownloadMarks, useOffersSaving } from "../components/DownloadButton.jsx";
 import { EpisodeRow } from "../components/EpisodeRow.jsx";
 import { useWatchedChange } from "../components/WatchedButton.jsx";
@@ -166,6 +167,7 @@ export function Show({ imdbId, season, inLibrary, category = null, fromDevice = 
             {(s.followable || s.follow) && <FollowButton imdbId={s.imdbId} title={s.title} follow={s.follow} onChange={show.reload} />}
             {s.imdbId && <WantButton imdbId={s.imdbId} kind="show" title={s.title} />}
             {s.imdbId && <PlanButton imdbId={s.imdbId} kind="show" />}
+            {s.imdbId && <VoteButtons kind="title" id={s.imdbId} name={s.title} row className="kc-actions__vote" />}
           </div>
           {s.imdbId && <Wanters imdbId={s.imdbId} />}
           {s.nextEpisode && (

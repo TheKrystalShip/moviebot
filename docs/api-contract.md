@@ -626,6 +626,30 @@ leaving the library and is the same want when it comes back. The shapes are in
 - **`GET /api/anticipated`** (`AnticipatedView[]`, below in Fetching films) counts visible wants on films
   with a wish, and the asking person's own.
 
+### Votes
+
+A person likes or dislikes a title, a person, a franchise or a company. A vote is keyed by the person
+and an id that outlives a rebuild of the catalogue, so it holds when the catalogue is rebuilt. Everything
+here answers for whoever the token names and takes `cinema:watch`; the service key names nobody and is
+refused.
+
+| Route | Returns |
+|---|---|
+| `PUT /api/me/votes/{kind}/{id}` | `VoteView` for `{vote}` — casts the vote, or replaces the one the person has and its time. `kind` is `title`, `person`, `franchise` or `company`; `vote` is `1` or `-1`. `id` is a title's IMDb id (`tt0232500`); a person's catalogue id (as `/api/catalogue/people/{id}`); a franchise's id (as `/api/catalogue/franchises/{id}`: `c<collection>` or a Wikidata `Q…` item); a company's id (the integer after the `s` of the list query's `company=`). `400` for a kind, an id or a vote the route does not take; `404` when the catalogue lists no such subject. |
+| `DELETE /api/me/votes/{kind}/{id}` | `204` — removes the vote, also when there was none. `400` for a kind or an id the route does not take. |
+| `GET /api/me/votes` | `VoteView[]` — the person's votes, newest first. |
+
+- **`VoteView`** is `{kind, id, vote, votedAt, name?, image?, card?}`. `kind` and `id` are as the routes
+  take them. `name` is the subject's name in the catalogue and `image` a person's portrait, a franchise's
+  poster or a company's logo, as the `/images/…` URL the catalogue serves; both are absent when the
+  catalogue lists the subject with none, and for a title `image` is absent, the `card` having the poster.
+  `card` is a title's `TitleCard` joined for the person, `you` filled, as every view naming a title
+  carries it.
+- A vote whose subject the catalogue no longer lists stays and is still listed, with only `kind`, `id`,
+  `vote` and `votedAt`. A person is kept by the film database's id; one the catalogue does not map is
+  left out of the list, and is listed again when the catalogue maps it again.
+- While the catalogue cannot be read the routes that name it answer `503` with the reason.
+
 ### Plans
 
 A plan is a title, the times put forward for it and the people invited. Nothing about it locks: anybody

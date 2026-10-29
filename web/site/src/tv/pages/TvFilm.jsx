@@ -9,6 +9,7 @@ import { clock } from "../../time.js";
 import { formatTime } from "../../player/engine/format.ts";
 import { Failed, watchHref, watchLink } from "../../components/Film.jsx";
 import { WantButton } from "../../components/WantButton.jsx";
+import { VoteButtons } from "../../components/VoteButtons.jsx";
 import { defaultOffer, watchNow } from "../../watchNow.js";
 import { SpotFacts } from "../spot.jsx";
 import { TmdbCredit, TvCast, TvFacts } from "../TvCredits.jsx";
@@ -98,6 +99,7 @@ export function TvTitle({ id }) {
       {playable && !room && progress && <Button size="lg" icon="rotate-ccw" {...watchLink(m.id)}>Restart</Button>}
       <TrailerButton size="lg" />
       {film.imdbId && <WantButton imdbId={film.imdbId} kind="film" title={film.name || m.title} />}
+      {film.imdbId && <VoteButtons kind="title" id={film.imdbId} name={film.name || m.title} className="kc-tv-vote" />}
     </>
   );
   const shown = progress && (
@@ -170,6 +172,7 @@ export function TvCatalogueFilm({ imdbId }) {
       )}
       <TrailerButton size="lg" />
       <WantButton imdbId={imdbId} kind="film" title={d.title} />
+      <VoteButtons kind="title" id={imdbId} name={d.title} className="kc-tv-vote" />
     </>
   );
 

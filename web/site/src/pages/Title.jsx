@@ -15,6 +15,7 @@ import { WantButton } from "../components/WantButton.jsx";
 import { PlanButton } from "../components/PlanButton.jsx";
 import { WatchedButton } from "../components/WatchedButton.jsx";
 import { Wanters } from "../components/Wanters.jsx";
+import { VoteButtons } from "../components/VoteButtons.jsx";
 import { DownloadButton, useOffersSaving } from "../components/DownloadButton.jsx";
 import { useDeviceTitle } from "../offline/hooks.js";
 import { Unreachable } from "./Offline.jsx";
@@ -121,6 +122,7 @@ export function Title({ id, category = null, fromDevice = false }) {
                 runtime: clock(m.durationSeconds), still: posterUrl(title), portrait: true, backdrop,
               }} />
             )}
+            {film.imdbId && <VoteButtons kind="title" id={film.imdbId} name={filmName(m)} row className="kc-actions__vote" />}
           </div>
           {progress && !room && <ResumeMeter position={progress.positionSeconds} duration={m.durationSeconds} />}
           {m.status === "transcoding" && (
